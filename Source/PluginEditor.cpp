@@ -16,8 +16,9 @@ KnobCell::KnobCell(const juce::String& label, juce::RangedAudioParameter& param,
     slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     slider.setRotaryParameters(juce::degreesToRadians(225.0f), juce::degreesToRadians(495.0f), true);
     slider.setMouseDragSensitivity(180);
-    slider.setScrollWheelEnabled(false);   // the wheel scrolls the rack instead
+    slider.setScrollWheelEnabled(false);
     slider.setDoubleClickReturnValue(true, resetValue);
+    slider.setTitle(label);
     slider.getProperties().set("cap", (int) cap.getARGB());
     slider.getProperties().set("ptr", (int) pointer.getARGB());
     if (step > 0.0) slider.setRange(slider.getMinimum(), slider.getMaximum(), step);
@@ -28,7 +29,7 @@ KnobCell::KnobCell(const juce::String& label, juce::RangedAudioParameter& param,
 
 void KnobCell::resized() {
     if (compact_) slider.setBounds(0, 0, getHeight(), getHeight());
-    else slider.setBounds(10, 0, 54, 54);
+    else slider.setBounds((getWidth() - 54) / 2, 0, 54, 54);
 }
 
 void KnobCell::paint(Graphics& g) {
@@ -102,8 +103,6 @@ void StripButton::mouseDown(const juce::MouseEvent& e) {
     if (e.mods.isPopupMenu()) {
         juce::PopupMenu m;
         m.addItem(1, "Delete strip");
-        // The strip button can be destroyed by a rack refresh while the popup is open.
-        // A SafePointer prevents the asynchronous menu callback touching freed UI state.
         juce::Component::SafePointer<StripButton> safeThis(this);
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [safeThis](int result) {
             if (result == 1 && safeThis != nullptr && safeThis->onDelete) safeThis->onDelete();
@@ -125,6 +124,9 @@ SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     soloBtn.getProperties().set("plain", true);
     soloBtn.onClick = [this] { proc.soloSlot.store(soloBtn.getToggleState() ? index : -1); };
     for (auto* b : {&leftBtn, &rightBtn, &removeBtn}) b->getProperties().set("plain", true);
+    powerBtn.setTooltip("Enable this slot; EQ and Air switch with a short fade");
+    leftBtn.setTooltip("Move module left"); rightBtn.setTooltip("Move module right");
+    removeBtn.setTooltip("Remove module (Undo restores it)"); soloBtn.setTooltip("Solo this slot");
     rebuild();
 }
 
@@ -132,6 +134,9 @@ void SlotComponent::rebuild() {
     type = proc.slotType(index);
     cells.clear();
     const bool filled = type != Empty;
+    const bool hasArtwork = type == Eq || type == Air;
+    artPanel.setVisible(hasArtwork);
+    artButton.setVisible(hasArtwork);
     for (auto* c : std::initializer_list<juce::Component*>{&powerBtn, &leftBtn, &rightBtn, &removeBtn, &soloBtn}) c->setVisible(filled);
     if (filled) {
         const auto& mi = info(type);
@@ -174,20 +179,27 @@ void SlotComponent::resized() {
     rightBtn.setBounds(w - 52, 13, 20, 20);
     leftBtn.setBounds(w - 74, 13, 20, 20);
     soloBtn.setBounds(12, h - 40, 26, 26);
+    artPanel.setBounds(getLocalBounds());
+    artButton.setBounds(44, h - 40, w - 56, 28);
 
     const auto& mi = info(type);
+    const bool art = type == Eq || type == Air;
+    const int controlX = art ? 112 : 8;
+    const int controlW = w - controlX - 8;
+    const int cellW = art ? 64 : 74;
     int y = 106;
     if (mi.hasVU) { vuRect = Rectangle<int>(10, y, w - 20, 62); y += 70; }
     for (int s = 0; s < mi.numSections; ++s) {
         const auto& sec = mi.sections[s];
         const int rows = (sec.count + 1) / 2, sh = 20 + 78 * rows;
-        sectionRects.push_back(Rectangle<int>(8, y, w - 16, sh));
+        sectionRects.push_back(Rectangle<int>(controlX, y, controlW, sh));
         for (int j = 0; j < sec.count; ++j) {
             const int idx = sec.first + j;
             if (idx >= (int) cells.size()) break;
             const int col = sec.count > 1 ? j % 2 : 0, row = j / 2;
-            const int cx = sec.count > 1 ? 8 + ((w - 16) - 148) / 2 + col * 74 : (w - 74) / 2;
-            cells[(size_t) idx]->setBounds(cx, y + 18 + row * 78, 74, 78);
+            const int columns = sec.count > 1 ? 2 : 1;
+            const int cx = controlX + (controlW - columns * cellW) / 2 + col * cellW;
+            cells[(size_t) idx]->setBounds(cx, y + 18 + row * 78, cellW, 78);
         }
         y += sh + 6;
     }
@@ -220,7 +232,6 @@ void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
 
     g.setColour(pal::ink.withAlpha(0.85f)); g.setFont(font(17.0f, true));
     g.drawText(slotLetter(index), Rectangle<float>(42.0f, 10.0f, 30.0f, 26.0f), juce::Justification::centredLeft, false);
-
     g.setColour(pal::inkDim); g.setFont(font(9.0f, true));
     g.drawText("SKELLIERE", Rectangle<float>(16.0f, 44.0f, W - 32.0f, 12.0f), juce::Justification::centredLeft, false);
     g.setColour(pal::ink); g.setFont(font(20.0f, true));
@@ -228,7 +239,6 @@ void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
     g.setColour(pal::inkDim); g.setFont(font(10.5f));
     g.drawText(mi.sub, Rectangle<float>(16.0f, 79.0f, W - 32.0f, 14.0f), juce::Justification::centredLeft, true);
     g.setColour(cat); g.fillRect(Rectangle<float>(16.0f, 97.0f, W - 32.0f, 2.5f));
-
     if (mi.hasVU) paintVU(g, vuRect.toFloat(), needle);
 
     const auto legendFont = font(10.5f, true);
@@ -243,7 +253,6 @@ void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
         g.setColour(pal::ink); g.setFont(legendFont);
         g.drawText(legend, Rectangle<float>(r.getX() + 13.0f, r.getY() + 2.0f, (float) tw + 4.0f, 13.0f), juce::Justification::centredLeft, false);
     }
-
     if (mi.hasVU) {
         g.setColour(pal::inkDim); g.setFont(font(11.0f, true));
         g.drawText("-" + juce::String(needle, 1) + " dB", footRect, juce::Justification::centredRight, false);
@@ -294,11 +303,15 @@ void ModuleTile::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(pal::plateTop, sw.getY(), pal::plateBot, sw.getBottom()));
     g.fillRoundedRectangle(sw, 2.0f);
     paintBrushed(g, sw, 0.9f);
-    g.setColour(categoryColour(mi.cat)); g.fillRect(sw.removeFromBottom(3.0f));
-    const float kr = 7.0f;
-    g.setColour(juce::Colours::black.withAlpha(0.5f)); g.fillEllipse(sw.getCentreX() - kr, sw.getCentreY() - kr + 1.5f, 2 * kr, 2 * kr);
-    g.setColour(capColour(mi.cat)); g.fillEllipse(sw.getCentreX() - kr, sw.getCentreY() - kr, 2 * kr, 2 * kr);
-    g.setColour(pointerColour(mi.cat)); g.drawLine(sw.getCentreX(), sw.getCentreY(), sw.getCentreX() + 3.0f, sw.getCentreY() - 5.5f, 1.6f);
+    if (type == Eq || type == Air) {
+        g.drawImageWithin(rackPanel(type, 1), (int) sw.getX(), (int) sw.getY(), (int) sw.getWidth(), (int) sw.getHeight(), juce::RectanglePlacement::centred);
+    } else {
+        g.setColour(categoryColour(mi.cat)); g.fillRect(sw.removeFromBottom(3.0f));
+        const float kr = 7.0f;
+        g.setColour(juce::Colours::black.withAlpha(0.5f)); g.fillEllipse(sw.getCentreX() - kr, sw.getCentreY() - kr + 1.5f, 2 * kr, 2 * kr);
+        g.setColour(capColour(mi.cat)); g.fillEllipse(sw.getCentreX() - kr, sw.getCentreY() - kr, 2 * kr, 2 * kr);
+        g.setColour(pointerColour(mi.cat)); g.drawLine(sw.getCentreX(), sw.getCentreY(), sw.getCentreX() + 3.0f, sw.getCentreY() - 5.5f, 1.6f);
+    }
     auto text = r.reduced(5.0f).withTrimmedLeft(40.0f);
     g.setColour(pal::ink); g.setFont(font(12.0f, true));
     g.drawFittedText(juce::String(mi.name).toUpperCase(), text.removeFromTop(30.0f).toNearestInt(), juce::Justification::centredLeft, 2);
@@ -338,7 +351,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
-    infoLabel.setText("Click a module to read about it. Double-click it, or drag it into a slot.", juce::dontSendNotification);
+    infoLabel.setText("Double-click or drag a module into a slot. Quad EQ and Air Lift include artwork choices; use the live knobs beside the art.", juce::dontSendNotification);
     addAndMakeVisible(infoLabel);
     refresh();
 }
@@ -347,7 +360,10 @@ void LibraryPanel::select(int type) {
     selectedType = type;
     for (auto* t : tiles) { t->selected = t->type == type; t->repaint(); }
     const auto& mi = info(type);
-    infoLabel.setText(juce::String(mi.name).toUpperCase() + "\n" + mi.desc + "\n\nDouble-click or drag into a slot.", juce::dontSendNotification);
+    const juce::String hint = (type == Eq || type == Air)
+        ? "\n\nChoose artwork at the bottom of its slot. Art is visual only; live controls are on the right."
+        : "\n\nDouble-click or drag into a slot.";
+    infoLabel.setText(juce::String(mi.name).toUpperCase() + "\n" + mi.desc + hint, juce::dontSendNotification);
 }
 
 void LibraryPanel::refresh() {
@@ -419,8 +435,6 @@ RackUI::RackUI(SkellierProcessor& p)
       outKnob("Output", *p.apvts.getParameter("out"), fmtDb, Colour(0xffc9cbce), Colour(0xff17181a), 0.0, 0.0, true),
       library(p), strip(p), pathStrip(p) {
     setSize(kW, kH);
-
-    // ---- top bar
     for (auto* b : {&prevPreset, &nextPreset, &snapA, &snapB, &snapCopy, &undoBtn, &redoBtn, &clearBtn, &bypassBtn}) addAndMakeVisible(*b);
     for (int i = 0; i < SkellierProcessor::numFactory(); ++i) presetBox.addItem(SkellierProcessor::factoryName(i), i + 1);
     presetBox.setSelectedItemIndex(0, juce::dontSendNotification);
@@ -437,7 +451,6 @@ RackUI::RackUI(SkellierProcessor& p)
     };
     prevPreset.onClick = [stepPreset] { stepPreset(-1); };
     nextPreset.onClick = [stepPreset] { stepPreset(1); };
-
     for (auto* b : {&snapA, &snapB}) { b->setClickingTogglesState(true); b->setRadioGroupId(41); b->getProperties().set("plain", true); }
     snapA.setToggleState(true, juce::dontSendNotification);
     snapA.onClick = [this] { proc.switchSnapshot(0); say("Snapshot A"); };
@@ -448,7 +461,6 @@ RackUI::RackUI(SkellierProcessor& p)
     clearBtn.onClick = [this] { proc.clearRack(); say("Rack cleared. Undo brings it back."); };
     bypassBtn.setClickingTogglesState(true);
     bypassAtt = std::make_unique<juce::ButtonParameterAttachment>(*proc.apvts.getParameter("bypass"), bypassBtn);
-
     static const char* zt[4] = {"80%", "90%", "100%", "125%"};
     static const float zv[4] = {0.8f, 0.9f, 1.0f, 1.25f};
     for (int i = 0; i < 4; ++i) {
@@ -460,12 +472,8 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-
-    // ---- display bar
-    lcd.setText("Skelliere Rack ready");
+    lcd.setText("v0.2.0 ARTWORK - Quad EQ / Air Lift: choose artwork below");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
-
-    // ---- dream strips
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
     stripsLabel.setColour(juce::Label::textColourId, pal::inkDim);
@@ -483,15 +491,12 @@ RackUI::RackUI(SkellierProcessor& p)
     };
     addAndMakeVisible(saveStripBtn);
     rebuildStripButtons();
-
-    // ---- rack
     addAndMakeVisible(library);
     viewport.setViewedComponent(&strip, false);
     viewport.setScrollBarsShown(false, true);
     viewport.setScrollBarThickness(12);
     addAndMakeVisible(viewport);
     addAndMakeVisible(pathStrip);
-
     for (int s = 0; s < kNumSlots; ++s) proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this);
     startTimerHz(30);
 }
@@ -555,18 +560,15 @@ void RackUI::resized() {
     clearBtn.setBounds(832, 18, 66, 32);
     bypassBtn.setBounds(944, 18, 92, 32);
     for (int i = 0; i < 4; ++i) scaleBtn[i].setBounds(1044 + i * 48, 18, 44, 32);
-
     lcd.setBounds(24, 72, 600, 40);
     inKnob.setBounds(644, 68, 130, 48);
     meters.setBounds(780, 72, 300, 40);
     outKnob.setBounds(1096, 68, 130, 48);
-
     stripsLabel.setBounds(24, 130, 120, 32);
     defaultStrip.setBounds(150, 134, 90, 32);
     for (int i = 0; i < stripButtons.size(); ++i) stripButtons[i]->setBounds(246 + i * 104, 134, 100, 32);
     stripName.setBounds(1000, 134, 140, 32);
     saveStripBtn.setBounds(1146, 134, 92, 32);
-
     library.setBounds(12, 174, 224, 600);
     viewport.setBounds(260, 196, 972, 556);
     pathStrip.setBounds(12, 780, 1236, 32);
@@ -575,7 +577,6 @@ void RackUI::resized() {
 void RackUI::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(pal::chassis2, 0.0f, pal::chassis, (float) kH));
     g.fillAll();
-
     auto bar = [&](Rectangle<int> r) {
         auto f = r.toFloat();
         g.setColour(juce::Colours::black.withAlpha(0.5f)); g.fillRoundedRectangle(f.translated(0.0f, 2.0f), 4.0f);
@@ -586,7 +587,6 @@ void RackUI::paint(Graphics& g) {
         g.setColour(juce::Colours::white.withAlpha(0.14f)); g.drawHorizontalLine(r.getY() + 1, f.getX() + 5.0f, f.getRight() - 5.0f);
     };
     bar({12, 10, 1236, 48}); bar({12, 64, 1236, 56}); bar({12, 126, 1236, 40});
-
     g.setColour(juce::Colours::black.withAlpha(0.6f)); g.setFont(font(26.0f, true));
     g.drawText("SKELLIERE", Rectangle<int>(30, 12, 200, 48), juce::Justification::centredLeft, false);
     g.setColour(pal::ink); g.drawText("SKELLIERE", Rectangle<int>(29, 11, 200, 48), juce::Justification::centredLeft, false);
@@ -594,7 +594,6 @@ void RackUI::paint(Graphics& g) {
     g.drawRoundedRectangle(Rectangle<float>(214.0f, 22.0f, 46.0f, 24.0f), 2.0f, 1.2f);
     g.drawText("RACK", Rectangle<int>(214, 22, 46, 24), juce::Justification::centred, false);
 
-    // rack frame: dark side cheeks and perforated rails
     const Rectangle<int> frame(244, 174, 1004, 600);
     g.setColour(Colour(0xff030304)); g.fillRoundedRectangle(frame.toFloat(), 5.0f);
     for (int side = 0; side < 2; ++side) {
@@ -617,6 +616,9 @@ void RackUI::paint(Graphics& g) {
         }
     }
     g.setColour(Colour(0xff050506)); g.fillRect(Rectangle<int>(260, 196, 972, 556));
+    g.setColour(Colour(0xff101214)); g.fillRect(840, 754, 382, 18);
+    g.setColour(pal::ink); g.setFont(font(10.0f, true));
+    g.drawText("v0.2.0 ARTWORK  |  Scroll right for slots E-H", Rectangle<int>(846, 754, 370, 18), juce::Justification::centredRight, false);
 }
 
 // =================================================================== editor window
