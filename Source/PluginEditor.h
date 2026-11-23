@@ -1,9 +1,16 @@
 #pragma once
 #include <JuceHeader.h>
+#include <BinaryData.h>
 #include "PluginProcessor.h"
 #include "Look.h"
 
 namespace skl::ui {
+
+// UI-only appearance choices. Audio processing and host parameters never depend
+// on these values. They are shared between instances in this process and are
+// intentionally not saved into a DAW project or rack preset.
+inline int& eqArtworkChoice() { static int choice = 1; return choice; }
+inline int& airArtworkChoice() { static int choice = 1; return choice; }
 
 // ------------------------------------------------------------------ one knob: dial, printed label, value readout
 class KnobCell final : public juce::Component {
@@ -45,6 +52,96 @@ public:
     void paintButton(juce::Graphics&, bool hover, bool down) override;
 };
 
+// Converted resource images are stored landscape in the archives, so rotate
+// once on the message thread before drawing them. No image work is in the DSP.
+inline juce::Image uprightArtwork(const void* bytes, int size) {
+    auto raw = juce::ImageFileFormat::loadFrom(bytes, static_cast<size_t>(size));
+    if (!raw.isValid()) return {};
+    juce::Image upright(juce::Image::ARGB, raw.getHeight(), raw.getWidth(), true);
+    juce::Graphics imageGraphics(upright);
+    imageGraphics.drawImageTransformed(raw,
+        juce::AffineTransform::rotation(juce::MathConstants<float>::halfPi)
+            .translated(static_cast<float>(raw.getHeight()), 0.0f));
+    return upright;
+}
+
+class ArtworkPanelBackground final : public juce::Component {
+public:
+    ArtworkPanelBackground(juce::Component& parent, std::function<int()> getType)
+        : getType_(std::move(getType)) {
+        setInterceptsMouseClicks(false, false);
+        setBounds(0, 0, 168, 540);
+        parent.addAndMakeVisible(*this); // first child: power, knobs and buttons stay on top
+    }
+    void paint(juce::Graphics& g) override {
+        const int type = getType_();
+        const int choice = type == skl::Eq ? eqArtworkChoice() : type == skl::Air ? airArtworkChoice() : 0;
+        if (choice == 0) return;
+        static const juce::Image air = uprightArtwork(BinaryData::air_lift_faceplate_png, BinaryData::air_lift_faceplate_pngSize);
+        static const juce::Image earth = uprightArtwork(BinaryData::earth_faceplate_png, BinaryData::earth_faceplate_pngSize);
+        static const juce::Image classicEq = uprightArtwork(BinaryData::classic_eq_faceplate_png, BinaryData::classic_eq_faceplate_pngSize);
+        static const juce::Image classicLift = uprightArtwork(BinaryData::classic_lift_faceplate_png, BinaryData::classic_lift_faceplate_pngSize);
+        static const juce::Image blackbird = uprightArtwork(BinaryData::blackbird_faceplate_png, BinaryData::blackbird_faceplate_pngSize);
+        const juce::Image* face = nullptr;
+        if (choice == 3) face = &blackbird;
+        else if (type == skl::Eq) face = choice == 1 ? &earth : &classicEq;
+        else if (type == skl::Air) face = choice == 1 ? &air : &classicLift;
+        if (face == nullptr || !face->isValid()) return;
+        g.drawImageTransformed(*face, juce::AffineTransform::scale(
+            static_cast<float>(getWidth()) / static_cast<float>(face->getWidth()),
+            static_cast<float>(getHeight()) / static_cast<float>(face->getHeight())));
+        if (choice == 3) {
+            g.setColour(juce::Colours::black.withAlpha(0.88f));
+            g.fillRect(7, 464, getWidth() - 14, 30);
+            g.setColour(juce::Colours::white);
+            g.setFont(juce::Font(juce::FontOptions(10.0f).withStyle("Bold")));
+            g.drawFittedText("ART ONLY / NO MIC MODELING", 10, 468, getWidth() - 20, 22,
+                             juce::Justification::centred, 1);
+        }
+    }
+private:
+    std::function<int()> getType_;
+};
+
+// Appearance is chosen from a visible button rather than from painted knobs.
+// This button does not create a module or promise any new audio processing.
+class ArtworkButton final : public juce::TextButton {
+public:
+    ArtworkButton(juce::Component& parent, std::function<int()> getType)
+        : juce::TextButton("LOOK"), getType_(std::move(getType)) {
+        setBounds(42, 500, 112, 26);
+        setTooltip("Choose artwork; Blackbird is appearance only and does not model a microphone");
+        parent.addAndMakeVisible(*this);
+        onClick = [this] {
+            const int type = getType_();
+            if (type != skl::Eq && type != skl::Air) return;
+            const int selected = type == skl::Eq ? eqArtworkChoice() : airArtworkChoice();
+            juce::PopupMenu menu;
+            menu.addItem(1, "Original rack", true, selected == 0);
+            menu.addItem(2, type == skl::Eq ? "AirEQ Earth art" : "AirEQ Air art", true, selected == 1);
+            menu.addItem(3, type == skl::Eq ? "CS-EQ art" : "CS-Lift art", true, selected == 2);
+            menu.addSeparator();
+            menu.addItem(4, "Blackbird art only (no mic processing)", true, selected == 3);
+            juce::Component::SafePointer<ArtworkButton> safeThis(this);
+            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [safeThis, type](int result) {
+                if (safeThis == nullptr || result < 1 || result > 4) return;
+                (type == skl::Eq ? eqArtworkChoice() : airArtworkChoice()) = result - 1;
+                if (auto* parent = safeThis->getParentComponent()) parent->repaint();
+                safeThis->repaint();
+            });
+        };
+    }
+    bool hitTest(int x, int y) override {
+        return (getType_() == skl::Eq || getType_() == skl::Air) && juce::TextButton::hitTest(x, y);
+    }
+    void paintButton(juce::Graphics& g, bool hover, bool down) override {
+        if (getType_() == skl::Eq || getType_() == skl::Air)
+            juce::TextButton::paintButton(g, hover, down);
+    }
+private:
+    std::function<int()> getType_;
+};
+
 // ------------------------------------------------------------------ one rack slot
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
@@ -73,6 +170,8 @@ private:
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;
+    ArtworkPanelBackground artPanel{*this, [this] { return type; }};
+    ArtworkButton artButton{*this, [this] { return type; }};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};
