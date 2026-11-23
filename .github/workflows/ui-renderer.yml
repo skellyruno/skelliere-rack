@@ -2,12 +2,11 @@ name: Skelliere Rack / Real JUCE editor screenshot
 on:
   push:
     branches: [main]
-    paths: ['Source/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', '.github/workflows/ui-renderer.yml']
+    paths: ['Source/**', 'assets/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', '.github/workflows/ui-renderer.yml']
   pull_request:
-    paths: ['Source/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', '.github/workflows/ui-renderer.yml']
+    paths: ['Source/**', 'assets/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', '.github/workflows/ui-renderer.yml']
   workflow_dispatch:
 
-# Cancel only superseded PR screenshots, not protected or manual runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('protected-{0}-{1}', github.ref, github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -22,15 +21,17 @@ jobs:
         run: cmake -S . -B build -A x64 -DSKELLIERE_BUILD_UI_RENDERER=ON
       - name: Compile actual-editor renderer
         run: cmake --build build --config Release --target SkelliereRackUIRenderer --parallel 2
-      - name: Capture real plugin editor
+      - name: Capture and validate artwork appearances
         shell: pwsh
         run: |
           $exe = Get-ChildItem build -Recurse -File -Filter SkelliereRackUIRenderer.exe | Select-Object -First 1
           if (-not $exe) { throw 'SkelliereRackUIRenderer.exe missing' }
           & $exe.FullName (Join-Path (Get-Location) 'ui-screenshots')
           if ($LASTEXITCODE -ne 0) { throw "Renderer failed: $LASTEXITCODE" }
-          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 1) { throw 'Expected one real-editor screenshot' }
+          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 6) { throw 'Expected six real-editor artwork screenshots' }
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }
+          $manifest = Get-Content ui-screenshots/manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.count -ne 6) { throw 'Screenshot manifest count mismatch' }
       - uses: actions/upload-artifact@v4
         with:
           name: Skelliere-Rack-Real-UI-Screenshot
