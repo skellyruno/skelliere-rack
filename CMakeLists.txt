@@ -45,3 +45,16 @@ target_link_libraries(SkellierRack PRIVATE
   juce::juce_audio_utils juce::juce_audio_processors juce::juce_gui_extra
   SkellCore::DSP)
 
+
+# Capture the actual Skelliere Rack editor in CI; never substitute the SkellCore demo.
+option(SKELLIERE_BUILD_UI_RENDERER "Build real Skelliere Rack JUCE editor screenshots" OFF)
+if(SKELLIERE_BUILD_UI_RENDERER)
+  add_executable(SkelliereRackUIRenderer tools/SkelliereRackUiRendererMain.cpp)
+  target_include_directories(SkelliereRackUIRenderer PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}/SkellierRack_artefacts/JuceLibraryCode")
+  target_link_libraries(SkelliereRackUIRenderer PRIVATE
+    SkellierRack SkellCore::UIRenderer SkellCore::DSP
+    juce::juce_audio_utils juce::juce_gui_extra)
+  target_compile_definitions(SkelliereRackUIRenderer PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+  target_compile_features(SkelliereRackUIRenderer PRIVATE cxx_std_17)
+endif()
