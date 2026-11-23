@@ -18,7 +18,17 @@ static std::vector<float> render(int type,double rate,int block,int channels) {
         const int n=std::min(block,4096-pos%4096);
         juce::AudioBuffer<float> view(p,channels,pos,n); m->process(view,k,event!=2); pos+=n;
     }
-    for(int i=0;i<16384;++i) { check(std::isfinite(a[i]),"Nonfinite extension output"); if(channels==2) check(a[i]==b[i],"Linked channels diverged"); }
+    for(int i=0;i<16384;++i) {
+        check(std::isfinite(a[i]),"Nonfinite extension left output");
+        if(channels==2) {
+            check(std::isfinite(b[i]),"Nonfinite extension right output");
+            if(a[i]!=b[i]) {
+                std::fprintf(stderr,"Linked channels diverged: module=%s type=%d rate=%.0f block=%d channel=2 sample=%d left=%.9g right=%.9g\\n",
+                             info(type).name,type,rate,block,i,(double)a[i],(double)b[i]);
+                std::exit(1);
+            }
+        }
+    }
     check(m->latency()==0,"Unexpected latency");
     m->reset(); juce::AudioBuffer<float> silent(channels,512);
     float defaults[6]{}; for(int j=0;j<info(type).numKnobs;++j) defaults[j]=defaultNorm(type,j);
