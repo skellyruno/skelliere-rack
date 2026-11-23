@@ -1,102 +1,61 @@
-# SkellCore VST Template
-Shared **Skell Audio** foundation for JUCE 8 C++17 VST3 plugins.
+# Skelliere Rack
 
-The former Skell VST Quickstart is preserved as a **small gain demo plugin**, with its original VST3 manufacturer, plugin code and bundle identity unchanged. Build a new plugin by choosing unique IDs; never reuse these demo IDs in commercial releases.
+A virtual mix rack for vocals: eight 500-series style slots (A to H), signal left to right, built on the SkellCore engine
+from the Skell VST template. VST3 and Standalone on Windows, macOS and Linux, plus AU on macOS.
 
-## Connected SKELL ecosystem
+## What is in it
 
-**[SkellWorld](SkellWorld/README.md)** now adds an opt-in localhost presence/events hub to the shared foundation. Run `python tools/skellworld_hub.py`, then click JOIN WORLD in two quickstart plugin instances. Other SKELL products are catalogued for gradual adoption; **they are not yet connected automatically**. No audio-thread networking or remote parameter control.
+Eleven modules, any order, any slot:
 
-## Contents
-- `SkellCore::DSP`: portable C++17 TempoClock, PhraseTracker, OnsetDetector, four-line FDNReverb, prototype 4× interpolated-peak limiter, PitchFormantEngine.
-- `SkellCore::UI`: JUCE LookAndFeel, colour themes and glow cache.
-- **Production DSP backend copies**: SkellyTune RealtimeTuner v3.3 and dependencies (MIT), exact DeEsser PhraseAwareDetector behavior in a namespaced copy, and Skelly Master MasteringEngine in a namespaced copy.
-- `SkellCore/backends/SkellyTuneBackend.h`: adapter matching production pitch backend to the shared `PitchFormantEngine`.
-- Separate portable CI (Windows + Linux) and Windows JUCE VST3 build pipeline.
+| Module | What it is |
+|---|---|
+| Skelly Tune | SkellyTune real-time pitch correction with key and scale (adds fixed latency, the host compensates) |
+| Quad EQ | High-pass, low shelf, two peaking mids, high shelf |
+| Opto C | Compressor with needle gain-reduction meter |
+| Sibilant | Phrase-aware split-band de-esser (SkellCore detector) with needle meter |
+| Warm Drive | Tube-style saturator, tone and mix |
+| Air Lift | High-shelf enhancer |
+| Twin Chorus | Two-voice chorus |
+| Tape Echo | Tone-shaped feedback delay |
+| Plate Room | Reverb (SkellCore feedback delay network) with pre-delay and damping |
+| Brick 1 | Zero-latency peak limiter with needle meter |
+| Trim | Gain and pan |
 
-## Generate a new plugin (recommended)
+Interface: module library (search, categories, double-click or drag into a slot), drag a slot header to move it
+(Alt or Option-drag copies), power and solo per slot, rack presets, A/B snapshots, Dream Strips (your own saved racks,
+right-click a strip to delete it), undo and redo for rack edits, Bypass All, 80/90/100/125% size, input and output
+trim with meters.
 
-```sh
-python tools/new_plugin.py "Skell Compressor" ../skell-compressor-vst --code SC01
-```
-
-This creates an independent VST3 + Standalone project with an immutable SkellCore dependency, unique plugin code, generated CI, and the original quickstart gain processor. Pick a different four-character code for **every** plugin. Once you rename the GitHub template repository, use `--core-repo https://github.com/skellyruno/skellcore-vst-template.git`.
-
-## Low-end PC performance and safety
-
-SkellCore offers an opt-in `TruePeakLimiter::Quality::Economy` detector (2 phases × 8 taps, versus default Standard's 4 × 16), modulo-free FIR reads, bounded buffer allocations, pre-prepare bypass safety, a bounded UI glow cache, and actual Release-mode allocation/parity tests. Read [performance details](SkellCore/PERFORMANCE.md) before enabling Economy in any shipped plugin.
-
-## v0.4 host safety and polished starter UI
-
-The pitch/formant adapter is now lifecycle-aware: before prepare, after backend replacement, or with an incompatible channel layout, it safely passes sanitized dry audio rather than returning an undefined output. The SkellyTune DSP algorithm is unchanged; new parity tests compare it to the original at 44.1/48/96 kHz with variable host blocks and six simultaneous instances.
-
-The starter gain effect now smooths host automation over 15 ms to reduce zipper clicks. Its UI is compact, resizable and vector-drawn with the SkellCore neon theme. The demo is built as both VST3 and Standalone for testing. **No existing demo plugin IDs or preset parameter IDs were changed.**
-
-As always, a CI build and synthetic DSP checks do not replace real Windows FL Studio compatibility and low-end CPU validation.
+Every slot is plain host parameters (module, on/off, six knobs), so DAW project recall and automation work.
+Limits in this first version: only the first Skelly Tune slot is active. Bypass All now preserves the pitch engine's fixed reported latency
+so bypassed and processed material stay aligned.
 
 ## Build
-```sh
-cmake -S . -B build -DJUCE_PATH=/path/to/JUCE
-cmake --build build --config Release
-```
 
-`JUCE_PATH` is optional; CMake otherwise fetches pinned JUCE 8.0.12.
-```sh
-cmake -S SkellCore -B build-core -DSKELLCORE_BUILD_TESTS=ON
-cmake --build build-core --config Release
-ctest --test-dir build-core -C Release --output-on-failure
-```
+You need CMake 3.22 or newer and a C++17 compiler (Visual Studio 2022 Build Tools on Windows, Xcode command line
+tools on macOS, gcc plus the JUCE Linux packages on Linux). The first configure downloads JUCE 8.0.12.
 
-## Reuse in other plugin repos
-Copy `SkellCore/` into your monorepo, or FetchContent the **immutable commit** of this template. Example from a consumer:
-```cmake
-include(FetchContent)
-FetchContent_Declare(SkellCore
-  GIT_REPOSITORY https://github.com/skellyruno/skellcore-vst-template.git
-  GIT_TAG <IMMUTABLE_COMMIT_SHA>
-  SOURCE_SUBDIR SkellCore)
-FetchContent_MakeAvailable(SkellCore)
-target_link_libraries(MyPlugin PRIVATE SkellCore::DSP SkellCore::UI)
-```
-Replace `MyPlugin` with the JUCE target. The official GitHub repository is now `skellyruno/skellcore-vst-template`. Use the canonical URL in all new plugin builds; pin an immutable, tested revision. The former `skell-vst-template` URL is only a backwards-compatibility redirect.
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --config Release --parallel
 
-## Integration APIs
-```cpp
-#include <SkellCore/Core.h>
-#include <SkellCore/backends/SkellyTuneBackend.h>
-skellcore::backends::SkellyTuneBackend tuning;
-skellcore::PitchFormantEngine pitch;
-pitch.setBackend(&tuning);
-pitch.prepare(48000, 2);
-auto latency = pitch.latencySamples(); // Report from prepareToPlay.
-```
-The production tuner exposes block processing and stable declared dry/transient latency. Do not change PDC inside processBlock and do not confuse variable pitch-cycle source age with fixed host delay.
+The VST3 appears under `build/SkellierRack_artefacts/Release/VST3/`. Copy it to your VST3 folder
+(Windows: `C:\Program Files\Common Files\VST3`). To use a JUCE you already have, add `-DJUCE_PATH=/path/to/JUCE`.
 
-Include `<SkellCore/backends/deesser/PhraseAwareDetector.h>` and use `skellcore::deesser::PhraseAwareDetector` for the existing DeEsser logic, and `<SkellCore/backends/master/MasteringEngine.h>` for the sampled-at-oversampled-rate mastering core. The mastering engine needs a high-quality *external* oversampler. The generic `TruePeakLimiter` is experimental; no compliance claim.
+No local toolchain? Push this folder to a GitHub repository. The workflow in `.github/workflows/build.yml` builds all
+three platforms and attaches the plugins as downloads.
 
-## Status and migration
-This is **v0.3 shared-core work**. Source import does not automatically migrate any already released plugin. Existing DAW automation, UI layout, plugin IDs, and audio behavior must stay unchanged until validated per-plugin.
+## Test the DSP without JUCE
 
-- Tuning, phrase aware, and mastering algorithms: imported, require A/B tests before plugin adoption.
-- FDN reverb, prototype true peak limiter, onset tracking: functional portable modules, not production-certified.
-- Host tempo / JUCE UI: available, UI not mandatory for a plugin.
-- Choir: links pinned SkellCore target on separate PR; current sound unchanged.
-- AdlibLab / Silence Designer / other new plugins: opt in as their CMake projects are ready.
+    sh tests/run_tests.sh
 
-See [SkellCore/README.md](SkellCore/README.md) and [GitHub migration tracker](https://github.com/skellyruno/skellcore-vst-template/issues/2).
+Checks every module for finite output (mono and stereo, 44.1 and 96 kHz, block sizes from 1 to 4096, extreme knobs),
+then EQ gain, compression amount, limiter ceiling, de-esser targeting, delay time, reverb decay, pan, and pitch snapping.
 
-## Studio UI: shared 3D knobs + four skins (opt-in)
+## Layout
 
-The quickstart editor demonstrates the new `<SkellCore/StudioUI.h>` components: a subtle raised-metal 3D rotary LookAndFeel, double-click-to-reset and editable-value knobs, and four consistent plugin skins (**Ivory, Obsidian, Amethyst, Crimson**). Skin choice persists as a *user appearance preference* across SKELL plugins adopting this module; it never changes audio processing or project parameters. The existing SkellCore UI API remains available.
-
-See [Studio UI integration and test matrix](docs/STUDIO_UI.md). The real editor screenshot harness covers 10 skin/size scenes. Other plugins are **not yet automatically converted**: adopt SkellCore on an immutable revision and validate their real parameter controls and plugin hosts independently.
-
-## SkellCore Live Engine — tracking-first processing
-
-Use [the shared Live Engine](docs/LIVE_ENGINE.md) for honest per-plugin latency budgets and an optional **zero-added-delay** 10-band causal sidechain processor (introduced for the Skell Spacer live-tracking pilot). This is not an automatic latency reduction for pitch correction, convolution, FFT, or mastering. Each plugin must implement a suitable Live algorithm, declare its true latency to the host, and pass impulse, CPU and real-host tests. The portable Live regression suite passes on Windows and Linux; read the docs before adoption.
-
-The new-plugin generator pins the tested SkellCore revision including `<SkellCore/LiveEngine.h>`. Live-mode behavior is **opt-in**: old plugin IDs, presets and DSP algorithms are unchanged.
-
-## Guided Tours for complex SKELL plugins
-
-SkellCore now includes an **opt-in first-run tutorial overlay**, based on OmniChoir FX's real tour implementation: spotlight one control, Back/Next/Skip, remembered completion and replay from Help. It supports nested controls and tab switching without changing plugin parameters or DSP. Simple plugins remain tutorial-free. Read [the Guided Tours adoption guide](docs/GUIDED_TOURS.md) for Skell Preset, Skell Afar and Skell Silence integration.
+- `Source/Modules.h` one table for every module: names, knobs, ranges, defaults, printed sections
+- `Source/Dsp.h` the DSP, real-time safe (nothing allocates in the audio callback)
+- `Source/PluginProcessor.*` slots, parameters, presets, undo, snapshots, Dream Strips
+- `Source/Look.h` the whole look (colours, knobs, screws, meters) in one place
+- `Source/PluginEditor.*` the interface
+- `SkellCore/` DSP engine from the template (see its own licenses folder)

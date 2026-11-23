@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_ROOT = ROOT / "tools" / "generator_template"  # immutable quickstart fixture
 DEFAULT_REV = "4c499c58cb3b2791eed2d5dcef6d8d543fcaea8d"
 DEFAULT_REPO = "https://github.com/skellyruno/skellcore-vst-template.git"
 
@@ -40,13 +41,13 @@ def make_project(name: str, destination: Path, code: str,
     destination = destination.resolve()
     if destination.exists():
         raise FileExistsError(f"Destination already exists: {destination}")
-    if not (ROOT / "Source" / "PluginProcessor.cpp").is_file():
-        raise FileNotFoundError("Run this generator from the SkellCore template checkout")
+    if not (TEMPLATE_ROOT / "Source" / "PluginProcessor.cpp").is_file():
+        raise FileNotFoundError("Bundled SkellCore quickstart source fixture is missing")
     destination.mkdir(parents=True, exist_ok=False)
     try:
         src = destination / "Source"
         src.mkdir()
-        for oldfile in sorted((ROOT / "Source").iterdir()):
+        for oldfile in sorted((TEMPLATE_ROOT / "Source").iterdir()):
             if oldfile.suffix not in (".cpp", ".h"):
                 continue
             body = oldfile.read_text(encoding="utf-8")
@@ -104,7 +105,7 @@ endif()
 """
         ui_tools = destination / "tools"
         ui_tools.mkdir()
-        renderer_source = (ROOT / "tools" / "SkellCoreUiRendererMain.cpp").read_text(encoding="utf-8")
+        renderer_source = (TEMPLATE_ROOT / "SkellCoreUiRendererMain.cpp").read_text(encoding="utf-8")
         renderer_source = renderer_source.replace("SkellAudioProcessor", f"{target}AudioProcessor")
         renderer_source = renderer_source.replace("SkellCore template Studio UI", name)
         renderer_source = renderer_source.replace("quickstart_", "plugin_")

@@ -1,49 +1,390 @@
-#include <SkellCore/Core.h>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include <cmath>
-SkellAudioProcessor::SkellAudioProcessor()
- : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Output",juce::AudioChannelSet::stereo(),true)),
-   parameters(*this,nullptr,"PARAMETERS",createLayout()) {}
-juce::AudioProcessorValueTreeState::ParameterLayout SkellAudioProcessor::createLayout() {
-  juce::AudioProcessorValueTreeState::ParameterLayout layout;
-  layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"gain",1},"Gain",juce::NormalisableRange<float>(0.0f,2.0f,0.001f),1.0f));
-  return layout;
+
+using namespace skl;
+
+// ------------------------------------------------------------------ factory racks
+namespace {
+struct FSlot { int type; std::vector<std::pair<int, float>> set; };   // knob index -> real value
+struct FPreset { const char* name; std::vector<FSlot> slots; };
+
+const std::vector<FPreset>& factory() {
+    static const std::vector<FPreset> list = {
+        { "Silk Lead", {
+            { Tune, {{0, 25}} },
+            { Eq, {{0, 90}, {2, -2}, {3, 1.5f}, {4, 1}} },
+            { Comp, {{0, -26}, {1, 3.5f}, {2, 12}, {3, 140}, {4, 5}} },
+            { DeEss, {} },
+            { Sat, {{0, 5}, {2, 0.35f}} },
+            { Air, {{0, 3.5f}} },
+            { Limiter, {} } } },
+        { "Warm Vocal", {
+            { Comp, {{0, -22}, {1, 2.5f}, {2, 20}, {3, 200}, {4, 3}} },
+            { Sat, {{0, 9}, {1, 8000}, {2, 0.5f}} },
+            { DeEss, {} },
+            { Chorus, {{2, 0.18f}} },
+            { Delay, {{3, 0.18f}} },
+            { skl::Reverb, {{3, 0.22f}} } } },
+        { "Glue Bus", {
+            { Trim, {{0, -2}} },
+            { Eq, {{0, 30}, {1, 1}, {4, 1.5f}} },
+            { Sat, {{0, 4}, {2, 0.4f}} },
+            { Comp, {{0, -18}, {1, 2}, {2, 30}, {3, 250}, {4, 2}} },
+            { Limiter, {{0, 2}} } } },
+        { "Empty rack", {} }
+    };
+    return list;
 }
-bool SkellAudioProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
-  auto input=l.getMainInputChannelSet();
-  return (input==juce::AudioChannelSet::mono() || input==juce::AudioChannelSet::stereo()) && input==l.getMainOutputChannelSet();
+} // namespace
+
+int SkellierProcessor::numFactory() { return (int) factory().size(); }
+juce::String SkellierProcessor::factoryName(int i) { return factory()[(size_t) juce::jlimit(0, numFactory() - 1, i)].name; }
+
+// ------------------------------------------------------------------ parameters
+juce::AudioProcessorValueTreeState::ParameterLayout SkellierProcessor::createLayout() {
+    using namespace juce;
+    AudioProcessorValueTreeState::ParameterLayout layout;
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"in", 1}, "Input", NormalisableRange<float>(-24.0f, 12.0f, 0.1f), 0.0f));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"out", 1}, "Output", NormalisableRange<float>(-24.0f, 12.0f, 0.1f), 0.0f));
+    layout.add(std::make_unique<AudioParameterBool>(ParameterID{"bypass", 1}, "Bypass All", false));
+    StringArray names;
+    for (int t = 0; t < kNumTypes; ++t) names.add(info(t).name);
+    for (int s = 0; s < kNumSlots; ++s) {
+        const String slot = String::charToString((juce_wchar) ('A' + s));
+        layout.add(std::make_unique<AudioParameterChoice>(ParameterID{typeId(s), 1}, "Slot " + slot + " Module", names, 0));
+        layout.add(std::make_unique<AudioParameterBool>(ParameterID{onId(s), 1}, "Slot " + slot + " On", true));
+        for (int k = 0; k < kMaxKnobs; ++k)
+            layout.add(std::make_unique<AudioParameterFloat>(ParameterID{knobId(s, k), 1}, "Slot " + slot + " Knob " + String(k + 1),
+                                                             NormalisableRange<float>(0.0f, 1.0f, 0.0f), 0.5f));
+    }
+    return layout;
 }
-void SkellAudioProcessor::prepareToPlay(double sampleRate, int) {
-  // 15 ms gain smoothing avoids clicks from DAW automation.
-  const auto safeRate = std::isfinite(sampleRate) ? juce::jlimit(1000.0, 192000.0, sampleRate) : 48000.0;
-  smoothedGain_.reset(safeRate, 0.015);
-  const auto* raw = parameters.getRawParameterValue("gain");
-  const float initial = raw ? raw->load() : 1.0f;
-  smoothedGain_.setCurrentAndTargetValue(std::isfinite(initial) ? juce::jlimit(0.0f, 2.0f, initial) : 1.0f);
+
+SkellierProcessor::SkellierProcessor()
+    : AudioProcessor(BusesProperties().withInput("Input", juce::AudioChannelSet::stereo(), true)
+                                      .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts(*this, nullptr, "SKELLIERE", createLayout()) {
+    for (int s = 0; s < kNumSlots; ++s) {
+        typeRaw[s] = apvts.getRawParameterValue(typeId(s));
+        onRaw[s] = apvts.getRawParameterValue(onId(s));
+        for (int k = 0; k < kMaxKnobs; ++k) kRaw[s][k] = apvts.getRawParameterValue(knobId(s, k));
+        lastType[s] = -1;
+        apvts.addParameterListener(typeId(s), this);
+    }
+    inRaw = apvts.getRawParameterValue("in");
+    outRaw = apvts.getRawParameterValue("out");
+    bypassRaw = apvts.getRawParameterValue("bypass");
+    applyFactory(0);
+    undoStack.clear(); redoStack.clear();
 }
-void SkellAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
-  juce::ScopedNoDenormals guard;
-  const int frames = buffer.getNumSamples();
-  if (frames <= 0) return;
-  const auto* raw = parameters.getRawParameterValue("gain");
-  const float requested = raw ? raw->load() : 1.0f;
-  const float target = std::isfinite(requested) ? juce::jlimit(0.0f, 2.0f, requested) : 1.0f;
-  smoothedGain_.setTargetValue(target);
-  if (!smoothedGain_.isSmoothing()) {
-    buffer.applyGain(target);
-  } else {
-    const auto initial = smoothedGain_.getCurrentValue();
-    const auto end = smoothedGain_.skip(frames);
-    buffer.applyGainRamp(0, frames, initial, end);
-  }
+
+SkellierProcessor::~SkellierProcessor() {
+    latencyUpdater.cancelPendingUpdate();
+    for (int s = 0; s < kNumSlots; ++s) apvts.removeParameterListener(typeId(s), this);
 }
-juce::AudioProcessorEditor* SkellAudioProcessor::createEditor() { return new SkellAudioProcessorEditor(*this); }
-void SkellAudioProcessor::getStateInformation(juce::MemoryBlock& dest) {
-  if(auto xml=parameters.copyState().createXml()) copyXmlToBinary(*xml,dest);
+
+void SkellierProcessor::parameterChanged(const juce::String&, float) { latencyUpdater.triggerAsyncUpdate(); }
+
+bool SkellierProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
+    const auto in = l.getMainInputChannelSet();
+    return (in == juce::AudioChannelSet::mono() || in == juce::AudioChannelSet::stereo()) && in == l.getMainOutputChannelSet();
 }
-void SkellAudioProcessor::setStateInformation(const void* data,int size) {
-  if(auto xml=getXmlFromBinary(data,size))
-    if(xml->hasTagName(parameters.state.getType())) parameters.replaceState(juce::ValueTree::fromXml(*xml));
+
+// ------------------------------------------------------------------ audio
+skl::ModuleBase* SkellierProcessor::moduleFor(int slot, int type, int tuneSlot) const {
+    if (type <= 0 || type >= kNumTypes) return nullptr;
+    if (type == Tune) return slot == tuneSlot ? tuneModule.get() : nullptr;   // a second Tune slot stays silent
+    return mods[slot][type].get();
 }
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new SkellAudioProcessor(); }
+
+void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
+    sampleRate_ = std::isfinite(sr) && sr > 1000.0 ? sr : 48000.0;
+    maxBlock = juce::jmax(1, samplesPerBlock);
+    const int ch = juce::jlimit(1, 2, getMainBusNumInputChannels());
+    for (int s = 0; s < kNumSlots; ++s)
+        for (int t = Eq; t < kNumTypes; ++t) {
+            if (t == Tune) continue;
+            mods[s][t] = makeModule(t);
+            mods[s][t]->prepare(sampleRate_, maxBlock, ch);
+        }
+    tuneModule = makeModule(Tune);
+    tuneModule->prepare(sampleRate_, maxBlock, ch);
+    bypassDelay.prepare(tuneModule->latency());
+    for (int s = 0; s < kNumSlots; ++s) lastType[s] = -1;
+    prevIn = prevOut = 1.0f;
+    prepared = true;
+    updateLatency();
+}
+
+void SkellierProcessor::updateLatency() {
+    setLatencySamples(latencyOfTune());
+}
+
+int SkellierProcessor::latencyOfTune() const {
+    if (!tuneModule) return 0;
+    for (int s = 0; s < kNumSlots; ++s)
+        if (slotType(s) == Tune) return tuneModule->latency();
+    return 0;
+}
+
+void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
+    juce::ScopedNoDenormals noDenormals;
+    const int total = buffer.getNumSamples(), ch = buffer.getNumChannels();
+    for (int c = getTotalNumInputChannels(); c < getTotalNumOutputChannels(); ++c) buffer.clear(c, 0, total);
+    if (!prepared || total <= 0 || ch < 1) return;
+
+    const float inG = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 12.0f, inRaw->load()));
+    const float outG = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 12.0f, outRaw->load()));
+    const bool bypass = bypassRaw->load() > 0.5f;
+    // Advance the untouched input's shadow delay for *both* modes. JUCE's reported
+    // latency remains the same when the user toggles Bypass All, avoiding a dry
+    // timing jump relative to other tracks when a Tune module is present.
+    const float rawPeak = buffer.getMagnitude(0, total);
+    bypassDelay.process(buffer, latencyOfTune(), bypass);
+    if (bypass) {
+        inPeak.store(juce::jmax(inPeak.load(), rawPeak));
+        outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
+        return;
+    }
+
+    buffer.applyGainRamp(0, total, prevIn, inG); prevIn = inG;
+    inPeak.store(juce::jmax(inPeak.load(), buffer.getMagnitude(0, total)));
+
+    int tuneSlot = -1;
+    int types[kNumSlots];
+    for (int s = 0; s < kNumSlots; ++s) {
+        types[s] = juce::jlimit(0, (int) kNumTypes - 1, (int) (typeRaw[s]->load() + 0.5f));
+        if (types[s] == Tune && tuneSlot < 0) tuneSlot = s;
+    }
+    const int solo = soloSlot.load();
+
+    for (int start = 0; start < total; start += maxBlock) {
+        const int len = juce::jmin(maxBlock, total - start);
+        juce::AudioBuffer<float> chunk(buffer.getArrayOfWritePointers(), ch, start, len);
+        for (int s = 0; s < kNumSlots; ++s) {
+            const int type = types[s];
+            if (type != lastType[s]) {
+                lastType[s] = type;
+                if (auto* m = moduleFor(s, type, tuneSlot)) m->reset();
+            }
+            auto* m = moduleFor(s, type, tuneSlot);
+            if (m == nullptr) continue;
+            float k[kMaxKnobs];
+            for (int i = 0; i < kMaxKnobs; ++i) k[i] = kRaw[s][i]->load();
+            m->process(chunk, k, onRaw[s]->load() > 0.5f && (solo < 0 || solo == s));
+        }
+    }
+
+    buffer.applyGainRamp(0, total, prevOut, outG); prevOut = outG;
+    for (int c = 0; c < ch; ++c) {
+        float* d = buffer.getWritePointer(c);
+        for (int i = 0; i < total; ++i) d[i] = juce::jlimit(-16.0f, 16.0f, sane(d[i]));
+    }
+    outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
+}
+
+// ------------------------------------------------------------------ reading
+int SkellierProcessor::slotType(int s) const {
+    return juce::jlimit(0, (int) kNumTypes - 1, (int) (typeRaw[juce::jlimit(0, kNumSlots - 1, s)]->load() + 0.5f));
+}
+bool SkellierProcessor::slotOn(int s) const { return onRaw[juce::jlimit(0, kNumSlots - 1, s)]->load() > 0.5f; }
+float SkellierProcessor::gainReduction(int s) const {
+    const int t = slotType(s);
+    if (t == Tune) return 0.0f;
+    if (t <= 0 || !mods[s][t]) return 0.0f;
+    return mods[s][t]->meter();
+}
+
+// ------------------------------------------------------------------ editing (message thread)
+void SkellierProcessor::setParam(const juce::String& id, float realValue) {
+    if (auto* p = apvts.getParameter(id)) p->setValueNotifyingHost(p->convertTo0to1(realValue));
+}
+
+SkellierProcessor::SlotValues SkellierProcessor::readSlot(int s) const {
+    SlotValues v; v.type = slotType(s); v.on = slotOn(s);
+    for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = kRaw[s][k]->load();
+    return v;
+}
+
+void SkellierProcessor::writeSlot(int s, const SlotValues& v) {
+    // Switch the slot off while it is rewritten so the audio thread never runs a module with half-updated knobs.
+    setParam(onId(s), 0.0f);
+    for (int k = 0; k < kMaxKnobs; ++k) setParam(knobId(s, k), v.k[k]);
+    setParam(typeId(s), (float) v.type);
+    setParam(onId(s), v.on ? 1.0f : 0.0f);
+}
+
+void SkellierProcessor::writeEmpty(int s) {
+    SlotValues v; v.type = Empty; v.on = true;
+    writeSlot(s, v);
+}
+
+void SkellierProcessor::pushUndo() {
+    undoStack.push_back(captureRack());
+    if (undoStack.size() > 50) undoStack.erase(undoStack.begin());
+    redoStack.clear();
+}
+
+bool SkellierProcessor::addModule(int type, int slot) {
+    if (type <= 0 || type >= kNumTypes) return false;
+    int target = slot;
+    if (target < 0 || target >= kNumSlots) {
+        target = -1;
+        for (int s = 0; s < kNumSlots; ++s) if (slotType(s) == Empty) { target = s; break; }
+        if (target < 0) return false;
+    } else if (slotType(target) != Empty) {
+        // Make room: find an empty slot to the right and shift everything between one place right.
+        int empty = -1;
+        for (int s = target + 1; s < kNumSlots; ++s) if (slotType(s) == Empty) { empty = s; break; }
+        if (empty < 0) return false;
+        pushUndo();
+        for (int s = empty; s > target; --s) writeSlot(s, readSlot(s - 1));
+        SlotValues v; v.type = type;
+        for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(type).numKnobs ? defaultNorm(type, k) : 0.5f;
+        writeSlot(target, v);
+        return true;
+    }
+    pushUndo();
+    SlotValues v; v.type = type;
+    for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(type).numKnobs ? defaultNorm(type, k) : 0.5f;
+    writeSlot(target, v);
+    return true;
+}
+
+void SkellierProcessor::removeSlot(int slot) {
+    if (slot < 0 || slot >= kNumSlots || slotType(slot) == Empty) return;
+    pushUndo();
+    if (soloSlot.load() == slot) soloSlot.store(-1);
+    writeEmpty(slot);
+}
+
+void SkellierProcessor::moveSlot(int from, int to, bool copy) {
+    if (from < 0 || from >= kNumSlots || to < 0 || to >= kNumSlots || from == to || slotType(from) == Empty) return;
+    pushUndo();
+    const auto a = readSlot(from);
+    if (copy) {
+        int target = to;
+        if (slotType(target) != Empty) {
+            target = -1;
+            for (int s = 0; s < kNumSlots; ++s) if (slotType(s) == Empty) { target = s; break; }
+            if (target < 0) { undoStack.pop_back(); return; }
+        }
+        writeSlot(target, a);
+    } else {
+        const auto b = readSlot(to);
+        writeSlot(to, a);
+        writeSlot(from, b);
+        if (soloSlot.load() == from) soloSlot.store(to); else if (soloSlot.load() == to) soloSlot.store(from);
+    }
+}
+
+void SkellierProcessor::clearRack() {
+    pushUndo();
+    soloSlot.store(-1);
+    for (int s = 0; s < kNumSlots; ++s) writeEmpty(s);
+}
+
+void SkellierProcessor::applyFactory(int index) {
+    const auto& list = factory();
+    const auto& p = list[(size_t) juce::jlimit(0, numFactory() - 1, index)];
+    pushUndo();
+    soloSlot.store(-1);
+    for (int s = 0; s < kNumSlots; ++s) {
+        if (s >= (int) p.slots.size()) { writeEmpty(s); continue; }
+        const auto& fs = p.slots[(size_t) s];
+        SlotValues v; v.type = fs.type;
+        for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(fs.type).numKnobs ? defaultNorm(fs.type, k) : 0.5f;
+        for (const auto& kv : fs.set) v.k[kv.first] = toNorm(info(fs.type).knobs[kv.first], kv.second);
+        writeSlot(s, v);
+    }
+}
+
+// ------------------------------------------------------------------ undo, snapshots, strips
+juce::String SkellierProcessor::captureRack() const {
+    juce::XmlElement root("RACK");
+    for (int s = 0; s < kNumSlots; ++s) {
+        const auto v = readSlot(s);
+        auto* e = root.createNewChildElement("SLOT");
+        e->setAttribute("i", s); e->setAttribute("type", v.type); e->setAttribute("on", v.on ? 1 : 0);
+        for (int k = 0; k < kMaxKnobs; ++k) e->setAttribute("k" + juce::String(k), (double) v.k[k]);
+    }
+    return root.toString(juce::XmlElement::TextFormat().singleLine());
+}
+
+void SkellierProcessor::restoreRack(const juce::String& text) {
+    const auto xml = juce::XmlDocument::parse(text);
+    if (xml == nullptr || !xml->hasTagName("RACK")) return;
+    SlotValues vals[kNumSlots];
+    for (auto* e : xml->getChildWithTagNameIterator("SLOT")) {
+        const int i = e->getIntAttribute("i", -1);
+        if (i < 0 || i >= kNumSlots) continue;
+        vals[i].type = juce::jlimit(0, (int) kNumTypes - 1, e->getIntAttribute("type", 0));
+        vals[i].on = e->getIntAttribute("on", 1) != 0;
+        for (int k = 0; k < kMaxKnobs; ++k) vals[i].k[k] = juce::jlimit(0.0f, 1.0f, (float) e->getDoubleAttribute("k" + juce::String(k), 0.5));
+    }
+    soloSlot.store(-1);
+    for (int s = 0; s < kNumSlots; ++s) writeSlot(s, vals[s]);
+}
+
+void SkellierProcessor::undo() {
+    if (undoStack.empty()) return;
+    redoStack.push_back(captureRack());
+    const auto last = undoStack.back(); undoStack.pop_back();
+    restoreRack(last);
+}
+void SkellierProcessor::redo() {
+    if (redoStack.empty()) return;
+    undoStack.push_back(captureRack());
+    const auto next = redoStack.back(); redoStack.pop_back();
+    restoreRack(next);
+}
+
+void SkellierProcessor::switchSnapshot(int to) {
+    to = juce::jlimit(0, 1, to);
+    if (to == curSnap) return;
+    snaps[curSnap] = captureRack();
+    curSnap = to;
+    if (snaps[to].isNotEmpty()) { pushUndo(); restoreRack(snaps[to]); }
+    else snaps[to] = captureRack();
+}
+void SkellierProcessor::copySnapshotToOther() { snaps[1 - curSnap] = captureRack(); }
+
+juce::File SkellierProcessor::stripsFolder() {
+    return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("SkellAudio").getChildFile("SkellierRack").getChildFile("DreamStrips");
+}
+juce::StringArray SkellierProcessor::listStrips() const {
+    juce::StringArray names;
+    for (const auto& f : stripsFolder().findChildFiles(juce::File::findFiles, false, "*.xml")) names.add(f.getFileNameWithoutExtension());
+    names.sort(true);
+    return names;
+}
+bool SkellierProcessor::saveStrip(const juce::String& name) {
+    const auto clean = juce::File::createLegalFileName(name.trim());
+    if (clean.isEmpty()) return false;
+    const auto dir = stripsFolder();
+    return dir.createDirectory().wasOk() && dir.getChildFile(clean + ".xml").replaceWithText(captureRack());
+}
+bool SkellierProcessor::loadStrip(const juce::String& name) {
+    const auto f = stripsFolder().getChildFile(juce::File::createLegalFileName(name) + ".xml");
+    if (!f.existsAsFile()) return false;
+    pushUndo();
+    restoreRack(f.loadFileAsString());
+    return true;
+}
+void SkellierProcessor::deleteStrip(const juce::String& name) {
+    stripsFolder().getChildFile(juce::File::createLegalFileName(name) + ".xml").deleteFile();
+}
+
+// ------------------------------------------------------------------ state
+void SkellierProcessor::getStateInformation(juce::MemoryBlock& dest) {
+    if (auto xml = apvts.copyState().createXml()) copyXmlToBinary(*xml, dest);
+}
+void SkellierProcessor::setStateInformation(const void* data, int size) {
+    if (auto xml = getXmlFromBinary(data, size))
+        if (xml->hasTagName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*xml));
+    latencyUpdater.triggerAsyncUpdate();
+}
+
+juce::AudioProcessorEditor* SkellierProcessor::createEditor() { return new SkellierEditor(*this); }
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new SkellierProcessor(); }

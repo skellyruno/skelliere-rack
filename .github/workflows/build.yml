@@ -1,51 +1,51 @@
-name: Build SkellCore VST Template (Windows VST3 + Standalone)
-# Iterative plugin development often pushes many commits. Cancel superseded
-# branch/PR runs to avoid multiple resource-heavy JUCE builds in parallel.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
+name: build
 on:
-  workflow_dispatch:
+  push:
   pull_request:
-    paths:
-      - 'SkellCore/**'
-      - 'CMakeLists.txt'
-      - 'Source/**'
-      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+# Only superseded PR CI is cancelled; never cancel main, release or manual runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('protected-{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  dsp-tests:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build -A x64
-      - name: Build
-        run: cmake --build build --config Release --parallel 2
-      - name: Package
-        shell: pwsh
-        run: |
-          $plugin = Get-ChildItem -Path build -Directory -Recurse -Filter '*.vst3' | Select-Object -First 1
-          if (-not $plugin) { throw 'VST3 bundle missing' }
-          Compress-Archive -Path $plugin.FullName -DestinationPath SkellCore-Template-Windows-VST3.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: SkellCore-Template-Windows-VST3
-          path: SkellCore-Template-Windows-VST3.zip
-          if-no-files-found: error
+      - run: sh tests/run_tests.sh
+      - run: python -m unittest discover -s tests -p test_moduleinfo.py -v
 
-      - name: Package Standalone
-        shell: pwsh
+  plugin:
+    needs: dsp-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux packages
+        if: runner.os == 'Linux'
         run: |
-          $app = Get-ChildItem -Path build -File -Recurse -Filter 'Skell Quickstart.exe' | Select-Object -First 1
-          if (-not $app) { throw 'Skell Quickstart standalone executable missing' }
-          Compress-Archive -Path $app.FullName -DestinationPath SkellCore-Template-Windows-Standalone.zip
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libgl1-mesa-dev libcurl4-openssl-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Normalize and validate VST3 moduleinfo
+        run: python tools/fix_vst3_moduleinfo.py build
+      - name: Collect plugin
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -maxdepth 6 -name "*.vst3" -exec cp -R {} out/ \;
+          find build -maxdepth 6 -name "*.component" -exec cp -R {} out/ \; || true
       - uses: actions/upload-artifact@v4
         with:
-          retention-days: 1
-          name: SkellCore-Template-Windows-Standalone
-          path: SkellCore-Template-Windows-Standalone.zip
-          if-no-files-found: error
+          name: SkellierRack-${{ matrix.os }}
+          path: out
