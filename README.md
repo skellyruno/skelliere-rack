@@ -59,3 +59,11 @@ then EQ gain, compression amount, limiter ceiling, de-esser targeting, delay tim
 - `Source/Look.h` the whole look (colours, knobs, screws, meters) in one place
 - `Source/PluginEditor.*` the interface
 - `SkellCore/` DSP engine from the template (see its own licenses folder)
+
+## Original DSP research / Program Opto (experimental)
+
+[Read the TVB/VMR static-DSP deep dive and Skelliere signal-flow comparison](docs/DSP_REFERENCE_DEEP_DIVE_2026-11-23.md). This is a source-grounded architecture study: original vendor DSP implementations were **not** recovered or copied.
+
+New optional **Program Opto** is an independent zero-latency linked compressor with six controls: Thresh, Ratio, Attack, Release, SC HP, Makeup. It uses RMS-style detection and program-dependent gain-reduction memory. Find it as extension choice 5 (s{slot}_extra=5) when the legacy choice is Empty. **The old Opto C, all legacy IDs and factory preset identities remain unchanged.** This remains experimental until real vocal listening, Windows pluginval and FL Studio validation.
+
+Run host-free checks with sh tests/run_tests.sh. For the optional math-only alias study, install numpy/scipy, then run python tools/skelliere_saturation_probe.py. The oversampled math reference is not installed plugin DSP.

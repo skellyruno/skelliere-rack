@@ -29,6 +29,8 @@ public:
         detectorAttack_ = coeff(2.0);
         detectorRelease_ = coeff(12.0);
         gainAttack_ = coeff(attackMs_);
+        releaseCoeffFast_ = coeff(releaseMs_);
+        releaseCoeffSlow_ = coeff(releaseMs_*3.0);
         memoryRelease_ = coeff(std::max(300.0, static_cast<double>(releaseMs_)*4.0));
     }
     void processPair(float left, float right, bool stereo,
@@ -51,11 +53,12 @@ public:
             const double shifted = over + knee*0.5;
             demanded=slope*shifted*shifted/(2.0*knee);
         }
-        // Slowly decaying gain-reduction memory gives deeper, sustained
-        // compression a longer release without claiming a physical circuit model.
+        // A slowly decaying reduction memory creates longer recovery after
+        // sustained, deep compression without a feed-back/optical model claim.
         longMemoryDb_ = std::max(demanded,longMemoryDb_*memoryRelease_);
-        const double releaseMultiplier = 1.0 + 2.0*std::clamp(longMemoryDb_/18.0,0.0,1.0);
-        const double gainCoeff = demanded > reductionDb_ ? gainAttack_ : coeff(releaseMs_*releaseMultiplier);
+        const double releaseWeight = std::clamp(longMemoryDb_/18.0,0.0,1.0);
+        const double releaseCoeff = releaseCoeffFast_ + releaseWeight*(releaseCoeffSlow_-releaseCoeffFast_);
+        const double gainCoeff = demanded > reductionDb_ ? gainAttack_ : releaseCoeff;
         reductionDb_ = gainCoeff*reductionDb_ + (1.0-gainCoeff)*demanded;
         if(reductionDb_<1.0e-12) reductionDb_=0.0;
         const double gain=std::exp((static_cast<double>(makeupDb_)-reductionDb_)*0.11512925464970229);
@@ -79,7 +82,7 @@ private:
         return s.lastY;
     }
     double sr_=48000.0,detectorPower_=0.0,reductionDb_=0.0,longMemoryDb_=0.0;
-    double hpCoeff_=0.0,detectorAttack_=0.0,detectorRelease_=0.0,gainAttack_=0.0,memoryRelease_=0.0;
+    double hpCoeff_=0.0,detectorAttack_=0.0,detectorRelease_=0.0,gainAttack_=0.0,memoryRelease_=0.0,releaseCoeffFast_=0.0,releaseCoeffSlow_=0.0;
     float thresholdDb_=-24.0f,ratio_=3.0f,attackMs_=12.0f,releaseMs_=240.0f,makeupDb_=0.0f;
     HPState hp_[2];
 };
