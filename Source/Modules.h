@@ -8,7 +8,7 @@ constexpr int kNumSlots = 8, kMaxKnobs = 6;
 enum ModuleType : int {
     Empty = 0, Eq, Comp, DeEss, Sat, Air, Chorus, Delay, Reverb, Limiter, Trim, Tune,
     kNumTypes, // compatibility boundary: do not extend the legacy choice parameter
-    Tilt = kNumTypes, Stereo, FastComp, BusComp, kNumRackTypes
+    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, kNumRackTypes
 };
 // Pure selection policy shared by production and host-free regression tests.
 inline int resolveRackType(float legacy, float extension) noexcept {
@@ -76,7 +76,13 @@ inline const ModuleInfo& info(int type) {
         {"Bus C","Linked RMS compressor","Original stereo-linked RMS compressor with a 9 dB soft knee for broad level control. No proprietary circuit emulation.",CatDynamics,5,
          {{"Thresh",-60,0,false,-18,Unit::Db,0,nullptr},{"Ratio",1,10,true,2,Unit::Ratio,0,nullptr},
           {"Attack",1,100,true,20,Unit::Ms,0,nullptr},{"Release",40,1500,true,250,Unit::Ms,0,nullptr},
-          {"Makeup",0,24,false,0,Unit::Db,0,nullptr}},3,{{"Input",0,2},{"Time",2,2},{"Output",4,1}},true}
+          {"Makeup",0,24,false,0,Unit::Db,0,nullptr}},3,{{"Input",0,2},{"Time",2,2},{"Output",4,1}},true},
+        {"Program Opto","Adaptive linked vocal compressor",
+         "Independent linked RMS compressor with slow gain-reduction memory and a frequency-sensitive sidechain. Experimental, no modeled circuit.",CatDynamics,6,
+         {{"Thresh",-60,0,false,-24,Unit::Db,0,nullptr},{"Ratio",1,10,true,3,Unit::Ratio,0,nullptr},
+          {"Attack",0.5f,60,true,12,Unit::Ms,0,nullptr},{"Release",40,1000,true,240,Unit::Ms,0,nullptr},
+          {"SC HP",20,400,true,80,Unit::Hz,0,nullptr},{"Makeup",-12,18,false,0,Unit::Db,0,nullptr}},
+         3,{{"Compression",0,4},{"Sidechain",4,1},{"Output",5,1}},true}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }

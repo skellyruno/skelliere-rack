@@ -62,7 +62,7 @@ skelliere_panel("Blackbird Studio/RESOURCES/VMC Classic Tubes Resources__211e658
 juce_add_binary_data(SkelliereArtwork SOURCES ${SKELLIERE_PANEL_FILES})
 
 target_sources(SkellierRack PRIVATE
-  Source/Modules.h Source/Dsp.h Source/RackModuleFactory.h
+  Source/Modules.h Source/Dsp.h Source/RackModuleFactory.h Source/ProgramOptoCore.h Source/RackProgramOpto.h
   Source/PluginProcessor.cpp Source/PluginProcessor.h
   Source/Look.h Source/RackArtwork.h
   Source/PluginEditor.cpp Source/PluginEditor.h)

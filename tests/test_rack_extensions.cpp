@@ -72,6 +72,6 @@ int main() {
     check(energy(Tilt,6,800,80)<energy(Tilt,0,800,80)*.5,"Tilt low shelf inactive");
     check(energy(Stereo,0,100,1000,true)<1e-12,"Width zero not mono");
     check(energy(Stereo,1,300,40,true)<energy(Stereo,1,20,40,true)*.05,"Mono bass inactive");
-    for(int type:{FastComp,BusComp}) check(energy(type,-36,4,1000)<energy(type,0,1,1000)*.1,"Compressor does not reduce gain");
+    for(int type:{FastComp,BusComp,ProgramOpto}) check(energy(type,-36,4,1000)<energy(type,0,1,1000)*.1,"Compressor does not reduce gain");
     std::puts("Production extension DSP and selection tests passed");
 }
