@@ -22,7 +22,11 @@ static std::vector<float> render(int type,double rate,int block,int channels) {
         check(std::isfinite(a[i]),"Nonfinite extension left output");
         if(channels==2) {
             check(std::isfinite(b[i]),"Nonfinite extension right output");
-            if(a[i]!=b[i]) {
+            const float maxMagnitude=std::max(std::fabs(a[i]),std::fabs(b[i]));
+            // Floating-point M/S roundoff is acceptable below -140 dBFS,
+            // but real stereo divergence must still fail this regression.
+            const float maxDifference=1.0e-7f + 1.0e-6f*maxMagnitude;
+            if(std::fabs(a[i]-b[i])>maxDifference) {
                 std::fprintf(stderr,"Linked channels diverged: module=%s type=%d rate=%.0f block=%d channel=2 sample=%d left=%.9g right=%.9g\\n",
                              info(type).name,type,rate,block,i,(double)a[i],(double)b[i]);
                 std::exit(1);
