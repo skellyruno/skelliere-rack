@@ -32,6 +32,22 @@ juce_add_plugin(SkellierRack
 
 juce_generate_juce_header(SkellierRack)
 
+# Keep the supplied archive in version control and embed just the faceplate used
+# by Air Lift. The remaining images are not needed at runtime or in the audio path.
+set(SKELLIERE_AIR_ARCHIVE "${CMAKE_CURRENT_SOURCE_DIR}/assets/air-eq-air-artwork.zip")
+if(NOT EXISTS "${SKELLIERE_AIR_ARCHIVE}")
+  message(FATAL_ERROR "Missing assets/air-eq-air-artwork.zip")
+endif()
+set(SKELLIERE_AIR_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/air-artwork")
+file(MAKE_DIRECTORY "${SKELLIERE_AIR_BUILD_DIR}")
+file(ARCHIVE_EXTRACT INPUT "${SKELLIERE_AIR_ARCHIVE}" DESTINATION "${SKELLIERE_AIR_BUILD_DIR}")
+set(SKELLIERE_AIR_SOURCE "${SKELLIERE_AIR_BUILD_DIR}/AirEQAir/RESOURCES/AirEqAir Resources__16209186/CONVERTED_PNG/0e10d454_1x_570x215.png")
+if(NOT EXISTS "${SKELLIERE_AIR_SOURCE}")
+  message(FATAL_ERROR "The Air Lift faceplate is missing from the artwork archive")
+endif()
+file(COPY_FILE "${SKELLIERE_AIR_SOURCE}" "${SKELLIERE_AIR_BUILD_DIR}/air_lift_faceplate.png" ONLY_IF_DIFFERENT)
+juce_add_binary_data(SkelliereAirArtwork SOURCES "${SKELLIERE_AIR_BUILD_DIR}/air_lift_faceplate.png")
+
 target_sources(SkellierRack PRIVATE
   Source/Modules.h Source/Dsp.h
   Source/PluginProcessor.cpp Source/PluginProcessor.h
@@ -43,8 +59,7 @@ target_compile_definitions(SkellierRack PUBLIC JUCE_VST3_CAN_REPLACE_VST2=0)
 target_compile_definitions(SkellierRack PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 target_link_libraries(SkellierRack PRIVATE
   juce::juce_audio_utils juce::juce_audio_processors juce::juce_gui_extra
-  SkellCore::DSP)
-
+  SkellCore::DSP SkelliereAirArtwork)
 
 # Capture the actual Skelliere Rack editor in CI; never substitute the SkellCore demo.
 option(SKELLIERE_BUILD_UI_RENDERER "Build real Skelliere Rack JUCE editor screenshots" OFF)
