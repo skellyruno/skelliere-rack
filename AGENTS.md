@@ -1,12 +1,11 @@
-# SKELLY ECOSYSTEM CODING AGENT RULES 🩻
+# Skelliere Rack agent instructions
 
-**Never make up the current appearance of a Skelly JUCE plugin.** User requests like "show the UI" require the genuine compiled current-source JUCE AudioProcessorEditor and exact commit. Do not use concept-art/image generation, a WAV audio-render utility, or a previous revision's CI screenshot. On any blocker say which dependency, source or target is missing. The standard is a *local* Quick4 actual-editor capture, not GitHub Actions screenshots.
+Follow the shared [`SkellWorld/AGENTS.md`](https://github.com/skellyruno/SkellWorld/blob/main/AGENTS.md) baseline. This document is additive and applies to this plugin.
 
-- Primary policy: `docs/PLUGIN_QUICK4_ROLLOUT.md`.
-- Shared local CMake/C++/Xvfb router: `tools/quick4_projects.py`; inspect `--list` for projects and honest verification status.
-- Each wired plugin has `AGENTS.md` and `docs/LOCAL_UI_SCREENSHOTS.md` with its actual CMake target.
-- Default **four** real scenes: default, control/menu, active, supported alternative theme/state; `--full` for explicit deep regression.
-- Always **compile the actual C++ editor** after UI source changes and inspect PNGs; never use an old binary as evidence of a new edit.
-- Local screenshot validation is **NOT** Windows VST3 build, DSP, latency, CPU, FL Studio or release validation. Keep those independent.
-- Do not trigger automatic GitHub UI screenshot jobs for routine visual changes; GitHub is for version control and independent release workflows.
-- Migration is incremental: Master, Mini, and Flang have been locally verified; Silence, Preset, DeEsser, Fan are wired but await proof; other plugins are backlog.
+- Preserve the current VST3 plugin ID (`SkAu` / `SkRk`), bundle ID, existing APVTS parameter IDs (`in`, `out`, `bypass`, `s{slot}_type`, `s{slot}_on`, `s{slot}_k{knob}`), type indices and factory preset names. Migration tests are required before incompatible changes.
+- The rack contains eight slots with eleven module types; only the first Tune module is processed. Do not silently reassign extra Tune instances or change the one-Tune latency contract.
+- Any bypass path must match the pitch engine's reported latency when a Tune slot exists. Check mode transitions and both mono/stereo with odd block sizes.
+- Run `sh tests/run_tests.sh` plus ASan/UBSan whenever DSP is modified. Test against real vocals and a DAW before making any sound-quality or release claims.
+- Check JUCE dependency availability, real VST3 builds, pluginval/FL Studio, and SkellCore/Quick4 real editor screenshots where supported. No mockup screenshots.
+- Use feature branches and draft PRs; never merge an unverified change. Only cancel superseded pull-request CI runs. Preserve successful main, release and manually triggered jobs.
+- Check `SkellCore/SOURCE_PROVENANCE.md` and license terms before distributing bundled upstream source in a public repository. Do not assume that all included engines are MIT just because the Tune files are.

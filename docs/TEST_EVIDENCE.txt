@@ -1,0 +1,47 @@
+Skelliere Rack audit verification, 2026-11-23
+Host: Linux 6.18.57 x86_64
+Compiler: g++ (Debian 14.2.0-19) 14.2.0
+
+Host-free DSP test:
+Command: sh tests/run_tests.sh
+robustness: every module, mono+stereo, 44.1k/96k, odd block sizes, extreme knobs
+behaviour
+  EQ high shelf +12 dB measures 11.42 dB at 16 kHz
+  Comp GR meter 11.92 dB, level change 11.92 dB (expect ~12)
+  Limiter peak 0.8913 (ceiling 0.8913)
+  Trim +6 dB ratio 2.000 (expect ~2 x centre pan 1.000), hard-left right-channel rms 0.00000
+  Delay echo at 320.0 ms (set 320)
+  Reverb tail -49.6 dB (0.1-0.25 s) falling to -239.9 dB (3-4 s)
+  Reverb wet-only level vs input: -4.0 dB
+  Saturation small-signal gain at 6 dB drive, mix 100%: +2.8 dB
+  Chorus level vs input: -3.0 dB
+  De-esser: normal S reduced -0.6 dB, loud S reduced 6.4 dB
+  Tune latency 144 samples
+  Tune: 225 Hz in -> about 220.0 Hz out (nearest semitone is 220.0)
+bypass: stereo, zero-latency and 144-sample pitch delay across odd blocks
+
+ALL DSP CHECKS PASSED
+
+ASan + UBSan:
+Build: g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Itests/stub -ISkellCore/include -ISource tests/test_dsp.cpp -o /tmp/skelliere_dsp_asan2
+Run: ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 /tmp/skelliere_dsp_asan2
+robustness: every module, mono+stereo, 44.1k/96k, odd block sizes, extreme knobs
+behaviour
+  EQ high shelf +12 dB measures 11.42 dB at 16 kHz
+  Comp GR meter 11.92 dB, level change 11.92 dB (expect ~12)
+  Limiter peak 0.8913 (ceiling 0.8913)
+  Trim +6 dB ratio 2.000 (expect ~2 x centre pan 1.000), hard-left right-channel rms 0.00000
+  Delay echo at 320.0 ms (set 320)
+  Reverb tail -49.6 dB (0.1-0.25 s) falling to -239.9 dB (3-4 s)
+  Reverb wet-only level vs input: -4.0 dB
+  Saturation small-signal gain at 6 dB drive, mix 100%: +2.8 dB
+  Chorus level vs input: -3.0 dB
+  De-esser: normal S reduced -0.6 dB, loud S reduced 6.4 dB
+  Tune latency 144 samples
+  Tune: 225 Hz in -> about 220.0 Hz out (nearest semitone is 220.0)
+bypass: stereo, zero-latency and 144-sample pitch delay across odd blocks
+
+ALL DSP CHECKS PASSED
+
+Real plugin build: BLOCKED. JUCE 8.0.12 was not installed. CMake FetchContent could not resolve github.com.
+Windows VST3, AU, UI screenshot, pluginval, FL Studio and real vocal A/B tests: UNVERIFIED.
