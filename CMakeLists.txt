@@ -32,6 +32,36 @@ juce_add_plugin(SkellierRack
 
 juce_generate_juce_header(SkellierRack)
 
+# Embed one faceplate per appearance from the two user-supplied ZIPs. The
+# installed plugin never reads a build-directory path or touches disk for art.
+set(SKELLIERE_ART_DIR "${CMAKE_CURRENT_BINARY_DIR}/rack-artwork")
+file(MAKE_DIRECTORY "${SKELLIERE_ART_DIR}")
+foreach(archive IN ITEMS air-eq-air-artwork.zip additional-effect-artwork.zip)
+  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/${archive}")
+    message(FATAL_ERROR "Missing assets/${archive}")
+  endif()
+  file(ARCHIVE_EXTRACT INPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/${archive}" DESTINATION "${SKELLIERE_ART_DIR}")
+endforeach()
+
+set(SKELLIERE_PANEL_FILES)
+function(skelliere_panel relative_source simple_name)
+  set(source "${SKELLIERE_ART_DIR}/${relative_source}")
+  set(output "${SKELLIERE_ART_DIR}/${simple_name}.png")
+  if(NOT EXISTS "${source}")
+    message(FATAL_ERROR "Missing rack artwork: ${relative_source}")
+  endif()
+  file(COPY_FILE "${source}" "${output}" ONLY_IF_DIFFERENT)
+  list(APPEND SKELLIERE_PANEL_FILES "${output}")
+  set(SKELLIERE_PANEL_FILES "${SKELLIERE_PANEL_FILES}" PARENT_SCOPE)
+endfunction()
+
+skelliere_panel("AirEQAir/RESOURCES/AirEqAir Resources__16209186/CONVERTED_PNG/0e10d454_1x_570x215.png" air_lift_faceplate)
+skelliere_panel("AirEQEarth/RESOURCES/AirEqEarth Resources__26b93620/CONVERTED_PNG/59981b3f_1x_570x215.png" earth_faceplate)
+skelliere_panel("CS-EQ/RESOURCES/CS-EQ Resources__ad3070b8/CONVERTED_PNG/10c608ac_1x_570x215.png" classic_eq_faceplate)
+skelliere_panel("CS-Lift/RESOURCES/CS-Lift Resources__ca15dd88/CONVERTED_PNG/195ddaf3_1x_570x215.png" classic_lift_faceplate)
+skelliere_panel("Blackbird Studio/RESOURCES/VMC Classic Tubes Resources__211e6581/CONVERTED_PNG/34294264_1x_570x215.png" blackbird_faceplate)
+juce_add_binary_data(SkelliereArtwork SOURCES ${SKELLIERE_PANEL_FILES})
+
 target_sources(SkellierRack PRIVATE
   Source/Modules.h Source/Dsp.h
   Source/PluginProcessor.cpp Source/PluginProcessor.h
@@ -43,8 +73,7 @@ target_compile_definitions(SkellierRack PUBLIC JUCE_VST3_CAN_REPLACE_VST2=0)
 target_compile_definitions(SkellierRack PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 target_link_libraries(SkellierRack PRIVATE
   juce::juce_audio_utils juce::juce_audio_processors juce::juce_gui_extra
-  SkellCore::DSP)
-
+  SkellCore::DSP SkelliereArtwork)
 
 # Capture the actual Skelliere Rack editor in CI; never substitute the SkellCore demo.
 option(SKELLIERE_BUILD_UI_RENDERER "Build real Skelliere Rack JUCE editor screenshots" OFF)
