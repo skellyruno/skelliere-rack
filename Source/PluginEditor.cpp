@@ -342,10 +342,14 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     search.setFont(font(13.0f));
     search.onTextChange = [this] { refresh(); };
     addAndMakeVisible(search);
-    for (int t = Eq; t < kNumTypes; ++t) {
+    tileViewport.setViewedComponent(&tileContent, false);
+    tileViewport.setScrollBarsShown(true, false);
+    tileViewport.setScrollBarThickness(10);
+    addAndMakeVisible(tileViewport);
+    for (int t = Eq; t < kNumRackTypes; ++t) {
         auto* tile = new ModuleTile(t, [this](int type) { select(type); }, [this](int type) { proc.addModule(type, -1); });
         tiles.add(tile);
-        addAndMakeVisible(tile);
+        tileContent.addAndMakeVisible(tile);
     }
     infoLabel.setFont(font(12.5f));
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
@@ -369,14 +373,15 @@ void LibraryPanel::select(int type) {
 void LibraryPanel::refresh() {
     const auto q = search.getText().trim().toLowerCase();
     int n = 0;
-    const int w = getWidth() - 20, tw = (w - 6) / 2;
+    const int w = juce::jmax(80, tileViewport.getWidth() - 12), tw = (w - 6) / 2;
     for (auto* t : tiles) {
         const auto& mi = info(t->type);
         const bool show = (category < 0 || (int) mi.cat == category) &&
                           (q.isEmpty() || (juce::String(mi.name) + " " + mi.sub).toLowerCase().contains(q));
         t->setVisible(show);
-        if (show) { t->setBounds(10 + (n % 2) * (tw + 6), 92 + (n / 2) * 60, tw, 56); ++n; }
+        if (show) { t->setBounds((n % 2) * (tw + 6), (n / 2) * 60, tw, 56); ++n; }
     }
+    tileContent.setSize(w, ((n + 1) / 2) * 60);
 }
 
 void LibraryPanel::resized() {
@@ -384,6 +389,7 @@ void LibraryPanel::resized() {
     search.setBounds(10, 30, w - 20, 26);
     const int bw = (w - 20 - 12) / 5;
     for (int i = 0; i < 5; ++i) cats[i].setBounds(10 + i * (bw + 3), 61, bw, 24);
+    tileViewport.setBounds(10, 92, w - 20, juce::jmax(60, getHeight() - 226));
     refresh();
     infoLabel.setBounds(10, getHeight() - 124, w - 20, 114);
 }
@@ -472,7 +478,7 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-    lcd.setText("v0.2.0 ARTWORK - Quad EQ / Air Lift: choose artwork below");
+    lcd.setText("v0.3.0 RACK-01 - Quad EQ / Air Lift: choose artwork below");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
@@ -497,14 +503,14 @@ RackUI::RackUI(SkellierProcessor& p)
     viewport.setScrollBarThickness(12);
     addAndMakeVisible(viewport);
     addAndMakeVisible(pathStrip);
-    for (int s = 0; s < kNumSlots; ++s) proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this);
+    for (int s = 0; s < kNumSlots; ++s) { proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.addParameterListener(SkellierProcessor::extraId(s), this); }
     startTimerHz(30);
 }
 
 RackUI::~RackUI() {
     stopTimer();
     cancelPendingUpdate();
-    for (int s = 0; s < kNumSlots; ++s) proc.apvts.removeParameterListener(SkellierProcessor::typeId(s), this);
+    for (int s = 0; s < kNumSlots; ++s) { proc.apvts.removeParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.removeParameterListener(SkellierProcessor::extraId(s), this); }
 }
 
 void RackUI::say(const juce::String& t) { lcd.setText(t); }
@@ -618,7 +624,7 @@ void RackUI::paint(Graphics& g) {
     g.setColour(Colour(0xff050506)); g.fillRect(Rectangle<int>(260, 196, 972, 556));
     g.setColour(Colour(0xff101214)); g.fillRect(840, 754, 382, 18);
     g.setColour(pal::ink); g.setFont(font(10.0f, true));
-    g.drawText("v0.2.0 ARTWORK  |  Scroll right for slots E-H", Rectangle<int>(846, 754, 370, 18), juce::Justification::centredRight, false);
+    g.drawText("v0.3.0 RACK-01  |  Scroll right for slots E-H", Rectangle<int>(846, 754, 370, 18), juce::Justification::centredRight, false);
 }
 
 // =================================================================== editor window
@@ -640,3 +646,4 @@ void SkellierEditor::applyScale(float z) {
     ui->setBounds(0, 0, skl::ui::RackUI::kW, skl::ui::RackUI::kH);
     setSize(juce::roundToInt((float) skl::ui::RackUI::kW * z), juce::roundToInt((float) skl::ui::RackUI::kH * z));
 }
+

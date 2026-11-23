@@ -121,6 +121,8 @@ private:
     SkellierProcessor& proc;
     juce::TextButton cats[5];
     juce::TextEditor search;
+    juce::Component tileContent;
+    juce::Viewport tileViewport;
     juce::OwnedArray<ModuleTile> tiles;
     juce::Label infoLabel;
     int category = -1;
@@ -192,3 +194,4 @@ private:
     skl::ui::SkellierLook look;
     std::unique_ptr<skl::ui::RackUI> ui;
 };
+

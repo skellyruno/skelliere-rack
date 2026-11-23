@@ -57,6 +57,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout SkellierProcessor::createLay
             layout.add(std::make_unique<AudioParameterFloat>(ParameterID{knobId(s, k), 1}, "Slot " + slot + " Knob " + String(k + 1),
                                                              NormalisableRange<float>(0.0f, 1.0f, 0.0f), 0.5f));
     }
+    // Append extension parameters after every legacy parameter. An integer range
+    // keeps extension automation stable when more effects are assigned later.
+    for (int s = 0; s < kNumSlots; ++s)
+        layout.add(std::make_unique<AudioParameterInt>(ParameterID{extraId(s), 1},
+            "Slot " + String(s + 1) + " Extra Effect", 0, 127, 0));
     return layout;
 }
 
@@ -66,6 +71,7 @@ SkellierProcessor::SkellierProcessor()
       apvts(*this, nullptr, "SKELLIERE", createLayout()) {
     for (int s = 0; s < kNumSlots; ++s) {
         typeRaw[s] = apvts.getRawParameterValue(typeId(s));
+        extraRaw[s] = apvts.getRawParameterValue(extraId(s));
         onRaw[s] = apvts.getRawParameterValue(onId(s));
         for (int k = 0; k < kMaxKnobs; ++k) kRaw[s][k] = apvts.getRawParameterValue(knobId(s, k));
         lastType[s] = -1;
@@ -92,7 +98,7 @@ bool SkellierProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
 
 // ------------------------------------------------------------------ audio
 skl::ModuleBase* SkellierProcessor::moduleFor(int slot, int type, int tuneSlot) const {
-    if (type <= 0 || type >= kNumTypes) return nullptr;
+    if (type <= 0 || type >= kNumRackTypes) return nullptr;
     if (type == Tune) return slot == tuneSlot ? tuneModule.get() : nullptr;   // a second Tune slot stays silent
     return mods[slot][type].get();
 }
@@ -102,7 +108,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     maxBlock = juce::jmax(1, samplesPerBlock);
     const int ch = juce::jlimit(1, 2, getMainBusNumInputChannels());
     for (int s = 0; s < kNumSlots; ++s)
-        for (int t = Eq; t < kNumTypes; ++t) {
+        for (int t = Eq; t < kNumRackTypes; ++t) {
             if (t == Tune) continue;
             mods[s][t] = makeModule(t);
             mods[s][t]->prepare(sampleRate_, maxBlock, ch);
@@ -111,7 +117,9 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     tuneModule->prepare(sampleRate_, maxBlock, ch);
     bypassDelay.prepare(tuneModule->latency());
     for (int s = 0; s < kNumSlots; ++s) lastType[s] = -1;
-    prevIn = prevOut = 1.0f;
+    inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
+    inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(inRaw->load()));
+    outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(outRaw->load()));
     prepared = true;
     updateLatency();
 }
@@ -147,13 +155,17 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         return;
     }
 
-    buffer.applyGainRamp(0, total, prevIn, inG); prevIn = inG;
+    inputGain.setTargetValue(inG); outputGain.setTargetValue(outG);
+    for(int i=0;i<total;++i) {
+        const float gain=inputGain.getNextValue();
+        for(int c=0;c<ch;++c) buffer.getWritePointer(c)[i]*=gain;
+    }
     inPeak.store(juce::jmax(inPeak.load(), buffer.getMagnitude(0, total)));
 
     int tuneSlot = -1;
     int types[kNumSlots];
     for (int s = 0; s < kNumSlots; ++s) {
-        types[s] = juce::jlimit(0, (int) kNumTypes - 1, (int) (typeRaw[s]->load() + 0.5f));
+        types[s] = slotType(s);
         if (types[s] == Tune && tuneSlot < 0) tuneSlot = s;
     }
     const int solo = soloSlot.load();
@@ -175,7 +187,10 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         }
     }
 
-    buffer.applyGainRamp(0, total, prevOut, outG); prevOut = outG;
+    for(int i=0;i<total;++i) {
+        const float gain=outputGain.getNextValue();
+        for(int c=0;c<ch;++c) buffer.getWritePointer(c)[i]*=gain;
+    }
     for (int c = 0; c < ch; ++c) {
         float* d = buffer.getWritePointer(c);
         for (int i = 0; i < total; ++i) d[i] = juce::jlimit(-16.0f, 16.0f, sane(d[i]));
@@ -185,7 +200,8 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 
 // ------------------------------------------------------------------ reading
 int SkellierProcessor::slotType(int s) const {
-    return juce::jlimit(0, (int) kNumTypes - 1, (int) (typeRaw[juce::jlimit(0, kNumSlots - 1, s)]->load() + 0.5f));
+    s = juce::jlimit(0, kNumSlots - 1, s);
+    return resolveRackType(typeRaw[s]->load(), extraRaw[s]->load());
 }
 bool SkellierProcessor::slotOn(int s) const { return onRaw[juce::jlimit(0, kNumSlots - 1, s)]->load() > 0.5f; }
 float SkellierProcessor::gainReduction(int s) const {
@@ -210,7 +226,9 @@ void SkellierProcessor::writeSlot(int s, const SlotValues& v) {
     // Switch the slot off while it is rewritten so the audio thread never runs a module with half-updated knobs.
     setParam(onId(s), 0.0f);
     for (int k = 0; k < kMaxKnobs; ++k) setParam(knobId(s, k), v.k[k]);
-    setParam(typeId(s), (float) v.type);
+    setParam(extraId(s), 0.0f);
+    setParam(typeId(s), v.type < kNumTypes ? (float) v.type : 0.0f);
+    if (v.type >= kNumTypes) setParam(extraId(s), (float) (v.type - kNumTypes + 1));
     setParam(onId(s), v.on ? 1.0f : 0.0f);
 }
 
@@ -226,7 +244,7 @@ void SkellierProcessor::pushUndo() {
 }
 
 bool SkellierProcessor::addModule(int type, int slot) {
-    if (type <= 0 || type >= kNumTypes) return false;
+    if (type <= 0 || type >= kNumRackTypes) return false;
     int target = slot;
     if (target < 0 || target >= kNumSlots) {
         target = -1;
@@ -318,7 +336,7 @@ void SkellierProcessor::restoreRack(const juce::String& text) {
     for (auto* e : xml->getChildWithTagNameIterator("SLOT")) {
         const int i = e->getIntAttribute("i", -1);
         if (i < 0 || i >= kNumSlots) continue;
-        vals[i].type = juce::jlimit(0, (int) kNumTypes - 1, e->getIntAttribute("type", 0));
+        vals[i].type = juce::jlimit(0, (int) kNumRackTypes - 1, e->getIntAttribute("type", 0));
         vals[i].on = e->getIntAttribute("on", 1) != 0;
         for (int k = 0; k < kMaxKnobs; ++k) vals[i].k[k] = juce::jlimit(0.0f, 1.0f, (float) e->getDoubleAttribute("k" + juce::String(k), 0.5));
     }
@@ -378,13 +396,32 @@ void SkellierProcessor::deleteStrip(const juce::String& name) {
 
 // ------------------------------------------------------------------ state
 void SkellierProcessor::getStateInformation(juce::MemoryBlock& dest) {
-    if (auto xml = apvts.copyState().createXml()) copyXmlToBinary(*xml, dest);
+    auto state = apvts.copyState();
+    for (int s = 0; s < kNumSlots; ++s)
+        state.setProperty("art" + juce::String(s), artworkChoices[(size_t) s], nullptr);
+    if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 void SkellierProcessor::setStateInformation(const void* data, int size) {
     if (auto xml = getXmlFromBinary(data, size))
-        if (xml->hasTagName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*xml));
+        if (xml->hasTagName(apvts.state.getType())) {
+            auto state = juce::ValueTree::fromXml(*xml);
+            // APVTS retains missing parameter values on replacement. Explicitly
+            // insert zero for old sessions, even over a previously extended rack.
+            for (int s = 0; s < kNumSlots; ++s) {
+                if (!state.getChildWithProperty("id", extraId(s)).isValid()) {
+                    juce::ValueTree parameter("PARAM");
+                    parameter.setProperty("id", extraId(s), nullptr);
+                    parameter.setProperty("value", 0, nullptr);
+                    state.appendChild(parameter, nullptr);
+                }
+                artworkChoices[(size_t) s] = juce::jlimit(0, 3,
+                    (int) state.getProperty("art" + juce::String(s), 1));
+            }
+            apvts.replaceState(state);
+        }
     latencyUpdater.triggerAsyncUpdate();
 }
 
 juce::AudioProcessorEditor* SkellierProcessor::createEditor() { return new SkellierEditor(*this); }
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new SkellierProcessor(); }
+

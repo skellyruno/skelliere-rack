@@ -15,6 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sh tests/run_tests.sh
+      - name: Production DSP address and undefined behavior sanitizers
+        shell: bash
+        run: |
+          for test in test_dsp test_smooth_tone test_rack_extensions; do
+            g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Itests/stub -ISkellCore/include -ISource tests/$test.cpp -o /tmp/$test-sanitized
+            /tmp/$test-sanitized
+          done
       - run: python -m unittest discover -s tests -p test_moduleinfo.py -v
 
   plugin:
@@ -49,3 +56,4 @@ jobs:
         with:
           name: SkellierRack-${{ matrix.os }}
           path: out
+

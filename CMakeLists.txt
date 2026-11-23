@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(SkellierRack VERSION 0.2.0 LANGUAGES C CXX)
+project(SkellierRack VERSION 0.3.0 LANGUAGES C CXX)
 include(FetchContent)
 
 # JUCE: pass -DJUCE_PATH=/path/to/JUCE to use a local copy, otherwise JUCE 8.0.12 is fetched.
@@ -87,3 +87,4 @@ if(SKELLIERE_BUILD_UI_RENDERER)
   target_compile_definitions(SkelliereRackUIRenderer PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
   target_compile_features(SkelliereRackUIRenderer PRIVATE cxx_std_17)
 endif()
+

@@ -91,10 +91,11 @@ private:
     int maxBlock=512;
     double sampleRate_=48000;
     bool prepared=false;
-    float prevIn=1,prevOut=1;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGain, outputGain;
     std::atomic<float> inPeak{0},outPeak{0};
     std::vector<juce::String> undoStack,redoStack;
     juce::String snaps[2];
     int curSnap=0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SkellierProcessor)
 };
+

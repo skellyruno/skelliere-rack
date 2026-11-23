@@ -8,8 +8,15 @@ constexpr int kNumSlots = 8, kMaxKnobs = 6;
 enum ModuleType : int {
     Empty = 0, Eq, Comp, DeEss, Sat, Air, Chorus, Delay, Reverb, Limiter, Trim, Tune,
     kNumTypes, // compatibility boundary: do not extend the legacy choice parameter
-    Tilt = kNumTypes, Stereo, kNumRackTypes
+    Tilt = kNumTypes, Stereo, FastComp, BusComp, kNumRackTypes
 };
+// Pure selection policy shared by production and host-free regression tests.
+inline int resolveRackType(float legacy, float extension) noexcept {
+    const int type = std::isfinite(legacy) ? (int) std::lround(std::clamp(legacy, 0.0f, (float) kNumTypes - 1)) : Empty;
+    if (type != Empty) return type;
+    if (!std::isfinite(extension) || extension < 1 || extension > kNumRackTypes - kNumTypes) return Empty;
+    return kNumTypes + (int) std::lround(extension) - 1;
+}
 enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps };
 enum Category : int { CatNone=0, CatDynamics, CatTone, CatSpace, CatUtility };
 struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; };
@@ -61,7 +68,15 @@ inline const ModuleInfo& info(int type) {
           {"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Balance",0,2},{"Output",2,1}},false},
         {"Stereo Stage","Width with mono bass","Mid/side width with a side-channel high-pass for a centered low end. Mono input remains mono; no synthetic stereo or added latency.",CatUtility,3,
          {{"Width",0,2,false,1,Unit::Pct,0,nullptr},{"Mono Bass",20,300,true,100,Unit::Hz,0,nullptr},
-          {"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Image",0,2},{"Output",2,1}},false}
+          {"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Image",0,2},{"Output",2,1}},false},
+        {"Fast C","Linked peak compressor","Original stereo-linked peak compressor with a 3 dB soft knee. No proprietary circuit emulation.",CatDynamics,5,
+         {{"Thresh",-60,0,false,-18,Unit::Db,0,nullptr},{"Ratio",1,20,true,4,Unit::Ratio,0,nullptr},
+          {"Attack",0.1f,30,true,2,Unit::Ms,0,nullptr},{"Release",20,1000,true,100,Unit::Ms,0,nullptr},
+          {"Makeup",0,24,false,0,Unit::Db,0,nullptr}},3,{{"Input",0,2},{"Time",2,2},{"Output",4,1}},true},
+        {"Bus C","Linked RMS compressor","Original stereo-linked RMS compressor with a 9 dB soft knee for broad level control. No proprietary circuit emulation.",CatDynamics,5,
+         {{"Thresh",-60,0,false,-18,Unit::Db,0,nullptr},{"Ratio",1,10,true,2,Unit::Ratio,0,nullptr},
+          {"Attack",1,100,true,20,Unit::Ms,0,nullptr},{"Release",40,1500,true,250,Unit::Ms,0,nullptr},
+          {"Makeup",0,24,false,0,Unit::Db,0,nullptr}},3,{{"Input",0,2},{"Time",2,2},{"Output",4,1}},true}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
@@ -81,3 +96,4 @@ inline float toReal(const Knob& k,float n) {
 inline float defaultNorm(int type,int knob) { return toNorm(info(type).knobs[knob],info(type).knobs[knob].def); }
 inline float realOf(int type,int knob,const float* norm) { return toReal(info(type).knobs[knob],norm[knob]); }
 } // namespace skl
+

@@ -1,6 +1,7 @@
 #pragma once
 #include "Dsp.h"
 #include "ExtraRackModules.h"
+#include "RackCompressor.h"
 namespace skl {
 inline float slewToward(float value,float target,float step) noexcept {
     return value+std::clamp(target-value,-step,step);
@@ -73,6 +74,8 @@ private:
 inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
     if(type==Eq || type==Air) return std::make_unique<SmoothedTone>(type);
     if(type==Tilt || type==Stereo) return std::make_unique<ExtraRackModule>(type);
+    if(type==FastComp || type==BusComp) return std::make_unique<RackCompressor>(type);
     return makeModule(type);
 }
 } // namespace skl
+
