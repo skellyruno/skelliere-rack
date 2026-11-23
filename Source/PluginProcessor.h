@@ -1,6 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
-#include "Dsp.h"
+#include "RackModuleFactory.h"
 
 // Skelliere Rack: eight slots, signal runs A to H. Every slot is described by plain host parameters
 // (module type, on/off, six knobs), so presets, automation and DAW project recall all work with no extra state.
@@ -40,15 +40,19 @@ public:
     // ---- reading the rack (any thread)
     int slotType(int slot) const;
     bool slotOn(int slot) const;
-    float gainReduction(int slot) const;            // dB, for the VU meters
+    float gainReduction(int slot) const;
     float takeInputPeak() { return inPeak.exchange(0.0f); }
     float takeOutputPeak() { return outPeak.exchange(0.0f); }
     std::atomic<int> soloSlot{-1};
 
+    // Appearance is message-thread-only, per instance and per slot. It survives
+    // closing the editor but is not a host parameter or a saved sound setting.
+    std::array<int, skl::kNumSlots> artworkChoices{{1, 1, 1, 1, 1, 1, 1, 1}};
+
     // ---- editing the rack (message thread only). Each of these is one undo step.
-    bool addModule(int type, int slot = -1);        // slot<0: first empty slot. A taken slot pushes its neighbours right.
+    bool addModule(int type, int slot = -1);
     void removeSlot(int slot);
-    void moveSlot(int from, int to, bool copy);     // plain move swaps; copy duplicates
+    void moveSlot(int from, int to, bool copy);
     void clearRack();
     void applyFactory(int index);
     static int numFactory();
@@ -74,6 +78,9 @@ public:
     int latencyOfTune() const;
 
 private:
+    // Existing preparation sites call this class factory, also exercised directly
+    // by the host-free tests through skl::makeRackModule.
+    static std::unique_ptr<skl::ModuleBase> makeModule(int type) { return skl::makeRackModule(type); }
     struct SlotValues { int type = 0; bool on = true; float k[skl::kMaxKnobs] = {0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f}; };
 
     void parameterChanged(const juce::String&, float) override;
@@ -93,7 +100,6 @@ private:
         SkellierProcessor& owner;
     } latencyUpdater{*this};
 
-    // raw parameter pointers (set once in the constructor, read on the audio thread)
     std::atomic<float>* typeRaw[skl::kNumSlots] = {};
     std::atomic<float>* onRaw[skl::kNumSlots] = {};
     std::atomic<float>* kRaw[skl::kNumSlots][skl::kMaxKnobs] = {};
@@ -101,8 +107,7 @@ private:
     std::atomic<float>* outRaw = nullptr;
     std::atomic<float>* bypassRaw = nullptr;
 
-    // DSP. Every slot owns one instance of each module type, except Skelly Tune, which is heavy:
-    // one shared instance serves the first slot set to Tune.
+    // Every slot owns all light modules; Tune is shared by the first Tune slot.
     std::unique_ptr<skl::ModuleBase> mods[skl::kNumSlots][skl::kNumTypes];
     std::unique_ptr<skl::ModuleBase> tuneModule;
     skl::LatencyAlignedBypass bypassDelay;
