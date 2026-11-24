@@ -1,0 +1,9 @@
+# Skelliere independent DSP lab — builder task
+
+Continue the supplied original C++17 files in place. No target binary is provided. Build a modular audio dynamics and tone-processing laboratory, not a commercial clone or a replacement GUI. Use the existing adaptive compressor, fixed timing baseline, dynamic bell, sample-peak limiter, and Program Opto core as the starting point. Preserve all baseline functions and tests; add independent challenger files and tests. Do not access external reference binaries, vendor source, decompilation, presets, artwork, private audio or parent directories. Do not install extra packages or use network research; use the supplied code and mathematical reasoning. Do not alter the production plugin, IDs, automation, presets, latency, or UI. Do not claim similarity to a commercial implementation.
+
+1. Improve the independent dynamics architecture: separate detector, static transfer, time constants, channel link and gain application. Compare attack and release on identical signals, with matched steady-state gain when comparing transient behavior. Evaluate low-frequency sidechain behavior, stereo linkage, finite input and silence. Keep allocation, lock and I/O out of sample processing.
+2. Add an independent dynamic-EQ or coloration challenger only if it includes frequency response, noise/alias or distortion checks, and clear latency reporting. Preserve the original algorithms.
+3. Run the CMake/CTest baseline and candidate. Add reproducible four-rate regression tests (44.1/48/96/192 kHz), and ASan/UBSan if available. Record measured results, failures and limitations, and candidate code separately. Do not weaken existing tests, claim DAW CPU or real listening quality, or import to the rack automatically.
+
+Output a concise local report with exact code changes, numerical comparison, failure cases and next priorities. Stop for human review of the candidate before any production integration.
