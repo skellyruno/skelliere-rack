@@ -423,7 +423,7 @@ void LibraryPanel::select(int type) {
     for (auto* t : tiles) { t->selected = t->type == type; t->repaint(); }
     const auto& mi = info(type);
     const juce::String hint = (type == Eq || type == Air)
-        ? "\n\nChoose a native faceplate at the bottom of its slot. All knobs remain active."
+        ? "\n\nChoose a Skell metal finish at the bottom of the slot. All knobs remain active."
         : "\n\nDouble-click or drag into a slot.";
     infoLabel.setText(juce::String(displayName(type)).toUpperCase() + "\n" + mi.desc + hint, juce::dontSendNotification);
 }
@@ -435,7 +435,7 @@ void LibraryPanel::refresh() {
     for (auto* t : tiles) {
         const auto& mi = info(t->type);
         const bool show = (category < 0 || (int) mi.cat == category) &&
-                          (q.isEmpty() || (juce::String(displayName(type)) + " " + mi.sub).toLowerCase().contains(q));
+                          (q.isEmpty() || (juce::String(displayName(t->type)) + " " + mi.sub).toLowerCase().contains(q));
         t->setVisible(show);
         if(show){t->setBounds(0,n*47,w,43);++n;}
     }
