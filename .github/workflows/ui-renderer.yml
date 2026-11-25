@@ -28,10 +28,10 @@ jobs:
           if (-not $exe) { throw 'SkelliereRackUIRenderer.exe missing' }
           & $exe.FullName (Join-Path (Get-Location) 'ui-screenshots')
           if ($LASTEXITCODE -ne 0) { throw "Renderer failed: $LASTEXITCODE" }
-          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 11) { throw 'Expected eleven real-editor screenshots' }
+          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 12) { throw 'Expected twelve real-editor screenshots' }
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }
           $manifest = Get-Content ui-screenshots/manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.count -ne 11) { throw 'Screenshot manifest count mismatch' }
+          if ($manifest.count -ne 12) { throw 'Screenshot manifest count mismatch' }
       - name: Export actual editor evidence for connected review
         run: python tools/ci_editor_evidence.py ui-screenshots
       - uses: actions/upload-artifact@v4

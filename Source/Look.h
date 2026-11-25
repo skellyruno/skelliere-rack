@@ -112,16 +112,21 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value) {
 
     juce::Graphics::ScopedSaveState save(g);
     g.reduceClipRegion(face.toNearestInt());
-    const float cx = face.getCentreX(), cy = face.getBottom() + 2.0f, sc = face.getWidth() / 130.0f;
+    // The meter is much wider than it is tall. Fit the arc in both axes,
+    // keeping its full scale, labels and hub inside the actual face.
+    const float cx = face.getCentreX(), cy = face.getBottom() - 6.0f;
+    const float sc = face.getWidth() / 130.0f;
+    const float sy = juce::jmax(0.1f, (face.getHeight() - 14.0f) / 57.0f);
+    const float labelSize = juce::jlimit(8.0f, 11.0f, 8.0f * sc);
     auto pt = [&](float rad, float v) {
         const float a = juce::degreesToRadians(-50.0f + v * 5.0f);
-        return juce::Point<float>(cx + rad * sc * std::sin(a), cy - rad * sc * std::cos(a));
+        return juce::Point<float>(cx + rad * sc * std::sin(a), cy - rad * sy * std::cos(a));
     };
     for (float v = 0.0f; v <= 20.0f; v += 2.0f) {
         const bool major = std::fmod(v, 4.0f) < 0.01f;
         g.setColour(v >= 12.0f ? pal::vuRed : pal::vuInk);
         g.drawLine(juce::Line<float>(pt(57.0f, v), pt(major ? 49.0f : 53.0f, v)), major ? 1.4f : 0.9f);
-        if (major) { g.setFont(font(8.0f * sc, true)); g.drawText(juce::String((int) v), juce::Rectangle<float>(0, 0, 18, 10).withCentre(pt(41.0f, v)), juce::Justification::centred, false); }
+        if (major) { g.setFont(font(labelSize, true)); g.drawText(juce::String((int) v), juce::Rectangle<float>(0, 0, 22, 13).withCentre(pt(39.0f, v)), juce::Justification::centred, false); }
     }
     juce::Path arc;
     arc.startNewSubPath(pt(57.0f, 0.0f));
@@ -130,8 +135,8 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value) {
     juce::Path red;
     red.startNewSubPath(pt(54.0f, 12.0f));
     for (float v = 12.0f; v <= 20.0f; v += 1.0f) red.lineTo(pt(54.0f, v));
-    g.setColour(pal::vuRed); g.strokePath(red, juce::PathStrokeType(3.0f * sc));
-    g.setColour(pal::vuInk); g.setFont(font(8.0f * sc, true));
+    g.setColour(pal::vuRed); g.strokePath(red, juce::PathStrokeType(2.0f));
+    g.setColour(pal::vuInk); g.setFont(font(labelSize, true));
     g.drawText("GR dB", face.withTrimmedLeft(7.0f).removeFromBottom(14.0f), juce::Justification::centredLeft, false);
 
     const float v = juce::jlimit(0.0f, 20.0f, value);
@@ -139,7 +144,7 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value) {
     g.drawLine(juce::Line<float>(juce::Point<float>(cx + 1.5f, cy + 1.5f), pt(52.0f, v) + juce::Point<float>(1.5f, 1.5f)), 1.6f);
     g.setColour(pal::vuRed);
     g.drawLine(juce::Line<float>(juce::Point<float>(cx, cy), pt(52.0f, v)), 1.5f);
-    g.setColour(Colour(0xff1a1a1a)); g.fillEllipse(cx - 6.0f * sc, cy - 6.0f * sc, 12.0f * sc, 12.0f * sc);
+    g.setColour(Colour(0xff1a1a1a)); g.fillEllipse(cx - 4.5f, cy - 4.5f, 9.0f, 9.0f);
     g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(0.28f), face.getX(), face.getY(), juce::Colours::white.withAlpha(0.0f), face.getX(), face.getY() + face.getHeight() * 0.5f, false));
     g.fillRect(face.withHeight(face.getHeight() * 0.45f));
 }

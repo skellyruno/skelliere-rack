@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
         {"rack_extensions_100", 1260, 820, 1, 0},
         {"rack_extensions_80", 1008, 656, 1, 0},
         {"rack_extensions_125", 1575, 1025, 1, 0},
+        {"rack_program_opto_100", 1260, 820, 4, 0},
         {"rack_empty_100", 1260, 820, 2, 0},
         {"rack_scroll_100", 1260, 820, 3, 0}
     };
@@ -44,16 +45,22 @@ int main(int argc, char** argv) {
     };
     int expectedWidth = 1260, expectedHeight = 820;
     int expectedArtworkSlots = 2;
+    bool expectProgramOpto = false;
     options.configure = [&](const skellcore::ui::headless::Scene& scene) {
         expectedWidth = scene.width; expectedHeight = scene.height;
         processor.clearRack();
         expectedArtworkSlots = scene.theme == 0 ? 2 : 0;
+        expectProgramOpto = scene.theme == 4;
         if(scene.theme == 0) { processor.addModule(skl::Eq,0); processor.addModule(skl::Air,1); }
         if(scene.theme == 1) {
             processor.addModule(skl::Tilt,0); processor.addModule(skl::Stereo,1);
             processor.addModule(skl::FastComp,2); processor.addModule(skl::BusComp,3);
         }
         if(scene.theme == 3) { processor.addModule(skl::Stereo,6); processor.addModule(skl::Tilt,7); }
+        if(scene.theme == 4) {
+            processor.addModule(skl::ProgramOpto,0); processor.addModule(skl::FastComp,1);
+            processor.addModule(skl::BusComp,2);
+        }
         visit(editor, [&](juce::Component& c) {
             if (auto* ui = dynamic_cast<skl::ui::RackUI*>(&c))
                 if (ui->onScale) ui->onScale(static_cast<float>(scene.width) / 1260.0f);
@@ -67,8 +74,10 @@ int main(int argc, char** argv) {
         if (editor.getWidth() != expectedWidth || editor.getHeight() != expectedHeight)
             errors.add("Editor scaling dimensions do not match the scene");
         int visibleArtworkSlots = 0;
+        int programOptoSlots = 0;
         visit(editor, [&](juce::Component& c) {
             if (auto* slot = dynamic_cast<skl::ui::SlotComponent*>(&c)) {
+                if (slot->currentType() == skl::ProgramOpto) ++programOptoSlots;
                 if (slot->currentType() == skl::Eq || slot->currentType() == skl::Air) {
                     ++visibleArtworkSlots;
                     if (!slot->artworkLayoutIsValid()) errors.add("Artwork overlaps live knobs or selector is hidden");
@@ -76,6 +85,7 @@ int main(int argc, char** argv) {
             }
         });
         if (visibleArtworkSlots != expectedArtworkSlots) errors.add("Unexpected artwork slot count");
+        if (programOptoSlots != (expectProgramOpto ? 1 : 0)) errors.add("Unexpected Program Opto slot count");
         for (int type : {skl::Eq, skl::Air})
             for (int choice : {1, 2, 3}) {
                 const auto& panel = skl::ui::rackPanel(type, choice);

@@ -478,7 +478,7 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-    lcd.setText("v0.3.0 RACK-01 - Quad EQ / Air Lift: choose artwork below");
+    lcd.setText("v0.3.0 RACK-01 - modular vocal and mixing rack");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
