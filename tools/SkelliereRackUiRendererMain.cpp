@@ -1,6 +1,7 @@
 // Screenshots and checks use the real plugin editor, not a reconstruction.
 #include "../Source/PluginProcessor.h"
 #include "../Source/PluginEditor.h"
+#include "../Source/RackMeter.h"
 #include <SkellCore/HeadlessUIRenderer.h>
 #include <cstdio>
 #include <chrono>
@@ -36,6 +37,9 @@ int main(int argc, char** argv) {
         &&skl::ui::rackSkinAvailable(skl::FastComp,1)&&skl::ui::rackSkinAvailable(skl::FastComp,2)
         &&skl::ui::rackSkinAvailable(skl::FastComp,3)&&skl::ui::rackSkinAvailable(skl::BusComp,1)
         &&skl::ui::rackSkinAvailable(skl::Trim,2);
+    if(juce::SystemStats::getEnvironmentVariable("SKELLIERE_REQUIRE_FULL_ARTWORK",{}).isNotEmpty()&&!fullPack) {
+        std::fprintf(stderr,"Required private full artwork pack missing or invalid\n");return 1;
+    }
     skellcore::ui::headless::Options options;
     options.project = "Skelliere Rack v0.3.0 RACK-01 production/editor regression";
     options.scenes = {
@@ -189,12 +193,18 @@ int main(int argc, char** argv) {
                 if(raw.getPixelAt(107,y)==restored.getPixelAt(107,y))
                     errors.add("Faceplate restoration did not remove baked background controls");
             }
-            /*
-                errors.add("This block is replaced by the checked source-region test");
-            */
-        }
-        if(fullPack) for(const auto& pair:std::array<std::array<int,2>,7>{{{{skl::Comp,1}},{{skl::ProgramOpto,1}},{{skl::FastComp,1}},{{skl::FastComp,2}},{{skl::FastComp,3}},{{skl::BusComp,1}},{{skl::Trim,2}}}}) {
-            if(!skl::ui::rackSkinAvailable(pair[0],pair[1])) errors.add("Full-pack native appearance missing");
+         }
+        if(fullPack) {
+            const int pairs[][2]={{skl::Comp,1},{skl::ProgramOpto,1},{skl::FastComp,1},{skl::FastComp,2},{skl::FastComp,3},{skl::BusComp,1},{skl::Trim,2}};
+            for(const auto& pair:pairs) {
+                if(!skl::ui::rackSkinAvailable(pair[0],pair[1])) errors.add("Full-pack native appearance missing");
+                if(skl::info(pair[0]).hasVU) {
+                    juce::Image target(juce::Image::ARGB,160,160,true);
+                    juce::Graphics g(target);
+                    if(!skl::ui::drawSourceMeter(g,{0,0,160,160},pair[0],pair[1],0,true))
+                        errors.add("Original meter face or bezel missing");
+                }
+            }
         }
         return errors;
     };
@@ -245,6 +255,16 @@ int main(int argc, char** argv) {
     if(GetProcessMemoryInfo(GetCurrentProcess(),reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&mem),sizeof(mem))) {
         perf<<"process_working_set,"<<mem.WorkingSetSize<<",bytes\n";
         perf<<"process_private_bytes,"<<mem.PrivateUsage<<",bytes\n";
+    }
+#endif
+#if JUCE_LINUX
+    std::ifstream procStatus("/proc/self/status");
+    std::string line;
+    while(std::getline(procStatus,line)) {
+        if(line.rfind("VmRSS:",0)==0 || line.rfind("VmHWM:",0)==0) {
+            const auto kb=std::stoull(line.substr(6));
+            perf<<(line.rfind("VmRSS:",0)==0?"process_working_set,":"process_peak_working_set,")<<kb*1024<<",bytes\n";
+        }
     }
 #endif
     perf.close();

@@ -4,11 +4,15 @@
 namespace skl::ui {
 // Optional local artwork is never fetched, scanned from project state, or
 // loaded on the audio thread. All resource names are compile-time identifiers.
-inline juce::File localArtworkDirectory() {
-    const auto overridePath=juce::SystemStats::getEnvironmentVariable("SKELLIERE_ARTWORK_DIR",{});
-    if(overridePath.isNotEmpty()) return juce::File(overridePath);
-    return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-        .getChildFile("Skell Audio").getChildFile("Skelliere Rack").getChildFile("artwork-v1");
+inline const juce::File& localArtworkDirectory() {
+    // Resolve once. Restart the process after changing the installed pack.
+    static const auto dir=[] {
+        const auto overridePath=juce::SystemStats::getEnvironmentVariable("SKELLIERE_ARTWORK_DIR",{});
+        if(overridePath.isNotEmpty()) return juce::File(overridePath);
+        return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+            .getChildFile("Skell Audio").getChildFile("Skelliere Rack").getChildFile("artwork-v1");
+    }();
+    return dir;
 }
 inline juce::Image loadRackResource(const char* name) {
     const auto f=localArtworkDirectory().getChildFile(juce::String(name)+".png");

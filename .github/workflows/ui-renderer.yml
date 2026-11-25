@@ -21,6 +21,18 @@ jobs:
         run: cmake -S . -B build -A x64 -DSKELLIERE_BUILD_UI_RENDERER=ON
       - name: Compile actual-editor renderer
         run: cmake --build build --config Release --target SkelliereRackUIRenderer --parallel 2
+      - name: Collect Windows editor test executable
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build -Recurse -File -Filter SkelliereRackUIRenderer.exe | Select-Object -First 1
+          if (-not $exe) { throw 'Missing test executable' }
+          New-Item -ItemType Directory -Force local-renderer | Out-Null
+          Copy-Item $exe.FullName local-renderer/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skelliere-Local-Windows-Editor-Renderer
+          path: local-renderer/
+          if-no-files-found: error
       - name: Capture and validate artwork appearances
         shell: pwsh
         run: |
