@@ -5,6 +5,8 @@ inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
     require(p.getParameters().size()==75,"Legacy parameter ordering/count changed");
+    require(skl::kNumRackTypes==26 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25,"Catalog identities changed");
+    p.prepareToPlay(48000,7);
     int parameterIndex=0;
     auto ordered=[&](const juce::String& id) {
         auto* parameter=dynamic_cast<juce::AudioProcessorParameterWithID*>(p.getParameters()[parameterIndex++]);
@@ -27,7 +29,7 @@ inline void processorRegression() {
         p.moveSlot(0,1,false); require(p.slotType(1)==type,"Move lost extension");
         juce::MemoryBlock state; p.getStateInformation(state); p.clearRack();
         p.setStateInformation(state.getData(),(int)state.getSize()); require(p.slotType(1)==type,"State lost extension");
-        p.prepareToPlay(48000,7); juce::AudioBuffer<float> b(2,63); juce::MidiBuffer midi;
+        juce::AudioBuffer<float> b(2,63); juce::MidiBuffer midi;
         for(int c=0;c<2;++c) for(int i=0;i<63;++i) b.getWritePointer(c)[i]=.1f;
         p.processBlock(b,midi);
         for(int c=0;c<2;++c) for(int i=0;i<63;++i) require(std::isfinite(b.getSample(c,i)),"Production process invalid");

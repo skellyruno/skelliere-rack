@@ -145,7 +145,7 @@ SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     soloBtn.getProperties().set("plain", true);
     soloBtn.onClick = [this] { proc.soloSlot.store(soloBtn.getToggleState() ? index : -1); };
     for (auto* b : {&leftBtn, &rightBtn, &removeBtn}) b->getProperties().set("plain", true);
-    powerBtn.setTooltip("Enable this slot; EQ and Air switch with a short fade");
+    powerBtn.setTooltip("Enable or bypass this effect");
     leftBtn.setTooltip("Move module left"); rightBtn.setTooltip("Move module right");
     removeBtn.setTooltip("Remove module (Undo restores it)"); soloBtn.setTooltip("Solo this slot");
     rebuild();
@@ -228,6 +228,10 @@ bool SlotComponent::exerciseSpriteBindings() {
 }
 
 void SlotComponent::syncSolo() { soloBtn.setToggleState(proc.soloSlot.load() == index, juce::dontSendNotification); }
+void SlotComponent::syncPowerVisual() {
+    const bool on=proc.slotOn(index);
+    if(on!=shownPower){shownPower=on;repaint();}
+}
 
 void SlotComponent::setMeter(float gr) {
     if (type == Empty || !info(type).hasVU) return;
@@ -294,7 +298,13 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour(Colour(0xff15191a));pg.fillRect(6,h-45,w-12,39);
     }
     g.drawImageAt(panelCache,0,0);
-    if(mi.hasVU&&!vuRect.isEmpty())paintVU(g,vuRect.toFloat(),needle);
+    g.setColour(powerBtn.getToggleState()?Colour(0xffb7dfa3):Colour(0xff858a82));g.setFont(font(9,true));
+    g.drawText(powerBtn.getToggleState()?"IN":"OFF",61,8,36,28,juce::Justification::centredLeft,false);
+    if(mi.hasVU&&!vuRect.isEmpty()){
+        paintVU(g,vuRect.toFloat(),needle);
+        g.setColour(pal::vuInk);g.setFont(font(10,true));
+        g.drawText(juce::String(-needle,1)+" dB",vuRect.withTrimmedTop(vuRect.getHeight()-16).reduced(6,2),juce::Justification::centredRight,false);
+    }
     if(!powerBtn.getToggleState()){g.setColour(juce::Colours::black.withAlpha(.19f));g.fillRect(6,40,w-12,h-85);}
 }
 
@@ -358,9 +368,9 @@ void ModuleTile::paint(Graphics& g) {
     paintOriginalMini(g,sw,type);
     auto text = r.reduced(5.0f).withTrimmedLeft(40.0f);
     g.setColour(pal::ink); g.setFont(font(12.0f, true));
-    g.drawFittedText(juce::String(mi.name).toUpperCase(), text.removeFromTop(30.0f).toNearestInt(), juce::Justification::centredLeft, 2);
+    g.drawFittedText(juce::String(mi.name).toUpperCase(),text.removeFromTop(17.0f).toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(pal::inkDim); g.setFont(font(10.0f));
-    g.drawText(mi.cat == CatDynamics ? "Dynamics" : mi.cat == CatTone ? "Tone" : mi.cat == CatSpace ? "Space" : "Utility", text, juce::Justification::centredLeft, false);
+    g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(selected ? pal::amber : Colour(0xff000000)); g.drawRoundedRectangle(r, 3.0f, selected ? 1.6f : 1.0f);
 }
 
@@ -399,7 +409,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
-    infoLabel.setText("Double-click a module to add it, or drag it into an empty slot. Module controls connect to the live effect.", juce::dontSendNotification);
+    infoLabel.setText("25 original Skell effects. Double-click or drag a module into the rack.",juce::dontSendNotification);
     addAndMakeVisible(infoLabel);
     refresh();
 }
@@ -417,15 +427,15 @@ void LibraryPanel::select(int type) {
 void LibraryPanel::refresh() {
     const auto q = search.getText().trim().toLowerCase();
     int n = 0;
-    const int w = juce::jmax(80, tileViewport.getWidth() - 12), tw = (w - 6) / 2;
+    const int w=juce::jmax(80,tileViewport.getWidth()-12);
     for (auto* t : tiles) {
         const auto& mi = info(t->type);
         const bool show = (category < 0 || (int) mi.cat == category) &&
                           (q.isEmpty() || (juce::String(mi.name) + " " + mi.sub).toLowerCase().contains(q));
         t->setVisible(show);
-        if (show) { t->setBounds((n % 2) * (tw + 6), (n / 2) * 60, tw, 56); ++n; }
+        if(show){t->setBounds(0,n*47,w,43);++n;}
     }
-    tileContent.setSize(w, ((n + 1) / 2) * 60);
+    tileContent.setSize(w,n*47);
 }
 
 void LibraryPanel::resized() {
@@ -579,8 +589,11 @@ void RackUI::rebuildStripButtons() {
 }
 
 void RackUI::handleAsyncUpdate() {
-    for (int s = 0; s < kNumSlots; ++s)
-        if (strip.slots[(size_t) s]->currentType() != proc.slotType(s)) strip.slots[(size_t) s]->rebuild();
+    for (int s=0;s<kNumSlots;++s) {
+        auto& slot=*strip.slots[(size_t)s];
+        if(slot.currentType()!=proc.slotType(s))slot.rebuild();
+        else slot.syncPowerVisual();
+    }
     pathStrip.repaint();
 }
 

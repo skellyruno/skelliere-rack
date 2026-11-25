@@ -63,6 +63,7 @@ inline juce::String knobText(const Knob& k, float norm) {
         case Unit::Ms:    return v < 10.0f ? juce::String(v, 1) + " ms" : juce::String((int) std::lround(v)) + " ms";
         case Unit::Pct:   return juce::String((int) std::lround(v * 100.0f)) + "%";
         case Unit::Ratio: return juce::String(v, 1) + ":1";
+        case Unit::Scalar:return juce::String(v,2);
         case Unit::Sec:   return juce::String(v, 1) + " s";
         case Unit::LfoHz: return juce::String(v, 2) + " Hz";
         case Unit::Pan:   return std::fabs(v) < 0.02f ? juce::String("Center") : juce::String(v < 0 ? "L " : "R ") + juce::String((int) std::lround(std::fabs(v) * 100.0f));

@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);
     // Same exact production editor and processor, a warmed eight-module rack.
     processor.clearRack();
-    const int types[]={skl::Eq,skl::Air,skl::Comp,skl::FastComp,skl::BusComp,skl::ProgramOpto,skl::Trim,skl::Reverb};
+    const int types[]={skl::Eq,skl::Gate,skl::Transient,skl::Bell,skl::SoftClip,skl::Phaser,skl::Flanger,skl::Slap};
     for(int i=0;i<8;++i)processor.addModule(types[i],i);
     const auto setupStart=Clock::now();
     visit(editor,[&](juce::Component& c){

@@ -17,7 +17,7 @@ inline int resolveRackType(float legacy, float extension) noexcept {
     if (!std::isfinite(extension) || extension < 1 || extension > kNumRackTypes - kNumTypes) return Empty;
     return kNumTypes + (int) std::lround(extension) - 1;
 }
-enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps };
+enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps, Scalar };
 enum Category : int { CatNone=0, CatDynamics, CatTone, CatSpace, CatUtility };
 struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; };
 struct Section { const char* legend; int first,count; };
@@ -88,9 +88,9 @@ inline const ModuleInfo& info(int type) {
         {"Impact","Transient shaper","Linked fast and slow envelopes shape attack and sustain.",CatDynamics,4,
          {{"Attack",-12,12,false,3,Unit::Db,0,nullptr},{"Sustain",-12,12,false,0,Unit::Db,0,nullptr},{"Window",10,150,true,60,Unit::Ms,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
         {"Bell 73","Parametric bell EQ","Sweepable peaking filter with adjustable Q and output.",CatTone,4,
-         {{"Freq",30,16000,true,1000,Unit::Hz,0,nullptr},{"Gain",-15,15,false,0,Unit::Db,0,nullptr},{"Q",0.3f,8,true,1,Unit::Ratio,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+         {{"Freq",30,16000,true,1000,Unit::Hz,0,nullptr},{"Gain",-15,15,false,0,Unit::Db,0,nullptr},{"Q",0.3f,8,true,1,Unit::Scalar,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
         {"Crosscut","Dual filter","Independent high-pass and low-pass filters with resonance.",CatTone,4,
-         {{"HPF",20,4000,true,20,Unit::Hz,0,nullptr},{"LPF",200,20000,true,20000,Unit::Hz,0,nullptr},{"Res",0.5f,3,true,0.707f,Unit::Ratio,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+         {{"HPF",20,4000,true,20,Unit::Hz,0,nullptr},{"LPF",200,20000,true,20000,Unit::Hz,0,nullptr},{"Res",0.5f,3,true,0.707f,Unit::Scalar,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
         {"Ember Clip","Soft peak shaping","Base-rate soft clipper with drive, ceiling and parallel blend.",CatTone,3,
          {{"Drive",0,24,false,6,Unit::Db,0,nullptr},{"Ceiling",-12,0,false,-1,Unit::Db,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,1}},false},
         {"Pulse","Tremolo","Variable shape amplitude modulation.",CatSpace,3,

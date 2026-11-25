@@ -58,6 +58,7 @@ public:
     void rebuild();
     void setMeter(float gainReductionDb);
     void syncSolo();
+    void syncPowerVisual();
     // Shared by the live selector, session restore and real editor harness.
     void setArtworkChoice(int choice);
     void syncArtwork();
@@ -78,7 +79,7 @@ private:
 
     SkellierProcessor& proc;
     int index, type = 0;
-    bool dragOver = false, dragging = false;
+    bool dragOver = false, dragging = false, shownPower=true;
     float needle = 0.0f, shownNeedle = -1.0f;
     double lastMeterTime=0;
     std::vector<std::unique_ptr<KnobCell>> cells;

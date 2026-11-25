@@ -10,7 +10,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
-    const bool light=metal.getPerceivedBrightness()>.53f;
+    const bool light=metal.getPerceivedBrightness()>.45f;
     const auto cap=light?Colour(0xff343b3b):(type%3==0?Colour(0xffd1c5ac):Colour(0xffb7bfc0));
     const char* series=info(type).cat==CatDynamics?"DYNAMICS":info(type).cat==CatTone?"TONE":info(type).cat==CatSpace?"MOD / SPACE":"UTILITY";
     return {metal,accent,cap,light,series};

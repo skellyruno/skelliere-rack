@@ -52,8 +52,7 @@ if(SKELLIERE_BUILD_UI_RENDERER)
   add_executable(SkelliereRackUIRenderer tools/SkelliereRackUiRendererMain.cpp)
   target_include_directories(SkelliereRackUIRenderer PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}/SkellierRack_artefacts/JuceLibraryCode")
-  # The renderer includes the plugin's generated JuceHeader.h, which itself
-  # includes BinaryData.h. Propagate the binary-data include directory explicitly.
+  # Use the same generated JUCE header as the plugin.
   target_link_libraries(SkelliereRackUIRenderer PRIVATE
     SkellierRack SkellCore::UIRenderer SkellCore::DSP
     juce::juce_audio_utils juce::juce_gui_extra)
