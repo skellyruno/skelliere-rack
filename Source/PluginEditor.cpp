@@ -44,7 +44,10 @@ void KnobCell::setSprite(int id) {
 void KnobCell::resized() {
     if (compact_) slider.setBounds(0, 0, getHeight(), getHeight());
     else if(nativeFace_) {
-        slider.setBounds(1,0,juce::jmax(1,getWidth()-2),juce::jmax(1,getHeight()-24));
+        if(sideReadout_) {
+            const int side=juce::jmax(1,getWidth()/2);
+            slider.setBounds(side,0,juce::jmax(1,getWidth()-side),juce::jmax(1,getHeight()));
+        } else slider.setBounds(1,0,juce::jmax(1,getWidth()-2),juce::jmax(1,getHeight()-24));
     }
     else {
         const int size = juce::jmax(1,juce::jmin(54, getHeight() - 24));
@@ -61,6 +64,14 @@ void KnobCell::paint(Graphics& g) {
         g.drawText(label_, r.removeFromTop(getHeight() / 2 + 2), juce::Justification::bottomLeft, false);
         g.setColour(pal::inkDim); g.setFont(font(11.0f));
         g.drawText(text_, r, juce::Justification::topLeft, false);
+        return;
+    }
+    if(sideReadout_) {
+        const auto readout=getLocalBounds().removeFromLeft(getWidth()/2).reduced(5,0);
+        g.setColour(lightFace_?Colour(0xff20262b):pal::ink);g.setFont(font(12,true));
+        g.drawFittedText(label_,readout.withHeight(getHeight()/2),juce::Justification::bottomLeft,1);
+        g.setColour(lightFace_?Colour(0xff41494e):pal::inkDim);g.setFont(font(11));
+        g.drawFittedText(text_,readout.withTrimmedTop(getHeight()/2),juce::Justification::topLeft,1);
         return;
     }
     g.setColour(lightFace_ ? Colour(0xff20262b) : pal::ink); g.setFont(font(11.5f, true));
@@ -199,7 +210,7 @@ void SlotComponent::syncArtwork() {
     nativeChoice=effective;
     artButton.setButtonText("FACE: " + rackPanelName(type,effective).toUpperCase());
     for (size_t i=0;i<cells.size();++i) {
-        cells[i]->setNativeFace(effective>0);
+        cells[i]->setNativeFace(effective>0,effective>0 && nativeFace(type,effective).leftReadout && i>0);
         cells[i]->setLightFace(effective>0?nativeFace(type,effective).light:false);
         cells[i]->setSprite(knobSpriteFor(type,effective,static_cast<int>(i)));
     }
@@ -217,6 +228,7 @@ bool SlotComponent::artworkLayoutIsValid() const {
     if (artButton.isVisible() != art) return false;
     if (art && appliedArtworkChoice != 0 && knobSpriteFor(type,appliedArtworkChoice,0)!=NoSprite
         && !rackSkinAvailable(type,appliedArtworkChoice)) return false;
+    if(nativeChoice>0 && !validNativeFace(type,nativeChoice)) return false;
     const Rectangle<int> body=nativeChoice>0?panelBounds:Rectangle<int>(8,106,getWidth()-16,getHeight()-156);
     for (size_t i = 0; i < cells.size(); ++i) {
         const auto& cell = *cells[i];
@@ -341,11 +353,18 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     auto insert=[&](FaceRect r) {
         if(r.w<=0||r.h<=0)return;
         const auto box=nativeBounds(r).toFloat();
-        g.setGradientFill(juce::ColourGradient::vertical(base.brighter(f.light?.08f:.10f),box.getY(),
-             base.darker(f.light?.06f:.14f),box.getBottom()));
-        g.fillRoundedRectangle(box,2.0f);
-        paintBrushed(g,box,.5f);
-        g.setColour(juce::Colours::black.withAlpha(.25f));g.drawRoundedRectangle(box,2.0f,.7f);
+        // Localized retouch only: maintain original brushed material and
+        // separation lines instead of drawing a second generic control grid.
+        const auto& material=rackMaterial(type,nativeChoice);
+        if(material.isValid() && nativeChoice!=3) {
+            g.setTiledImageFill(material,box.getX(),box.getY(),1.0f);
+            g.fillRect(box);
+        } else {
+            g.setGradientFill(juce::ColourGradient::vertical(base.brighter(f.light?.08f:.10f),box.getY(),
+                 base.darker(f.light?.06f:.14f),box.getBottom()));
+            g.fillRect(box);
+            paintBrushed(g,box,.5f);
+        }
     };
     for(const auto& r:f.inserts) insert(r);
     // Replace the vendor labels, retaining screws and original panel edges.

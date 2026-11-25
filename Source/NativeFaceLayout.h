@@ -2,6 +2,7 @@
 // Source coordinate system: the supplied 215 x 570 staticcanvas XML.
 // Positions are adapted only where the original parameter has no counterpart.
 #include <array>
+#include "Modules.h"
 namespace skl::ui {
 struct FaceRect { int x=0,y=0,w=0,h=0; };
 struct NativeFace {
@@ -9,7 +10,8 @@ struct NativeFace {
     std::array<FaceRect,6> controls{};
     FaceRect power{},meter{};
     // Deliberate opaque inserts replace incorrect printed scales/unsupported controls.
-    std::array<FaceRect,6> inserts{};
+    std::array<FaceRect,16> inserts{};
+    bool leftReadout=false;
     unsigned int colour=0xffbcc5cc;
     bool light=true;
 };
@@ -21,7 +23,7 @@ inline NativeFace nativeFace(int type,int choice) {
         f.power={70,70,75,49};
         f.inserts={{{43,102,129,166},{46,273,123,153},{12,412,191,111}}};
     } else if(type==skl::Air && choice==2) {
-        f.controls={{{43,72,129,153},{43,270,129,153}}};
+        f.controls={{{43,86,129,139},{43,270,129,153}}};
         f.power={79,42,56,39};
         f.inserts={{{20,40,175,199},{20,245,175,187},{35,433,145,92}}};
     } else if(type==skl::Eq && choice==1) {
@@ -31,9 +33,11 @@ inline NativeFace nativeFace(int type,int choice) {
     } else if(type==skl::Eq && choice==2) {
         // Right-hand gain column, in original high-to-low order.
         // Reuse the original HP region. Remove unavailable frequency/LP/OUT controls.
-        f.controls={{{8,371,94,107},{113,284,94,78},{113,205,94,78},{113,125,94,79},{113,45,94,79}}};
+        f.leftReadout=true;
+        f.controls={{{8,371,94,107},{9,290,197,77},{9,210,197,77},{9,130,197,77},{9,45,197,81}}};
         f.power={23,479,67,40};
-        f.inserts={{{7,39,201,330},{7,369,201,156}}};
+        // Preserve the original four separator lines and right-hand dial layout.
+        f.inserts={{{7,39,201,87},{7,130,201,77},{7,210,201,77},{7,290,201,77},{7,369,201,156}}};
     } else if((type==skl::Eq || type==skl::Air) && choice==3) {
         f.colour=0xff222528;f.light=false;
         f.power={73,25,69,39};
@@ -49,7 +53,7 @@ inline NativeFace nativeFace(int type,int choice) {
 #if SKELLIERE_FULL_ARTWORK
     else if(type==skl::Comp) {
         f.colour=0xff77701d;f.light=false;
-        f.meter={42,41,131,87}; f.power={26,487,62,40};
+        f.meter={42,41,131,87}; f.power={10,483,52,41};
         f.controls={{{70,143,80,104},{19,247,64,84},{135,247,64,84},{67,337,82,98},{67,437,82,87}}};
         f.inserts={{{9,138,197,389}}};
     } else if(type==skl::ProgramOpto) {
@@ -70,5 +74,21 @@ inline NativeFace nativeFace(int type,int choice) {
     }
 #endif
     return f;
+}
+inline bool faceIntersects(FaceRect a, FaceRect b) {
+    return a.w>0 && a.h>0 && b.w>0 && b.h>0 && a.x<b.x+b.w && b.x<a.x+a.w && a.y<b.y+b.h && b.y<a.y+a.h;
+}
+inline bool faceContains(FaceRect a) {return a.x>=0 && a.y>=0 && a.w>0 && a.h>0 && a.x+a.w<=215 && a.y+a.h<=570;}
+inline bool validNativeFace(int type,int choice) {
+    const auto f=nativeFace(type,choice);
+    if(!faceContains(f.power))return false;
+    const auto& mi=skl::info(type);
+    if(mi.hasVU && !faceContains(f.meter))return false;
+    for(int i=0;i<mi.numKnobs;++i) {
+        const auto c=f.controls[i];
+        if(!faceContains(c)||faceIntersects(c,f.power)||faceIntersects(c,f.meter))return false;
+        for(int j=0;j<i;++j)if(faceIntersects(c,f.controls[j]))return false;
+    }
+    return !faceIntersects(f.power,f.meter);
 }
 }

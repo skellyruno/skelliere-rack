@@ -15,12 +15,12 @@ public:
     void paint(juce::Graphics&) override;
     void setLightFace(bool light);
     void setSprite(int id);
-    void setNativeFace(bool native) { nativeFace_=native; resized(); repaint(); }
+    void setNativeFace(bool native, bool side=false) { nativeFace_=native; sideReadout_=side; resized(); repaint(); }
     juce::Slider slider;
 private:
     juce::String label_, text_;
     Fmt fmt_;
-    bool compact_, lightFace_ = false, nativeFace_ = false;
+    bool compact_, lightFace_ = false, nativeFace_ = false, sideReadout_ = false;
     juce::SliderParameterAttachment attachment;
 };
 
