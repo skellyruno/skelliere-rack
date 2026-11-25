@@ -38,7 +38,7 @@ public:
     float takeInputPeak() { return inPeak.exchange(0); }
     float takeOutputPeak() { return outPeak.exchange(0); }
     std::atomic<int> soloSlot{-1};
-    std::array<int,skl::kNumSlots> artworkChoices{{1,1,1,1,1,1,1,1}};
+    std::array<std::atomic<int>,skl::kNumSlots> artworkChoices{{1,1,1,1,1,1,1,1}};
     bool addModule(int,int slot=-1);
     void removeSlot(int);
     void moveSlot(int,int,bool);

@@ -223,7 +223,8 @@ public:
         for (int i = 0; i <= 10; ++i) {   // printed scale
             const float a = a0 + (a1 - a0) * (float) i / 10.0f, sn = std::sin(a), cs = -std::cos(a);
             const float r0 = R * 1.18f, r1 = R * (i % 5 == 0 ? 1.38f : 1.29f);
-            g.setColour(pal::ink.withAlpha(0.7f));
+            const bool light = (bool) s.getProperties().getWithDefault("lightFace", false);
+            g.setColour((light ? Colour(0xff30363b) : pal::ink).withAlpha(0.7f));
             g.drawLine(cx + sn * r0, cy + cs * r0, cx + sn * r1, cy + cs * r1, i % 5 == 0 ? 1.4f : 1.0f);
         }
         g.setColour(juce::Colours::black.withAlpha(0.55f));

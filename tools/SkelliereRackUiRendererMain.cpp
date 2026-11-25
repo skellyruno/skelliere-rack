@@ -31,10 +31,13 @@ int main(int argc, char** argv) {
         {"rack_blackbird_100", 1260, 820, 0, 3},
         {"rack_aireq_80", 1008, 656, 0, 1},
         {"rack_aireq_125", 1575, 1025, 0, 1},
+        {"rack_classic_80", 1008, 656, 0, 2},
+        {"rack_blackbird_125", 1575, 1025, 0, 3},
         {"rack_extensions_100", 1260, 820, 1, 0},
         {"rack_extensions_80", 1008, 656, 1, 0},
         {"rack_extensions_125", 1575, 1025, 1, 0},
         {"rack_program_opto_100", 1260, 820, 4, 0},
+        {"rack_program_opto_80", 1008, 656, 4, 0},
         {"rack_empty_100", 1260, 820, 2, 0},
         {"rack_scroll_100", 1260, 820, 3, 0}
     };
@@ -78,9 +81,9 @@ int main(int argc, char** argv) {
         visit(editor, [&](juce::Component& c) {
             if (auto* slot = dynamic_cast<skl::ui::SlotComponent*>(&c)) {
                 if (slot->currentType() == skl::ProgramOpto) ++programOptoSlots;
+                if (!slot->artworkLayoutIsValid()) errors.add("Live controls clipped, overlapping or skin unavailable");
                 if (slot->currentType() == skl::Eq || slot->currentType() == skl::Air) {
                     ++visibleArtworkSlots;
-                    if (!slot->artworkLayoutIsValid()) errors.add("Artwork overlaps live knobs or selector is hidden");
                 }
             }
         });
@@ -89,8 +92,10 @@ int main(int argc, char** argv) {
         for (int type : {skl::Eq, skl::Air})
             for (int choice : {1, 2, 3}) {
                 const auto& panel = skl::ui::rackPanel(type, choice);
-                if (!panel.isValid() || panel.getWidth() != 215 || panel.getHeight() != 570)
-                    errors.add("Embedded artwork failed portrait decoding");
+                const int width = choice == 3 ? 216 : 215, height = choice == 3 ? 567 : 570;
+                if (!panel.isValid() || panel.getWidth() != width || panel.getHeight() != height
+                    || !skl::ui::rackMaterial(type, choice).isValid())
+                    errors.add("Embedded artwork or material failed asset-specific decoding");
             }
         // Catch a future rotate/transpose regression with scanline sample positions.
         const auto raw = juce::ImageFileFormat::loadFrom(BinaryData::air_lift_faceplate_png,
@@ -101,6 +106,14 @@ int main(int argc, char** argv) {
                 if (portrait.getPixelAt(offset % 215, offset / 215) != raw.getPixelAt(offset % 570, offset / 570))
                     errors.add("Packed artwork scanlines were rotated or transposed");
         } else errors.add("Artwork source could not be decoded");
+        const auto birdRaw = juce::ImageFileFormat::loadFrom(BinaryData::blackbird_faceplate_png,
+            static_cast<size_t>(BinaryData::blackbird_faceplate_pngSize));
+        const auto& bird = skl::ui::rackPanel(skl::Eq, 3);
+        if (birdRaw.isValid() && bird.isValid()) {
+            for (int offset : {0, 215, 216, 432, 119853, 122471})
+                if (bird.getPixelAt(offset % 216, offset / 216) != birdRaw.getPixelAt(offset % 570, offset / 570))
+                    errors.add("Blackbird packed row stride regression");
+        } else errors.add("Blackbird source unavailable");
         return errors;
     };
     const auto output = argc > 1 ? juce::File(juce::String::fromUTF8(argv[1]))

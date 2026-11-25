@@ -13,11 +13,12 @@ public:
              double resetValue, double step = 0.0, bool compact = false);
     void resized() override;
     void paint(juce::Graphics&) override;
+    void setLightFace(bool light);
     juce::Slider slider;
 private:
     juce::String label_, text_;
     Fmt fmt_;
-    bool compact_;
+    bool compact_, lightFace_ = false;
     juce::SliderParameterAttachment attachment;
 };
 
@@ -51,18 +52,10 @@ public:
     void rebuild();
     void setMeter(float gainReductionDb);
     void syncSolo();
-    // Also used by the real-editor screenshot harness, not a second UI.
-    void setArtworkChoice(int choice) {
-        artworkChoice = juce::jlimit(0, 3, choice);
-        artPanel.repaint(); artButton.repaint();
-    }
-    bool artworkLayoutIsValid() const {
-        if (type != Eq && type != Air) return true;
-        if (!artPanel.isVisible() || !artButton.isVisible()) return false;
-        for (const auto& cell : cells)
-            if (cell->getX() < 112 || cell->getRight() > kWidth - 8 || cell->getBottom() > 450) return false;
-        return !cells.empty();
-    }
+    // Shared by the live selector, session restore and real editor harness.
+    void setArtworkChoice(int choice);
+    void syncArtwork();
+    bool artworkLayoutIsValid() const;
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override { dragging = false; }
@@ -81,9 +74,10 @@ private:
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;
-    int& artworkChoice = proc.artworkChoices[static_cast<size_t>(index)];
-    ArtworkPanelBackground artPanel{*this, [this] { return type; }, artworkChoice};
-    ArtworkButton artButton{*this, [this] { return type; }, artworkChoice};
+    int appliedArtworkChoice = -1;
+    ArtworkButton artButton{[this] { return type; },
+                            [this] { return proc.artworkChoices[static_cast<size_t>(index)].load(); },
+                            [this](int choice) { setArtworkChoice(choice); }};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};

@@ -398,7 +398,7 @@ void SkellierProcessor::deleteStrip(const juce::String& name) {
 void SkellierProcessor::getStateInformation(juce::MemoryBlock& dest) {
     auto state = apvts.copyState();
     for (int s = 0; s < kNumSlots; ++s)
-        state.setProperty("art" + juce::String(s), artworkChoices[(size_t) s], nullptr);
+        state.setProperty("art" + juce::String(s), artworkChoices[(size_t) s].load(), nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 void SkellierProcessor::setStateInformation(const void* data, int size) {
