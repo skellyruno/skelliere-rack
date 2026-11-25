@@ -4,7 +4,8 @@
 #include "RackCompressor.h"
 #include "RackProgramOpto.h"
 #include "AnalogRackModules.h"
-#include "SkellAir.h"
+#include <SkellCore/backends/vocal/SkellAir.h>
+#include <SkellCore/backends/vocal/ClassicDeEsser.h>
 namespace skl {
 inline float slewToward(float value,float target,float step) noexcept {
     return value+std::clamp(target-value,-step,step);
@@ -92,7 +93,32 @@ public:
 private:
     skell::research::SkellAir core;
 };
+class SkellClassicDeEsserModule final : public ModuleBase {
+public:
+    void prepare(double rate,int,int) override { core.prepare(rate); }
+    void reset() override { core.reset(); reduction.store(0,std::memory_order_relaxed); }
+    float meter() const override { return reduction.load(std::memory_order_relaxed); }
+    void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
+        const int channels=std::min(2,b.getNumChannels());
+        if(channels==0)return;
+        const int det=int(realOf(SkellDeEsserFX,5,k));
+        core.set(realOf(SkellDeEsserFX,0,k),realOf(SkellDeEsserFX,1,k),
+                 active?realOf(SkellDeEsserFX,2,k):0.f,realOf(SkellDeEsserFX,3,k),
+                 realOf(SkellDeEsserFX,4,k)>.5f,(det&1)!=0,active && det>=2);
+        auto* l=b.getWritePointer(0);
+        auto* r=channels>1?b.getWritePointer(1):nullptr;
+        for(int i=0;i<b.getNumSamples();++i) {
+            const auto y=core.process(l[i],r?r[i]:l[i]);
+            l[i]=y[0];if(r)r[i]=y[1];
+        }
+        reduction.store(core.reductionDb(),std::memory_order_relaxed);
+    }
+private:
+    skell::research::ClassicDeEsser core;
+    std::atomic<float> reduction{0};
+};
 inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
+    if(type==SkellDeEsserFX)return std::make_unique<SkellClassicDeEsserModule>();
     if(type==SkellAirFX)return std::make_unique<SkellAirModule>();
     if(type==Eq || type==Air) return std::make_unique<SmoothedTone>(type);
     if(type==Tilt || type==Stereo) return std::make_unique<ExtraRackModule>(type);
