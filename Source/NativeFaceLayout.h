@@ -41,8 +41,8 @@ inline NativeFace nativeFace(int type,int choice) {
     } else if((type==skl::Eq || type==skl::Air) && choice==3) {
         f.colour=0xff222528;f.light=false;
         f.power={73,25,69,39};
-        if(type==skl::Eq) f.controls={{{63,72,89,91},{13,166,89,91},{113,166,89,91},{13,260,89,91},{113,260,89,91}}};
-        else f.controls={{{42,76,131,134},{42,222,131,134}}};
+        if(type==skl::Eq) f.controls={{{63,72,89,91},{13,178,89,91},{113,178,89,91},{13,407,89,91},{113,407,89,91}}};
+        else f.controls={{{42,76,131,134},{42,405,131,118}}};
         f.inserts={{{7,379,201,145}}};
     } else if(type==skl::Trim) {
         f.colour=0xff242629;f.light=false;

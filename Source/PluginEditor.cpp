@@ -503,6 +503,12 @@ void ModuleTile::paint(Graphics& g) {
     const auto& panel=restoredRackPanel(type,1);
     if(panel.isValid()) {
         g.drawImageWithin(panel,(int)sw.getX(),(int)sw.getY(),(int)sw.getWidth(),(int)sw.getHeight(),juce::RectanglePlacement::centred);
+        const int spriteId=knobSpriteFor(type,1,0);
+        if(spriteId!=NoSprite) {
+            const int sz=juce::jmin(28,juce::roundToInt(sw.getWidth()-2.0f));
+            const auto target=juce::Rectangle<int>(sz,sz).withCentre(sw.getCentre().toInt());
+            rackSprite(spriteId).draw(g,target,static_cast<double>(defaultNorm(type,0)));
+        }
     } else {
         g.setColour(categoryColour(mi.cat)); g.fillRect(sw.removeFromBottom(3.0f));
         const float kr=7.0f;

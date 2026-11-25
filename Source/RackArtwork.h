@@ -70,9 +70,9 @@ inline juce::Image materialTile(const juce::Image& panel, juce::Rectangle<int> s
     return result;
 }
 inline const juce::Image& rackMaterial(int type, int choice) {
-    static const auto earth = materialTile(rackPanel(skl::Eq, 1), {28, 39, 159, 26});
+    static const auto earth = materialTile(rackPanel(skl::Eq, 1), {28, 41, 55, 20});
     static const auto air = materialTile(rackPanel(skl::Air, 1), {28, 39, 159, 26});
-    static const auto eq = materialTile(rackPanel(skl::Eq, 2), {26, 38, 163, 9});
+    static const auto eq = materialTile(rackPanel(skl::Eq, 2), {26, 39, 60, 9});
     static const auto lift = materialTile(rackPanel(skl::Air, 2), {26, 38, 163, 9});
     static const auto bird = materialTile(rackPanel(skl::Eq, 3), {28, 103, 160, 237});
     static const juce::Image empty;
@@ -100,8 +100,8 @@ inline juce::Image restoreNativePanel(const juce::Image& original, int type, int
     const int w=original.getWidth(),h=original.getHeight();
     juce::Rectangle<int> sample;
     if (type==skl::Air || type==skl::Eq) {
-        if(choice==1) sample={28,39,159,26};
-        else if(choice==2) sample={26,38,163,9};
+        if(choice==1) sample={28,41,55,20};
+        else if(choice==2) sample={26,39,60,9};
         else sample={28,103,160,237};
     } else if(type==skl::Trim) sample=choice==1?juce::Rectangle<int>(28,103,160,237)
                                               :juce::Rectangle<int>(36,90,140,210);
