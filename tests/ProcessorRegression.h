@@ -46,6 +46,24 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s) require(p.apvts.getRawParameterValue(p.extraId(s))->load()==0,"Missing extension default was not zero");
     set(p.typeId(0),(float)skl::Eq); set(p.extraId(0),1);
     require(p.slotType(0)==skl::Eq,"Extension overrode legacy selection");
+    // A real Jet meter must match the output of a unity-gain single-slot
+    // rack, consume its peak once and clear on bypass/removal.
+    p.clearRack();require(p.addModule(skl::Flanger,0),"Jet not selectable");
+    p.soloSlot.store(-1);set("in",0);set("out",0);set("bypass",0);set(p.onId(0),1);
+    juce::AudioBuffer<float> jet(2,63);juce::MidiBuffer jetMidi;
+    auto fillJet=[&]{for(int c=0;c<2;++c)for(int n=0;n<63;++n)
+        jet.setSample(c,n,.15f*std::sin(float(n)*.17f));};
+    for(int block=0;block<64;++block){fillJet();p.processBlock(jet,jetMidi);}
+    (void)p.takeJetPeak(0);
+    fillJet();p.processBlock(jet,jetMidi);
+    const float observed=p.takeJetPeak(0);
+    require(observed>0.f&&std::abs(observed-jet.getMagnitude(0,63))<.0001f,"Jet peak differs from real post-effect output");
+    require(p.takeJetPeak(0)==0.f,"Jet meter did not consume peak");
+    fillJet();p.processBlock(jet,jetMidi);set(p.onId(0),0);
+    fillJet();p.processBlock(jet,jetMidi);
+    require(p.takeJetPeak(0)==0.f,"Bypassed Jet retained stale peak");
+    p.removeSlot(0);fillJet();p.processBlock(jet,jetMidi);
+    require(p.takeJetPeak(0)==0.f,"Removed Jet retained stale peak");
     // Per-instance artwork must survive editor recreation and session save only.
     SkellierProcessor other; p.artworkChoices[0]=3;
     require(other.artworkChoices[0]==1,"Artwork leaked between instances");

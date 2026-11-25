@@ -234,7 +234,7 @@ void SlotComponent::syncPowerVisual() {
 
 void SlotComponent::setOutputPeak(float peak) {
     if(type!=Flanger||vuRect.isEmpty())return;
-    const float target=peak>1e-5f?juce::jlimit(-60.f,4.f,20.f*std::log10(peak)):-60.f;
+    const float target=peak>1e-5f&&std::isfinite(peak)?juce::jmax(-60.f,20.f*std::log10(peak)):-60.f;
     const float next=juce::jmax(target,outputDb-1.5f);
     if(std::abs(next-outputDb)>.05f){outputDb=next;repaint(vuRect.expanded(2));}
 }
@@ -288,8 +288,10 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     const auto p=originalSpec(type,nativeChoice);const auto& mi=info(type);
     const int w=getWidth(),h=getHeight();if(w<=0||h<=0)return;
     const Colour ink=p.light?Colour(0xff292219):Colour(0xfff0e4cd);
-    if(!panelCache.isValid()||panelCache.getWidth()!=w||panelCache.getHeight()!=h){
-        panelCache=juce::Image(juce::Image::ARGB,w,h,true);Graphics pg(panelCache);
+    constexpr int rasterScale=2;
+    if(!panelCache.isValid()||panelCache.getWidth()!=w*rasterScale||panelCache.getHeight()!=h*rasterScale){
+        panelCache=juce::Image(juce::Image::ARGB,w*rasterScale,h*rasterScale,true);Graphics pg(panelCache);
+        pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         paintMonogram(pg,Rectangle<float>(w*.5f-9,15,18,25),ink);
         pg.setColour(ink);pg.setFont(font(11,true));
@@ -298,7 +300,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawFittedText(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase(),
             Rectangle<int>(14,60,w-28,29),juce::Justification::centred,1);
         pg.setColour(ink.withAlpha(.38f));
-        const int titleWidth=juce::jlimit(70,w-40,pg.getCurrentFont().getStringWidthInt(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase())+20);
+        const int titleWidth=juce::jlimit(70,w-40,juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).length()*13+20);
         pg.drawHorizontalLine(75,20,float(w-titleWidth)*.5f);
         pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w);
@@ -309,7 +311,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour(ink.withAlpha(.68f));pg.setFont(font(8.5f,true));
         pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-57,w-28,10,juce::Justification::centred,false);
     }
-    g.drawImageAt(panelCache,0,0);
+    g.drawImage(panelCache,getLocalBounds().toFloat());
     if(type==Flanger&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true);
         g.setColour(pal::vuInk);g.setFont(font(10,true));

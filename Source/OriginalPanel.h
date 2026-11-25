@@ -86,9 +86,23 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     g.setColour(p.accent);g.fillRect(r.reduced(5).removeFromTop(3));
     auto f=r.reduced(6);
     if(info(type).hasVU||type==Flanger){
-        paintVU(g,f, type==Flanger?-20.f:0.f,type==Flanger);return;
+        // A legible meter icon, not a reduced full-size scale.
+        f=r.reduced(4);
+        g.setColour(Colour(0xff18140f));g.fillRoundedRectangle(f,3);
+        f=f.reduced(2);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff2d7a3),f.getY(),Colour(0xffad8050),f.getBottom()));g.fillRoundedRectangle(f,2);
+        const float cx=f.getCentreX(),cy=f.getBottom()-2,rx=f.getWidth()*.47f,ry=f.getHeight()*.76f;
+        for(int k=0;k<=6;++k){const float a=juce::degreesToRadians(-55.f+k*110.f/6);
+            g.setColour(Colour(0xff413225));g.drawLine(cx+rx*.85f*std::sin(a),cy-ry*.85f*std::cos(a),cx+rx*std::sin(a),cy-ry*std::cos(a),.7f);}
+        g.setColour(Colour(0xff9b3224));g.drawLine(cx,cy,cx-rx*.32f,cy-ry*.93f,1);return;
     }
-    if(type==Delay||type==Slap){paintTapeDetail(g,f);return;}
+    if(type==Delay||type==Slap){
+        f=r.reduced(4);g.setColour(Colour(0xff211b14));g.fillRoundedRectangle(f,3);
+        const float radius=std::min(f.getWidth()*.22f,f.getHeight()*.33f);
+        for(int k=0;k<2;++k){const float cx=f.getX()+f.getWidth()*(k?.74f:.26f),cy=f.getCentreY();
+            g.drawImage(machinedCap(Colour(0xffb6a58b)),juce::Rectangle<float>(cx-radius,cy-radius,2*radius,2*radius));
+            g.setColour(Colour(0xff352c21));g.fillEllipse(cx-radius*.32f,cy-radius*.32f,radius*.64f,radius*.64f);}
+        return;
+    }
     const auto center=f.getCentre();const float d=std::min(f.getWidth(),f.getHeight())*.58f;
     g.setColour(p.cap);g.fillEllipse(center.x-d/2,center.y-d/2,d,d);
     g.setColour(p.light?juce::Colours::white:juce::Colours::black);g.drawLine(center.x,center.y,center.x+d*.17f,center.y-d*.39f,1.2f);

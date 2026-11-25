@@ -201,7 +201,10 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             auto old=peak.load(std::memory_order_relaxed);
             // Single writer, single exchange reader: do not lose a peak
             // while the UI consumes the preceding one.
-            if(measuredJet[s]>old)peak.compare_exchange_strong(old,measuredJet[s],std::memory_order_relaxed);
+            // At most two attempts; the UI may consume the peak between
+            // load and CAS. Audio never waits for the reader.
+            for(int attempt=0;attempt<2&&measuredJet[s]>old;++attempt)
+                if(peak.compare_exchange_strong(old,measuredJet[s],std::memory_order_relaxed))break;
         }
     }
     for(int i=0;i<total;++i) {

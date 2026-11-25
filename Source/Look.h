@@ -107,7 +107,7 @@ inline const juce::Image& machinedCap(Colour colour) {
         const float a=std::atan2(dy,dx);
         const float grain=std::sin(r*425.f+.35f*std::sin(a*19.f))*.022f
                          +std::sin(r*143.f)*.018f;
-        const float reflection=.62f+.29f*std::cos(a+.85f)+.12f*std::cos(2*a-1.2f);
+        const float reflection=.67f+.17f*std::cos(a+.85f)+.24f*std::cos(2*a+1.1f);
         float shine=reflection+grain;
         if(r>.92f)shine=.65f+.25f*std::cos(a+.9f);
         if(r>.975f)shine=.22f+.38f*juce::jmax(0.f,std::cos(a+1.4f));
@@ -125,7 +125,11 @@ inline void paintMonogram(Graphics& g,juce::Rectangle<float> r,Colour ink) {
     shield.lineTo(x+w*.91f,y+h*.16f);shield.lineTo(x+w*.91f,y+h*.82f);
     shield.lineTo(x+w*.5f,y+h);shield.lineTo(x+w*.09f,y+h*.82f);shield.lineTo(x+w*.09f,y+h*.16f);shield.closeSubPath();
     g.setColour(ink);g.strokePath(shield,juce::PathStrokeType(1.1f));
-    g.setFont(font(h*.73f,true));g.drawFittedText("S",r.toNearestInt(),juce::Justification::centred,1);
+    juce::Path mark;mark.startNewSubPath(x+w*.68f,y+h*.22f);
+    mark.lineTo(x+w*.36f,y+h*.16f);mark.lineTo(x+w*.36f,y+h*.45f);
+    mark.lineTo(x+w*.64f,y+h*.58f);mark.lineTo(x+w*.64f,y+h*.83f);
+    mark.lineTo(x+w*.31f,y+h*.71f);
+    g.strokePath(mark,juce::PathStrokeType(std::max(1.2f,w*.105f),juce::PathStrokeType::mitered));
 }
 
 inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
@@ -167,16 +171,17 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
         return juce::Point<float>(cx + rad * sc * std::sin(a), cy - rad * sy * std::cos(a));
     };
     const float redStart=outputPeak?20.f*20.f/24.f:12.f;
-    for (float v = 0.0f; v <= 20.0f; v += 2.0f) {
-        const bool major = std::fmod(v, 4.0f) < 0.01f;
-        g.setColour(v >= redStart ? pal::vuRed : pal::vuInk);
-        g.drawLine(juce::Line<float>(pt(57.0f, v), pt(major ? 49.0f : 53.0f, v)), major ? 1.4f : 0.9f);
-        if (major) {
+    auto tick=[&](float v,int label,bool major){
+        g.setColour(v>=redStart?pal::vuRed:pal::vuInk);
+        g.drawLine(juce::Line<float>(pt(57.f,v),pt(major?49.f:53.f,v)),major?1.4f:.9f);
+        if(major){
             g.setFont(font(labelSize,true));
-            const int label=outputPeak?juce::roundToInt(-20.f+v*1.2f):int(v);
-            g.drawText((label>0&&outputPeak?"+":"")+juce::String(label),juce::Rectangle<float>(0,0,24,13).withCentre(pt(39.f,v)),juce::Justification::centred,false);
+            g.drawText((label>0&&outputPeak?"+":"")+juce::String(label),
+                juce::Rectangle<float>(0,0,24,13).withCentre(pt(39.f,v)),juce::Justification::centred,false);
         }
-    }
+    };
+    if(outputPeak)for(int db=-20;db<=4;db+=2)tick((db+20.f)*20.f/24.f,db,db%4==0);
+    else for(int db=0;db<=20;db+=2)tick(float(db),db,db%4==0);
     juce::Path arc;
     arc.startNewSubPath(pt(57.0f, 0.0f));
     for (float v = 0.0f; v <= 20.0f; v += 1.0f) arc.lineTo(pt(57.0f, v));
