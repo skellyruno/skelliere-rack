@@ -3,6 +3,7 @@
 #include <BinaryData.h>
 #include "Modules.h"
 #include "RackSprites.h"
+#include "NativeFaceLayout.h"
 
 namespace skl::ui {
 // Asset-specific row strides, confirmed against the exact embedded PNGs.
@@ -10,14 +11,15 @@ namespace skl::ui {
 // container truncates its last partial row, so retain only complete rows.
 inline juce::Image decodeRackPanel(const void* bytes, int size, int stride = 215) {
     const auto raw = juce::ImageFileFormat::loadFrom(bytes, static_cast<size_t>(size));
-    if (!raw.isValid() || raw.getWidth() != 570 || raw.getHeight() != 215
-        || (stride != 215 && stride != 216)) return {};
+    if (!raw.isValid() || (stride != 215 && stride != 216)) return {};
+    if (raw.getWidth() == 1140 && raw.getHeight() == 430 && stride == 215) stride=430;
+    else if(raw.getWidth()!=570 || raw.getHeight()!=215) return {};
     const int rows = raw.getWidth() * raw.getHeight() / stride;
     juce::Image panel(juce::Image::ARGB, stride, rows, true);
     juce::Image::BitmapData source(raw, juce::Image::BitmapData::readOnly);
     juce::Image::BitmapData destination(panel, juce::Image::BitmapData::writeOnly);
     for (int i = 0; i < stride * rows; ++i)
-        destination.setPixelColour(i % stride, i / stride, source.getPixelColour(i % 570, i / 570));
+        destination.setPixelColour(i % stride, i / stride, source.getPixelColour(i % raw.getWidth(), i / raw.getWidth()));
     return panel;
 }
 inline bool hasToneMaterial(int type) { return type == skl::Eq || type == skl::Air; }
@@ -29,7 +31,22 @@ inline const juce::Image& rackPanel(int type, int choice) {
     static const juce::Image lift = decodeRackPanel(BinaryData::classic_lift_faceplate_png, BinaryData::classic_lift_faceplate_pngSize);
     static const juce::Image bird = decodeRackPanel(BinaryData::blackbird_faceplate_png, BinaryData::blackbird_faceplate_pngSize, 216);
     static const juce::Image empty;
-    if (!hasToneMaterial(type) || choice < 1 || choice > 3) return empty;
+    if (choice < 1 || choice > 3) return empty;
+    if (type == skl::Trim && choice == 1) return bird;
+#if SKELLIERE_FULL_ARTWORK
+#define SKELL_PANEL(NAME,STRIDE) { static const auto panel=decodeRackPanel(BinaryData::NAME##_png,BinaryData::NAME##_pngSize,STRIDE); return panel; }
+    if(type==skl::Trim && choice==2) SKELL_PANEL(instrument_faceplate,216)
+    if(type==skl::Comp && choice==1) SKELL_PANEL(custom_opto_faceplate,216)
+    if(type==skl::ProgramOpto && choice==1) SKELL_PANEL(optical_faceplate,216)
+    if(type==skl::BusComp && choice==1) SKELL_PANEL(bus_faceplate,215)
+    if(type==skl::FastComp) {
+        if(choice==1) SKELL_PANEL(fet_faceplate,215)
+        if(choice==2) SKELL_PANEL(fet_modern_faceplate,215)
+        if(choice==3) SKELL_PANEL(fet_vintage_faceplate,215)
+    }
+#undef SKELL_PANEL
+#endif
+    if(!hasToneMaterial(type)) return empty;
     if (choice == 3) return bird;
     if (type == skl::Eq) return choice == 1 ? earth : eq;
     return choice == 1 ? air : lift;
@@ -70,7 +87,7 @@ inline bool rackSkinAvailable(int type,int choice) {
     if(!hasRackSkin(type) || !rackSprite(switchSpriteFor(type,choice)).valid()) return false;
     for(int i=0;i<info(type).numKnobs;++i)
         if(!rackSprite(knobSpriteFor(type,choice,i)).valid()) return false;
-    return !hasToneMaterial(type) || rackMaterial(type,choice).isValid();
+    return rackPanel(type,choice).isValid();
 }
 inline juce::String rackPanelName(int type, int choice) {
     if (choice == 0) return "Original";
@@ -89,7 +106,7 @@ public:
                   std::function<void(int)> apply)
         : juce::TextButton("SKIN"), getType_(std::move(getType)),
           getChoice_(std::move(getChoice)), apply_(std::move(apply)) {
-        setTooltip("Change the material of this module. All controls retain their real parameter bindings.");
+        setTooltip("Select a native faceplate layout; all controls retain their real parameter bindings.");
         onClick = [this] {
             const int type = getType_();
             if (!hasRackSkin(type)) return;

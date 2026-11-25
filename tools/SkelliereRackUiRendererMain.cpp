@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
         {"rack_aireq_80", 1008, 656, 0, 1},
         {"rack_aireq_125", 1575, 1025, 0, 1},
         {"rack_classic_80", 1008, 656, 0, 2},
+        {"rack_native_150", 1890, 1230, 0, 1},
         {"rack_blackbird_125", 1575, 1025, 0, 3},
         {"rack_extensions_100", 1260, 820, 1, 0},
         {"rack_extensions_80", 1008, 656, 1, 0},
@@ -52,6 +53,7 @@ int main(int argc, char** argv) {
     };
 #if SKELLIERE_FULL_ARTWORK
     options.scenes.push_back({"rack_full_opto_bus",1260,820,6,1});
+    options.scenes.push_back({"rack_full_fet_classic",1260,820,7,1});
     options.scenes.push_back({"rack_full_fet_modern",1260,820,7,2});
     options.scenes.push_back({"rack_full_fet_vintage",1260,820,7,3});
     options.scenes.push_back({"rack_full_instrument_fader",1260,820,5,2});

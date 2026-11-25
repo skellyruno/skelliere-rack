@@ -43,6 +43,9 @@ void KnobCell::setSprite(int id) {
 
 void KnobCell::resized() {
     if (compact_) slider.setBounds(0, 0, getHeight(), getHeight());
+    else if(nativeFace_) {
+        slider.setBounds(1,0,juce::jmax(1,getWidth()-2),juce::jmax(1,getHeight()-24));
+    }
     else {
         const int size = juce::jmax(1,juce::jmin(54, getHeight() - 24));
         if(isFaderSprite((int)slider.getProperties().getWithDefault("rackSprite",0)))
@@ -193,13 +196,17 @@ void SlotComponent::syncArtwork() {
     if (choice == appliedArtworkChoice) return;
     appliedArtworkChoice = choice;
     const int effective=rackSkinAvailable(type,choice)?choice:0;
-    artButton.setButtonText("SKIN: " + rackPanelName(type,effective).toUpperCase());
+    nativeChoice=effective;
+    artButton.setButtonText("FACE: " + rackPanelName(type,effective).toUpperCase());
     for (size_t i=0;i<cells.size();++i) {
-        cells[i]->setLightFace(lightRackSkin(type,effective));
+        cells[i]->setNativeFace(effective>0);
+        cells[i]->setLightFace(effective>0?nativeFace(type,effective).light:false);
         cells[i]->setSprite(knobSpriteFor(type,effective,static_cast<int>(i)));
     }
     powerBtn.getProperties().set("rackSprite",switchSpriteFor(type,effective));
     powerBtn.repaint();
+    resized();
+    if(auto* parent=getParentComponent()) parent->resized();
     repaint();
 }
 
@@ -210,11 +217,12 @@ bool SlotComponent::artworkLayoutIsValid() const {
     if (artButton.isVisible() != art) return false;
     if (art && appliedArtworkChoice != 0 && knobSpriteFor(type,appliedArtworkChoice,0)!=NoSprite
         && !rackSkinAvailable(type,appliedArtworkChoice)) return false;
-    const Rectangle<int> body(8, 106, getWidth() - 16, getHeight() - 156);
+    const Rectangle<int> body=nativeChoice>0?panelBounds:Rectangle<int>(8,106,getWidth()-16,getHeight()-156);
     for (size_t i = 0; i < cells.size(); ++i) {
         const auto& cell = *cells[i];
         if (!body.contains(cell.getBounds()) || !cell.getLocalBounds().contains(cell.slider.getBounds())
-            || cell.getBounds().intersects(footRect)) return false;
+            || cell.getBounds().intersects(footRect)
+            || (nativeChoice>0 && (cell.getBounds().intersects(powerBtn.getBounds()) || cell.getBounds().intersects(vuRect)))) return false;
         for (size_t j = 0; j < i; ++j)
             if (cell.getBounds().intersects(cells[j]->getBounds())) return false;
     }
@@ -254,7 +262,7 @@ void SlotComponent::setMeter(float gr) {
 
 void SlotComponent::resized() {
     sectionRects.clear();
-    vuRect = {};
+    vuRect = {}; panelBounds={};
     const int w = getWidth(), h = getHeight();
     footRect = Rectangle<int>(10, h - 44, w - 20, 34);
     if (type == Empty) return;
@@ -265,6 +273,16 @@ void SlotComponent::resized() {
     soloBtn.setBounds(12, h - 40, 26, 26);
     const auto& mi = info(type);
     artButton.setBounds(44, h - 40, mi.hasVU ? w - 118 : w - 56, 28);
+    if(nativeChoice>0) {
+        const auto& panel=rackPanel(type,nativeChoice);
+        const int ph=h-80, pw=juce::roundToInt(float(ph)*panel.getWidth()/panel.getHeight());
+        panelBounds=Rectangle<int>((w-pw)/2,36,pw,ph);
+        const auto layout=nativeFace(type,nativeChoice);
+        for(size_t i=0;i<cells.size();++i) cells[i]->setBounds(nativeBounds(layout.controls[i]));
+        powerBtn.setBounds(nativeBounds(layout.power));
+        vuRect=nativeBounds(layout.meter);
+        return;
+    }
     const int controlX = 8;
     const int controlW = w - controlX - 8;
     const int cellW = 84;
@@ -303,7 +321,55 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
     g.drawText(dragOver ? "DROP MODULE HERE" : "EMPTY", Rectangle<float>(0.0f, b.getHeight() - 56.0f, b.getWidth(), 16.0f), juce::Justification::centred, false);
 }
 
+juce::Rectangle<int> SlotComponent::nativeBounds(FaceRect r) const {
+    if(r.w<=0 || r.h<=0 || panelBounds.isEmpty()) return {};
+    const float sx=panelBounds.getWidth()/215.0f, sy=panelBounds.getHeight()/570.0f;
+    const int x=panelBounds.getX()+juce::roundToInt(r.x*sx),y=panelBounds.getY()+juce::roundToInt(r.y*sy);
+    return {x,y,juce::roundToInt((r.x+r.w)*sx)+panelBounds.getX()-x,
+                juce::roundToInt((r.y+r.h)*sy)+panelBounds.getY()-y};
+}
+
+void SlotComponent::paintNativeFace(Graphics& g) {
+    const auto f=nativeFace(type,nativeChoice);
+    const auto& panel=rackPanel(type,nativeChoice);
+    if(!panel.isValid() || panelBounds.isEmpty()) return;
+    const Colour base(f.colour);
+    const Colour ink=f.light?Colour(0xff24292d):pal::ink;
+    g.setColour(pal::chassis2);g.fillAll();
+    // Complete original faceplate; never substitute a tiled material.
+    g.drawImage(panel,panelBounds.toFloat());
+    auto insert=[&](FaceRect r) {
+        if(r.w<=0||r.h<=0)return;
+        const auto box=nativeBounds(r).toFloat();
+        g.setGradientFill(juce::ColourGradient::vertical(base.brighter(f.light?.08f:.10f),box.getY(),
+             base.darker(f.light?.06f:.14f),box.getBottom()));
+        g.fillRoundedRectangle(box,2.0f);
+        paintBrushed(g,box,.5f);
+        g.setColour(juce::Colours::black.withAlpha(.25f));g.drawRoundedRectangle(box,2.0f,.7f);
+    };
+    for(const auto& r:f.inserts) insert(r);
+    // Replace the vendor labels, retaining screws and original panel edges.
+    insert({62,3,91,32});
+    g.setColour(ink);g.setFont(font(9,true));
+    g.drawFittedText("SKELLIERE",nativeBounds({62,3,91,32}),juce::Justification::centred,1);
+    insert({20,530,175,36});
+    g.setColour(ink);g.setFont(font(13,true));
+    g.drawFittedText(juce::String(info(type).name).toUpperCase(),nativeBounds({23,532,169,30}),juce::Justification::centred,1);
+    if(info(type).hasVU && !vuRect.isEmpty()) {
+        // Preserve the original meter enclosure, but replace its uncalibrated
+        // vendor scale with our live gain-reduction scale.
+        paintVU(g,vuRect.toFloat().reduced(3.0f),needle);
+        g.setColour(pal::inkDim);g.setFont(font(11,true));
+        g.drawText("-"+juce::String(needle,1)+" dB",footRect,juce::Justification::centredRight,false);
+    }
+    g.setColour(pal::ink);g.setFont(font(15,true));
+    g.drawText(slotLetter(index),Rectangle<int>(12,8,35,25),juce::Justification::centredLeft,false);
+    g.setFont(font(10,true));
+    g.drawFittedText(juce::String(info(type).name).toUpperCase(),Rectangle<int>(40,8,getWidth()-118,25),juce::Justification::centredLeft,1);
+}
+
 void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
+    if(nativeChoice>0) { paintNativeFace(g);return; }
     const auto& mi = info(type);
     const Colour cat = categoryColour(mi.cat);
     const float W = b.getWidth(), H = b.getHeight();
@@ -384,9 +450,20 @@ RackStrip::RackStrip(SkellierProcessor& p) {
     for (int i = 0; i < kNumSlots; ++i) {
         slots[(size_t) i] = std::make_unique<SlotComponent>(p, i);
         addAndMakeVisible(*slots[(size_t) i]);
-        slots[(size_t) i]->setBounds(kPad + i * (SlotComponent::kWidth + kGap), 2, SlotComponent::kWidth, SlotComponent::kHeight);
     }
-    setSize(kPad * 2 + kNumSlots * SlotComponent::kWidth + (kNumSlots - 1) * kGap, SlotComponent::kHeight + 4);
+    resized();
+}
+
+void RackStrip::resized() {
+    int x=kPad;
+    for(auto& slot:slots) if(slot) {
+        const int w=slot->preferredWidth();
+        slot->setBounds(x,2,w,SlotComponent::kHeight);
+        x+=w+kGap;
+    }
+    const int total=x-kGap+kPad;
+    if(getWidth()!=total || getHeight()!=SlotComponent::kHeight+4)
+        setSize(total,SlotComponent::kHeight+4);
 }
 
 // =================================================================== library
@@ -401,18 +478,15 @@ void ModuleTile::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(pal::plateTop, sw.getY(), pal::plateBot, sw.getBottom()));
     g.fillRoundedRectangle(sw, 2.0f);
     paintBrushed(g, sw, 0.9f);
-    if (hasRackSkin(type)) {
-        const auto& material = rackMaterial(type, 1);
-        if (material.isValid()) {
-            g.setTiledImageFill(material, (int) sw.getX(), (int) sw.getY(), 1.0f);
-            g.fillRoundedRectangle(sw, 2.0f);
-        }
+    const auto& panel=rackPanel(type,1);
+    if(panel.isValid()) {
+        g.drawImageWithin(panel,(int)sw.getX(),(int)sw.getY(),(int)sw.getWidth(),(int)sw.getHeight(),juce::RectanglePlacement::centred);
+    } else {
+        g.setColour(categoryColour(mi.cat)); g.fillRect(sw.removeFromBottom(3.0f));
+        const float kr=7.0f;
+        g.setColour(capColour(mi.cat));g.fillEllipse(sw.getCentreX()-kr,sw.getCentreY()-kr,2*kr,2*kr);
+        g.setColour(pointerColour(mi.cat));g.drawLine(sw.getCentreX(),sw.getCentreY(),sw.getCentreX()+3,sw.getCentreY()-5,1.6f);
     }
-    g.setColour(categoryColour(mi.cat)); g.fillRect(sw.removeFromBottom(3.0f));
-    const float kr = 7.0f;
-    g.setColour(juce::Colours::black.withAlpha(0.5f)); g.fillEllipse(sw.getCentreX() - kr, sw.getCentreY() - kr + 1.5f, 2 * kr, 2 * kr);
-    g.setColour(capColour(mi.cat)); g.fillEllipse(sw.getCentreX() - kr, sw.getCentreY() - kr, 2 * kr, 2 * kr);
-    g.setColour(pointerColour(mi.cat)); g.drawLine(sw.getCentreX(), sw.getCentreY(), sw.getCentreX() + 3.0f, sw.getCentreY() - 5.5f, 1.6f);
     auto text = r.reduced(5.0f).withTrimmedLeft(40.0f);
     g.setColour(pal::ink); g.setFont(font(12.0f, true));
     g.drawFittedText(juce::String(mi.name).toUpperCase(), text.removeFromTop(30.0f).toNearestInt(), juce::Justification::centredLeft, 2);
@@ -456,7 +530,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
-    infoLabel.setText("Double-click or drag a module into a slot. Quad EQ and Air Lift include material skins. Every knob controls the effect.", juce::dontSendNotification);
+    infoLabel.setText("Double-click or drag a module into a slot. Quad EQ and Air Lift include native faceplate layouts. Every knob controls the effect.", juce::dontSendNotification);
     addAndMakeVisible(infoLabel);
     refresh();
 }
@@ -466,7 +540,7 @@ void LibraryPanel::select(int type) {
     for (auto* t : tiles) { t->selected = t->type == type; t->repaint(); }
     const auto& mi = info(type);
     const juce::String hint = (type == Eq || type == Air)
-        ? "\n\nChoose a material skin at the bottom of its slot. All knobs remain active."
+        ? "\n\nChoose a native faceplate at the bottom of its slot. All knobs remain active."
         : "\n\nDouble-click or drag into a slot.";
     infoLabel.setText(juce::String(mi.name).toUpperCase() + "\n" + mi.desc + hint, juce::dontSendNotification);
 }
@@ -678,7 +752,7 @@ void RackUI::resized() {
     stripName.setBounds(1000, 134, 140, 32);
     saveStripBtn.setBounds(1146, 134, 92, 32);
     library.setBounds(12, 174, 224, 600);
-    viewport.setBounds(260, 196, 972, 556);
+    viewport.setBounds(260, 174, 972, 600);
     pathStrip.setBounds(12, 780, 1236, 32);
 }
 

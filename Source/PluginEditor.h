@@ -15,11 +15,12 @@ public:
     void paint(juce::Graphics&) override;
     void setLightFace(bool light);
     void setSprite(int id);
+    void setNativeFace(bool native) { nativeFace_=native; resized(); repaint(); }
     juce::Slider slider;
 private:
     juce::String label_, text_;
     Fmt fmt_;
-    bool compact_, lightFace_ = false;
+    bool compact_, lightFace_ = false, nativeFace_ = false;
     juce::SliderParameterAttachment attachment;
 };
 
@@ -47,7 +48,8 @@ public:
 
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
-    static constexpr int kWidth = 248, kHeight = 540;
+    static constexpr int kWidth = 248, kHeight = 580;
+    int preferredWidth() const { return nativeChoice>0?216:kWidth; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
     void rebuild();
@@ -69,6 +71,8 @@ public:
 private:
     void paintEmpty(juce::Graphics&, juce::Rectangle<float>);
     void paintFaceplate(juce::Graphics&, juce::Rectangle<float>);
+    void paintNativeFace(juce::Graphics&);
+    juce::Rectangle<int> nativeBounds(FaceRect) const;
     SkellierProcessor& proc;
     int index, type = 0;
     bool dragOver = false, dragging = false;
@@ -76,7 +80,8 @@ private:
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;
-    int appliedArtworkChoice = -1;
+    int appliedArtworkChoice = -1, nativeChoice = 0;
+    juce::Rectangle<int> panelBounds;
     ArtworkButton artButton{[this] { return type; },
                             [this] { return proc.artworkChoices[static_cast<size_t>(index)].load(); },
                             [this](int choice) { setArtworkChoice(choice); }};
@@ -89,7 +94,7 @@ class RackStrip final : public juce::Component {
 public:
     explicit RackStrip(SkellierProcessor&);
     static constexpr int kGap = 4, kPad = 8;
-    void resized() override {}
+    void resized() override;
     std::array<std::unique_ptr<SlotComponent>, skl::kNumSlots> slots;
 };
 
