@@ -343,40 +343,35 @@ juce::Rectangle<int> SlotComponent::nativeBounds(FaceRect r) const {
 
 void SlotComponent::paintNativeFace(Graphics& g) {
     const auto f=nativeFace(type,nativeChoice);
-    const auto& panel=rackPanel(type,nativeChoice);
+    const auto& panel=restoredRackPanel(type,nativeChoice);
     if(!panel.isValid() || panelBounds.isEmpty()) return;
-    const Colour base(f.colour);
-    const Colour ink=f.light?Colour(0xff24292d):pal::ink;
+    const Colour ink=f.light?Colour(0xff252a2e):Colour(0xffe3e6e9);
     g.setColour(pal::chassis2);g.fillAll();
-    // Complete original faceplate; never substitute a tiled material.
+    // The complete source-derived panel is reconstructed and cached once,
+    // rather than painting unrelated rectangular patches every frame.
     g.drawImage(panel,panelBounds.toFloat());
-    auto insert=[&](FaceRect r) {
-        if(r.w<=0||r.h<=0)return;
-        const auto box=nativeBounds(r).toFloat();
-        // Localized retouch only: maintain original brushed material and
-        // separation lines instead of drawing a second generic control grid.
-        const auto& material=rackMaterial(type,nativeChoice);
-        if(material.isValid() && nativeChoice!=3) {
-            g.setTiledImageFill(material,box.getX(),box.getY(),1.0f);
-            g.fillRect(box);
-        } else {
-            g.setGradientFill(juce::ColourGradient::vertical(base.brighter(f.light?.08f:.10f),box.getY(),
-                 base.darker(f.light?.06f:.14f),box.getBottom()));
-            g.fillRect(box);
-            paintBrushed(g,box,.5f);
+    const auto& mi=info(type);
+    auto label=[&](juce::String text,FaceRect rect,int size) {
+        if(!text.isEmpty()) {
+            g.setColour(ink);
+            g.setFont(font(static_cast<float>(size),true));
+            g.drawFittedText(text,nativeBounds(rect),juce::Justification::centred,1);
         }
     };
-    for(const auto& r:f.inserts) insert(r);
-    // Replace the vendor labels, retaining screws and original panel edges.
-    insert({62,3,91,32});
-    g.setColour(ink);g.setFont(font(9,true));
-    g.drawFittedText("SKELLIERE",nativeBounds({62,3,91,32}),juce::Justification::centred,1);
-    insert({20,530,175,36});
-    g.setColour(ink);g.setFont(font(13,true));
-    g.drawFittedText(juce::String(info(type).name).toUpperCase(),nativeBounds({23,532,169,30}),juce::Justification::centred,1);
-    if(info(type).hasVU && !vuRect.isEmpty()) {
-        // Preserve the original meter enclosure, but replace its uncalibrated
-        // vendor scale with our live gain-reduction scale.
+    // Use original face coordinates for identification and controls.
+    label("SKELLIERE",{38,4,139,29},12);
+    if(type==skl::Eq && nativeChoice==2) {
+        for(int y:{126,207,287,369}) {
+            const auto r=nativeBounds({15,y,185,1}).toFloat();
+            g.setColour(ink.withAlpha(.18f));g.drawLine(r.getX(),r.getY(),r.getRight(),r.getY(),.7f);
+        }
+    } else if(type==skl::Air && nativeChoice==2) {
+        const auto r=nativeBounds({12,255,191,1}).toFloat();
+        g.setColour(ink.withAlpha(.17f));g.drawLine(r.getX(),r.getY(),r.getRight(),r.getY(),.7f);
+    }
+    label(juce::String(mi.name).toUpperCase(),{22,533,171,30},13);
+    if(mi.hasVU && !vuRect.isEmpty()) {
+        // Live GR, no vendor calibration values presented as ours.
         paintVU(g,vuRect.toFloat().reduced(3.0f),needle);
         g.setColour(pal::inkDim);g.setFont(font(11,true));
         g.drawText("-"+juce::String(needle,1)+" dB",footRect,juce::Justification::centredRight,false);
@@ -384,7 +379,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     g.setColour(pal::ink);g.setFont(font(15,true));
     g.drawText(slotLetter(index),Rectangle<int>(12,8,35,25),juce::Justification::centredLeft,false);
     g.setFont(font(10,true));
-    g.drawFittedText(juce::String(info(type).name).toUpperCase(),Rectangle<int>(40,8,getWidth()-118,25),juce::Justification::centredLeft,1);
+    g.drawFittedText(juce::String(mi.name).toUpperCase(),Rectangle<int>(40,8,getWidth()-118,25),juce::Justification::centredLeft,1);
 }
 
 void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
@@ -497,7 +492,7 @@ void ModuleTile::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(pal::plateTop, sw.getY(), pal::plateBot, sw.getBottom()));
     g.fillRoundedRectangle(sw, 2.0f);
     paintBrushed(g, sw, 0.9f);
-    const auto& panel=rackPanel(type,1);
+    const auto& panel=restoredRackPanel(type,1);
     if(panel.isValid()) {
         g.drawImageWithin(panel,(int)sw.getX(),(int)sw.getY(),(int)sw.getWidth(),(int)sw.getHeight(),juce::RectanglePlacement::centred);
     } else {

@@ -144,6 +144,14 @@ int main(int argc, char** argv) {
                 if (bird.getPixelAt(offset % 216, offset / 216) != birdRaw.getPixelAt(offset % 570, offset / 570))
                     errors.add("Blackbird packed row stride regression");
         } else errors.add("Blackbird source unavailable");
+        for (int type : {skl::Eq, skl::Air}) for(int choice : {1,2,3}) {
+            const auto& raw=skl::ui::rackPanel(type,choice);
+            const auto& restored=skl::ui::restoredRackPanel(type,choice);
+            if(!raw.isValid() || !restored.isValid() || raw.getBounds()!=restored.getBounds())
+                errors.add("Restored full panel is invalid");
+            else if(raw.getPixelAt(107,raw.getHeight()/2)==restored.getPixelAt(107,restored.getHeight()/2))
+                errors.add("Faceplate restoration did not remove baked background controls");
+        }
         return errors;
     };
     const auto output = argc > 1 ? juce::File(juce::String::fromUTF8(argv[1]))
