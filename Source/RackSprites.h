@@ -19,6 +19,7 @@ struct PackedSprite {
     juce::Image atlas;
     PackedFrameLayout layout;
     juce::Rectangle<int> crop;
+    int columns=1;
     PackedSprite() = default;
     PackedSprite(const void* bytes, int size, int frames, int expectedW, int expectedH) {
         const auto raw = juce::ImageFileFormat::loadFrom(bytes, static_cast<size_t>(size));
@@ -29,18 +30,23 @@ struct PackedSprite {
         const bool two = dims.frameWidth == 2*expectedW && dims.frameHeight == 2*expectedH;
         if (!one && !two) return;
         layout=dims;
-        atlas=juce::Image(juce::Image::ARGB, dims.frameWidth, dims.frameHeight * frames, true);
+        // Keep even 2x atlases below common GPU texture dimension limits.
+        columns=std::min(9,frames);
+        const int rows=(frames+columns-1)/columns;
+        atlas=juce::Image(juce::Image::ARGB, dims.frameWidth*columns, dims.frameHeight*rows, true);
         if (!atlas.isValid()) { layout={}; return; }
         juce::Image::BitmapData source(raw, juce::Image::BitmapData::readOnly);
         juce::Image::BitmapData dest(atlas, juce::Image::BitmapData::writeOnly);
         int x0=dims.frameWidth,y0=dims.frameHeight,x1=-1,y1=-1;
-        for (int y=0;y<atlas.getHeight();++y) for (int x=0;x<dims.frameWidth;++x) {
-            const int offset=y*dims.frameWidth+x;
-            const auto px=source.getPixelColour(offset%raw.getWidth(),offset/raw.getWidth());
-            dest.setPixelColour(x,y,px);
-            if (frames==2 && px.getAlpha()>8) {
-                const int fy=y%dims.frameHeight;
-                x0=std::min(x0,x);x1=std::max(x1,x);y0=std::min(y0,fy);y1=std::max(y1,fy);
+        for (int frame=0;frame<frames;++frame) {
+            const int dx=(frame%columns)*dims.frameWidth, dy=(frame/columns)*dims.frameHeight;
+            for (int y=0;y<dims.frameHeight;++y) for (int x=0;x<dims.frameWidth;++x) {
+                const int offset=(frame*dims.frameHeight+y)*dims.frameWidth+x;
+                const auto px=source.getPixelColour(offset%raw.getWidth(),offset/raw.getWidth());
+                dest.setPixelColour(dx+x,dy+y,px);
+                if (frames==2 && px.getAlpha()>8) {
+                    x0=std::min(x0,x);x1=std::max(x1,x);y0=std::min(y0,y);y1=std::max(y1,y);
+                }
             }
         }
         crop={0,0,dims.frameWidth,dims.frameHeight};
@@ -49,18 +55,28 @@ struct PackedSprite {
     }
     bool valid() const noexcept { return atlas.isValid() && layout.valid() && !crop.isEmpty(); }
     juce::Rectangle<int> source(double position) const noexcept {
-        return crop.translated(0, spriteFrame(position,layout.count)*layout.frameHeight);
+        const int index=spriteFrame(position,layout.count);
+        return crop.translated((index%columns)*layout.frameWidth,(index/columns)*layout.frameHeight);
+    }
+    juce::Rectangle<int> destination(juce::Rectangle<int> bounds) const {
+        if(!valid()||bounds.isEmpty()) return {};
+        const float scale=std::min(float(bounds.getWidth())/float(crop.getWidth()),
+                                   float(bounds.getHeight())/float(crop.getHeight()));
+        return juce::Rectangle<int>(std::max(1,juce::roundToInt(crop.getWidth()*scale)),
+                                    std::max(1,juce::roundToInt(crop.getHeight()*scale))).withCentre(bounds.getCentre());
+    }
+    bool endpointsDiffer() const {
+        if(!valid()||layout.count<2) return false;
+        const auto first=source(0.0),last=source(1.0);
+        for(int y=0;y<first.getHeight();++y)for(int x=0;x<first.getWidth();++x)
+            if(atlas.getPixelAt(first.getX()+x,first.getY()+y)!=atlas.getPixelAt(last.getX()+x,last.getY()+y)) return true;
+        return false;
     }
     bool draw(juce::Graphics& g, juce::Rectangle<int> bounds, double value) const {
         if (!valid() || bounds.isEmpty()) return false;
-        const auto src=source(value);
-        const float scale=std::min(float(bounds.getWidth())/float(src.getWidth()),
-                                   float(bounds.getHeight())/float(src.getHeight()));
-        const int w=std::max(1,juce::roundToInt(src.getWidth()*scale));
-        const int h=std::max(1,juce::roundToInt(src.getHeight()*scale));
-        const auto dst=juce::Rectangle<int>(w,h).withCentre(bounds.getCentre());
+        const auto src=source(value),dst=destination(bounds);
         g.setOpacity(1.0f);
-        g.drawImage(atlas,dst.getX(),dst.getY(),w,h,src.getX(),src.getY(),src.getWidth(),src.getHeight());
+        g.drawImage(atlas,dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),src.getX(),src.getY(),src.getWidth(),src.getHeight());
         return true;
     }
 };

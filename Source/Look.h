@@ -219,9 +219,14 @@ public:
         const juce::Rectangle<int> spriteBounds(x,y,w,h);
         if (rackSprite(sprite).valid()) {
             if(isFaderSprite(sprite)) {
-                const int cy=spriteBounds.getCentreY();
-                g.setColour(Colour(0xff08090a)); g.fillRoundedRectangle(float(x+4),float(cy-2),float(std::max(1,w-8)),4.0f,2.0f);
-                g.setColour(Colour(0xff62666b));g.drawHorizontalLine(cy,float(x+5),float(x+w-5));
+                // Align track with the actual source handle's opaque centre.
+                const auto dst=rackSprite(sprite).destination(spriteBounds).toFloat();
+                const bool bird=sprite==BlackbirdFader;
+                const float x0=dst.getX()+dst.getWidth()*(bird?28.5f/195.0f:20.5f/180.0f);
+                const float x1=dst.getX()+dst.getWidth()*(bird?166.5f/195.0f:158.5f/180.0f);
+                const float cy=dst.getY()+dst.getHeight()*(bird?24.0f/70.0f:21.0f/63.0f);
+                g.setColour(Colour(0xff08090a));g.fillRoundedRectangle(x0-2.0f,cy-2.0f,x1-x0+4.0f,4.0f,2.0f);
+                g.setColour(Colour(0xff62666b));g.drawLine(x0,cy,x1,cy,1.0f);
             }
             rackSprite(sprite).draw(g,spriteBounds,pos);
             if (s.hasKeyboardFocus(false)) {g.setColour(pal::amber);g.drawRoundedRectangle(spriteBounds.toFloat().reduced(1.0f),3.0f,1.0f);}

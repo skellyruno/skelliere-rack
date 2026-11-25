@@ -263,9 +263,8 @@ void SlotComponent::resized() {
     rightBtn.setBounds(w - 52, 13, 20, 20);
     leftBtn.setBounds(w - 74, 13, 20, 20);
     soloBtn.setBounds(12, h - 40, 26, 26);
-    artButton.setBounds(44, h - 40, w - 56, 28);
-
     const auto& mi = info(type);
+    artButton.setBounds(44, h - 40, mi.hasVU ? w - 118 : w - 56, 28);
     const int controlX = 8;
     const int controlW = w - controlX - 8;
     const int cellW = 84;
@@ -352,7 +351,7 @@ void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
         g.setColour(legendInk); g.setFont(legendFont);
         g.drawText(legend, Rectangle<float>(r.getX() + 13.0f, r.getY() + 2.0f, (float) tw + 4.0f, 13.0f), juce::Justification::centredLeft, false);
     }
-    if (mi.hasVU && !hasRackSkin(type)) {
+    if (mi.hasVU) {
         g.setColour(pal::inkDim); g.setFont(font(11.0f, true));
         g.drawText("-" + juce::String(needle, 1) + " dB", footRect, juce::Justification::centredRight, false);
     }

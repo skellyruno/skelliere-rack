@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
         if(!bindingChecks) errors.add("Live sprite slider/button parameter binding failed");
         for(int id=1;id<skl::ui::RackSpriteCount;++id) {
             const auto& sprite=skl::ui::rackSprite(id);
-            if(!sprite.valid() || sprite.source(0.0)==sprite.source(1.0)) errors.add("Packed sprite missing or invalid endpoint frames");
+            if(!sprite.valid() || !sprite.endpointsDiffer()) errors.add("Packed sprite missing or invalid endpoint frames");
         }
         if (editor.getWidth() != expectedWidth || editor.getHeight() != expectedHeight)
             errors.add("Editor scaling dimensions do not match the scene");
