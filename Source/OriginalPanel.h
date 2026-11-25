@@ -24,9 +24,9 @@ inline OriginalLayout originalLayout(int type,int width) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
     // Keep every APVTS parameter, including controls absent from the concept.
-    if(mi.hasVU)l.meter={18,107,width-36,118};
+    if(mi.hasVU||type==Flanger)l.meter={18,107,width-36,118};
     if(type==Delay||type==Slap)l.detail={19,107,width-38,118};
-    const int top=mi.hasVU||!l.detail.isEmpty()?241:112,bottom=603;
+    const int top=!l.meter.isEmpty()||!l.detail.isEmpty()?241:112,bottom=589;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;
         const int row=std::min(122,(bottom-top)/std::max(1,n));
@@ -40,6 +40,10 @@ inline OriginalLayout originalLayout(int type,int width) {
     }else if(n==5&&!mi.hasVU){
         l.cells[0]={mid-70,top,140,151};
         for(int k=1;k<5;++k)l.cells[k]={12+((k-1)%2)*half,top+157+((k-1)/2)*153,half,145};
+    }else if(n==5&&mi.hasVU){
+        // Two large rows followed by a smaller central makeup control.
+        for(int k=0;k<4;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*127,half,123};
+        l.cells[4]={mid-43,top+254,86,bottom-top-254};
     }else{
         const int rows=(n+1)/2,rh=(bottom-top)/std::max(1,rows);
         for(int k=0;k<n;++k)l.cells[k]={n%2==1&&k==n-1?mid-half/2:12+(k%2)*half,top+(k/2)*rh,half,rh-4};
@@ -81,7 +85,10 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     const auto p=originalSpec(type,1);paintOriginalSurface(g,r,type,1);
     g.setColour(p.accent);g.fillRect(r.reduced(5).removeFromTop(3));
     auto f=r.reduced(6);
-    if(info(type).hasVU){g.setColour(Colour(0xffdcc9a0));g.fillRoundedRectangle(f.removeFromTop(f.getHeight()*.32f),1);}
+    if(info(type).hasVU||type==Flanger){
+        paintVU(g,f, type==Flanger?-20.f:0.f,type==Flanger);return;
+    }
+    if(type==Delay||type==Slap){paintTapeDetail(g,f);return;}
     const auto center=f.getCentre();const float d=std::min(f.getWidth(),f.getHeight())*.58f;
     g.setColour(p.cap);g.fillEllipse(center.x-d/2,center.y-d/2,d,d);
     g.setColour(p.light?juce::Colours::white:juce::Colours::black);g.drawLine(center.x,center.y,center.x+d*.17f,center.y-d*.39f,1.2f);

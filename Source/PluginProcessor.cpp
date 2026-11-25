@@ -116,7 +116,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     tuneModule = makeModule(Tune);
     tuneModule->prepare(sampleRate_, maxBlock, ch);
     bypassDelay.prepare(tuneModule->latency());
-    for (int s = 0; s < kNumSlots; ++s) lastType[s] = -1;
+    for (int s = 0; s < kNumSlots; ++s) {lastType[s] = -1;jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);}
     inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
     inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(inRaw->load()));
     outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(outRaw->load()));
@@ -150,6 +150,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     const float rawPeak = buffer.getMagnitude(0, total);
     bypassDelay.process(buffer, latencyOfTune(), bypass);
     if (bypass) {
+        for(auto& peak:jetPeak)peak.store(0,std::memory_order_relaxed);
         inPeak.store(juce::jmax(inPeak.load(), rawPeak));
         outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
         return;
@@ -169,6 +170,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         if (types[s] == Tune && tuneSlot < 0) tuneSlot = s;
     }
     const int solo = soloSlot.load();
+    float measuredJet[kNumSlots]{};
 
     for (int start = 0; start < total; start += maxBlock) {
         const int len = juce::jmin(maxBlock, total - start);
@@ -183,10 +185,25 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             if (m == nullptr) continue;
             float k[kMaxKnobs];
             for (int i = 0; i < kMaxKnobs; ++i) k[i] = kRaw[s][i]->load();
-            m->process(chunk, k, onRaw[s]->load() > 0.5f && (solo < 0 || solo == s));
+            const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
+            m->process(chunk,k,active);
+            // Real post-effect peak telemetry only for Jet. No audio changes,
+            // allocations or locking; the existing buffer is read once.
+            if(type==Flanger&&active)measuredJet[s]=juce::jmax(measuredJet[s],chunk.getMagnitude(0,len));
         }
     }
 
+    for(int s=0;s<kNumSlots;++s) {
+        if(types[s]!=Flanger || onRaw[s]->load()<=.5f || (solo>=0&&solo!=s))
+            jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);
+        else {
+            auto& peak=jetPeak[static_cast<size_t>(s)];
+            auto old=peak.load(std::memory_order_relaxed);
+            // Single writer, single exchange reader: do not lose a peak
+            // while the UI consumes the preceding one.
+            if(measuredJet[s]>old)peak.compare_exchange_strong(old,measuredJet[s],std::memory_order_relaxed);
+        }
+    }
     for(int i=0;i<total;++i) {
         const float gain=outputGain.getNextValue();
         for(int c=0;c<ch;++c) buffer.getWritePointer(c)[i]*=gain;

@@ -170,7 +170,7 @@ void SlotComponent::rebuild() {
             cells.push_back(std::move(cell));
         }
     }
-    needle = 0.0f; shownNeedle = -1.0f; lastMeterTime=0;
+    needle = 0.0f; shownNeedle = -1.0f; lastMeterTime=0;outputDb=-60.f;
     syncArtwork();
     syncSolo();
     resized();
@@ -232,6 +232,12 @@ void SlotComponent::syncPowerVisual() {
     if(on!=shownPower){shownPower=on;repaint();}
 }
 
+void SlotComponent::setOutputPeak(float peak) {
+    if(type!=Flanger||vuRect.isEmpty())return;
+    const float target=peak>1e-5f?juce::jlimit(-60.f,4.f,20.f*std::log10(peak)):-60.f;
+    const float next=juce::jmax(target,outputDb-1.5f);
+    if(std::abs(next-outputDb)>.05f){outputDb=next;repaint(vuRect.expanded(2));}
+}
 void SlotComponent::setMeter(float gr) {
     if (type == Empty || !info(type).hasVU) return;
     const auto now=juce::Time::getMillisecondCounterHiRes();
@@ -288,11 +294,13 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintMonogram(pg,Rectangle<float>(w*.5f-9,15,18,25),ink);
         pg.setColour(ink);pg.setFont(font(11,true));
         pg.drawText("S K E L L",18,43,w-36,16,juce::Justification::centred,false);
-        pg.setFont(font(22,true).italicised());
+        pg.setFont(juce::Font(juce::FontOptions("Georgia",22.f,juce::Font::bold|juce::Font::italic)));
         pg.drawFittedText(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase(),
             Rectangle<int>(14,60,w-28,29),juce::Justification::centred,1);
         pg.setColour(ink.withAlpha(.38f));
-        pg.drawHorizontalLine(93,20,w-20);
+        const int titleWidth=juce::jlimit(70,w-40,pg.getCurrentFont().getStringWidthInt(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase())+20);
+        pg.drawHorizontalLine(75,20,float(w-titleWidth)*.5f);
+        pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w);
         if(!layout.detail.isEmpty())paintTapeDetail(pg,layout.detail.toFloat());
         if(layout.sideReadouts)for(int k=1;k<mi.numKnobs;++k)
@@ -302,7 +310,11 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-57,w-28,10,juce::Justification::centred,false);
     }
     g.drawImageAt(panelCache,0,0);
-    if(mi.hasVU&&!vuRect.isEmpty()){
+    if(type==Flanger&&!vuRect.isEmpty()){
+        paintVU(g,vuRect.toFloat(),outputDb,true);
+        g.setColour(pal::vuInk);g.setFont(font(10,true));
+        g.drawText(outputDb<=-59.f?"-inf":juce::String(outputDb,1)+" dBFS",vuRect.withTrimmedTop(vuRect.getHeight()-23).reduced(10,4),juce::Justification::centredRight,false);
+    }else if(mi.hasVU&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),needle);
         g.setColour(pal::vuInk);g.setFont(font(10,true));
         g.drawText(juce::String(needle<.05f?0.f:-needle,1)+" dB",vuRect.withTrimmedTop(vuRect.getHeight()-23).reduced(10,4),juce::Justification::centredRight,false);
@@ -402,7 +414,9 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     tileViewport.setScrollBarsShown(true, false);
     tileViewport.setScrollBarThickness(10);
     addAndMakeVisible(tileViewport);
-    for (int t = Eq; t < kNumRackTypes; ++t) {
+    std::vector<int> order{Comp,Bell,Delay,Flanger,Eq,DeEss,Sat,Air};
+    for(int t=Eq;t<kNumRackTypes;++t)if(std::find(order.begin(),order.end(),t)==order.end())order.push_back(t);
+    for(int t:order) {
         auto* tile = new ModuleTile(t, [this](int type) { select(type); }, [this](int type) { proc.addModule(type, -1); });
         tiles.add(tile);
         tileContent.addAndMakeVisible(tile);
@@ -602,6 +616,7 @@ void RackUI::timerCallback() {
     meters.setLevels(inShown, outShown);
     for (int s = 0; s < kNumSlots; ++s) {
         strip.slots[(size_t) s]->setMeter(proc.gainReduction(s));
+        if(proc.slotType(s)==Flanger)strip.slots[(size_t)s]->setOutputPeak(proc.takeJetPeak(s));
         strip.slots[(size_t) s]->syncSolo();
         strip.slots[(size_t) s]->syncArtwork();
     }
@@ -622,7 +637,7 @@ void RackUI::resized() {
     for(int k=0;k<stripButtons.size();++k)stripButtons[k]->setBounds(203+k*110,9,105,30);
     stripName.setBounds(892,9,192,30);saveStripBtn.setBounds(1090,9,132,30);
     library.setBounds(12,106,246,666);
-    viewport.setBounds(270,106,966,666);
+    viewport.setBounds(270,106,964,666);
     pathStrip.setBounds(12,780,1236,32);
 }
 

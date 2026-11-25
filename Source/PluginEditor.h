@@ -52,11 +52,12 @@ public:
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
     static constexpr int kWidth = 248, kHeight = 650;
-    int preferredWidth() const { return 232; }
+    int preferredWidth() const { return 236; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
     void rebuild();
     void setMeter(float gainReductionDb);
+    void setOutputPeak(float peak);
     void syncSolo();
     void syncPowerVisual();
     // Shared by the live selector, session restore and real editor harness.
@@ -82,6 +83,7 @@ private:
     bool dragOver = false, dragging = false, shownPower=true;
     float needle = 0.0f, shownNeedle = -1.0f;
     double lastMeterTime=0;
+    float outputDb=-60.f;
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;
@@ -97,7 +99,7 @@ private:
 class RackStrip final : public juce::Component {
 public:
     explicit RackStrip(SkellierProcessor&);
-    static constexpr int kGap = 4, kPad = 8;
+    static constexpr int kGap = 4, kPad = 4;
     void resized() override;
     std::array<std::unique_ptr<SlotComponent>, skl::kNumSlots> slots;
 };

@@ -142,7 +142,7 @@ inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
 }
 
 // The needle meter used by the compressor, de-esser and limiter. value is gain reduction in dB (0 to 20).
-inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value) {
+inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool outputPeak=false) {
     g.setColour(juce::Colours::black.withAlpha(.45f));g.fillRoundedRectangle(r.translated(0,2),8);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff514a3e),r.getY(),Colour(0xff151411),r.getBottom()));
     g.fillRoundedRectangle(r,7);
@@ -166,24 +166,30 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value) {
         const float a = juce::degreesToRadians(-50.0f + v * 5.0f);
         return juce::Point<float>(cx + rad * sc * std::sin(a), cy - rad * sy * std::cos(a));
     };
+    const float redStart=outputPeak?20.f*20.f/24.f:12.f;
     for (float v = 0.0f; v <= 20.0f; v += 2.0f) {
         const bool major = std::fmod(v, 4.0f) < 0.01f;
-        g.setColour(v >= 12.0f ? pal::vuRed : pal::vuInk);
+        g.setColour(v >= redStart ? pal::vuRed : pal::vuInk);
         g.drawLine(juce::Line<float>(pt(57.0f, v), pt(major ? 49.0f : 53.0f, v)), major ? 1.4f : 0.9f);
-        if (major) { g.setFont(font(labelSize, true)); g.drawText(juce::String((int) v), juce::Rectangle<float>(0, 0, 22, 13).withCentre(pt(39.0f, v)), juce::Justification::centred, false); }
+        if (major) {
+            g.setFont(font(labelSize,true));
+            const int label=outputPeak?juce::roundToInt(-20.f+v*1.2f):int(v);
+            g.drawText((label>0&&outputPeak?"+":"")+juce::String(label),juce::Rectangle<float>(0,0,24,13).withCentre(pt(39.f,v)),juce::Justification::centred,false);
+        }
     }
     juce::Path arc;
     arc.startNewSubPath(pt(57.0f, 0.0f));
     for (float v = 0.0f; v <= 20.0f; v += 1.0f) arc.lineTo(pt(57.0f, v));
     g.setColour(pal::vuInk); g.strokePath(arc, juce::PathStrokeType(1.1f));
     juce::Path red;
-    red.startNewSubPath(pt(54.0f, 12.0f));
-    for (float v = 12.0f; v <= 20.0f; v += 1.0f) red.lineTo(pt(54.0f, v));
+    red.startNewSubPath(pt(54.0f,redStart));
+    for(float v=redStart;v<20.f;v+=.5f)red.lineTo(pt(54.f,v));
+    red.lineTo(pt(54.f,20.f));
     g.setColour(pal::vuRed); g.strokePath(red, juce::PathStrokeType(2.0f));
     g.setColour(pal::vuInk); g.setFont(font(labelSize, true));
-    g.drawText("GR dB", face.withTrimmedLeft(7.0f).removeFromBottom(14.0f), juce::Justification::centredLeft, false);
+    g.drawText(outputPeak?"PEAK dBFS":"GR dB", face.withTrimmedLeft(7.0f).removeFromBottom(14.0f), juce::Justification::centredLeft, false);
 
-    const float v = juce::jlimit(0.0f, 20.0f, value);
+    const float v=juce::jlimit(0.f,20.f,outputPeak?(value+20.f)*20.f/24.f:value);
     g.setColour(juce::Colours::black.withAlpha(0.25f));
     g.drawLine(juce::Line<float>(juce::Point<float>(cx + 1.5f, cy + 1.5f), pt(52.0f, v) + juce::Point<float>(1.5f, 1.5f)), 1.6f);
     g.setColour(pal::vuRed);

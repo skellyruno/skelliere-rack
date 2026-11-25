@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
                 processor.apvts.getParameter(SkellierProcessor::knobId(s,k))->setValueNotifyingHost(scene.id=="catalog_max"?1.f:0.f);
         juce::AudioBuffer<float> signal(2,512);juce::MidiBuffer midi;
         for(int b=0;b<64;++b){for(int c=0;c<2;++c)for(int n=0;n<512;++n)signal.setSample(c,n,.65f*std::sin(float((b*512+n)*.057595865)));processor.processBlock(signal,midi);}
-        int idx=0;visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c))slot->setMeter(processor.gainReduction(idx++));});
+        int idx=0;visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->setMeter(processor.gainReduction(idx));slot->setOutputPeak(processor.takeJetPeak(idx));++idx;}});
     };
     options.inspect=[&]{
         juce::StringArray errors;if(!bindings)errors.add("Live parameter binding failed");

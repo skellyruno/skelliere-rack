@@ -35,6 +35,7 @@ public:
     int slotType(int) const;
     bool slotOn(int) const;
     float gainReduction(int) const;
+    float takeJetPeak(int slot) noexcept { return jetPeak[static_cast<size_t>(slot)].exchange(0.0f,std::memory_order_relaxed); }
     float takeInputPeak() { return inPeak.exchange(0); }
     float takeOutputPeak() { return outPeak.exchange(0); }
     std::atomic<int> soloSlot{-1};
@@ -93,6 +94,7 @@ private:
     bool prepared=false;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGain, outputGain;
     std::atomic<float> inPeak{0},outPeak{0};
+    std::array<std::atomic<float>,skl::kNumSlots> jetPeak{};
     std::vector<juce::String> undoStack,redoStack;
     juce::String snaps[2];
     int curSnap=0;
