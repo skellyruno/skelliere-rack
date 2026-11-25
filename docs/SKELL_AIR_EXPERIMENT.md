@@ -1,0 +1,3 @@
+# Skell Air (draft)
+
+Separate effect ID 26; existing Air Lift and Warm Drive unchanged. Uses existing extra-effect integer range 0..127 (selection 15). Four controls: Mid Air, High Air, Protection, Trim. Zero added DSP latency; linked independent band envelopes. Neutral amount is dry. Standalone research core locally compiled and checked at six sample rates including sanitizer pass; plugin wrapper, host recall, actual editor screenshot and VST3 remain unverified until exact-head CI and local Quick4. Not an exact Fresh Air recreation: supplied extract lacked calibration tables. No private source/audio committed.

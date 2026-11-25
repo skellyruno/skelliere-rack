@@ -24,7 +24,7 @@ static double rms(const std::vector<float>& v,int start=0,int end=-1){
 static std::vector<float> tone(float freq,float amp=0.15f){std::vector<float> a(48000);for(size_t i=0;i<a.size();++i)a[i]=amp*std::sin(2*kPi*freq*i/48000);return a;}
 static double delta(const std::vector<float>& a,const std::vector<float>& b){double e=0;for(size_t i=0;i<a.size();++i){const auto d=a[i]-b[i];e+=d*d;}return std::sqrt(e/a.size());}
 int main(){
-    static_assert(kNumRackTypes==26&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25,"Catalog IDs changed");
+    static_assert(kNumRackTypes==27&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25&&SkellAirFX==26,"Catalog IDs changed");
     for(int t=1;t<kNumRackTypes;++t)require(std::string_view(displayName(t)).rfind("Skell ",0)==0,"Missing Skell prefix");
     const auto quiet=tone(1000,.001f), loud=tone(1000,.2f), low=tone(80),high=tone(8000);
     require(rms(run(Gate,quiet,{{0,-35},{1,48}}),24000)<rms(quiet,24000)*.02,"Gate fails quiet attenuation");
@@ -44,10 +44,13 @@ int main(){
     require(std::abs(slap[0]-.5f)<1e-6,"Slap dry impulse lost");
     require(rms(slap,1,2399)==0,"Slap repeats before configured time");
     require(rms(slap,2400,2500)>0.005,"Slap repeat missing");
-    for(int t=Gate;t<=Slap;++t){
+    for(int t=Gate;t<=SkellAirFX;++t){
         require(run(t,loud,{},false)==loud,"Disabled new module not bit-exact dry");
         require(run(t,loud,{},true,1)==run(t,loud,{},true,511),"Block size changes new DSP");
         require(resolveRackType(0,t-kNumTypes+1)==t,"New reserved selector mismatch");
     }
-    std::puts("25-effect catalog: nine new DSP behavior, bypass and block-size tests passed");
+    require(run(SkellAirFX,loud)==loud,"Neutral Skell Air must be dry");
+    require(delta(run(SkellAirFX,high,{{0,.5f},{1,.5f},{2,1.f}}),high)>.001,"Skell Air has no effect");
+    require(run(SkellAirFX,high,{{0,.5f},{1,.5f}},true,1)==run(SkellAirFX,high,{{0,.5f},{1,.5f}},true,511),"Skell Air block dependency");
+    std::puts("26-effect catalog: legacy IDs, new DSP behavior, bypass and block-size tests passed");
 }

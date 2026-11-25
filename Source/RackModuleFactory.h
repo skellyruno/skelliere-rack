@@ -4,6 +4,7 @@
 #include "RackCompressor.h"
 #include "RackProgramOpto.h"
 #include "AnalogRackModules.h"
+#include "SkellAir.h"
 namespace skl {
 inline float slewToward(float value,float target,float step) noexcept {
     return value+std::clamp(target-value,-step,step);
@@ -73,7 +74,26 @@ private:
     bool seeded_=false,dirty_=true;
     Biquad filters_[5];
 };
+class SkellAirModule final : public ModuleBase {
+public:
+    void prepare(double rate,int,int) override { core.prepare(rate); }
+    void reset() override { core.reset(); }
+    void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
+        const int channels=std::min(2,b.getNumChannels());
+        if(channels==0)return;
+        core.set(active?k[0]:0.f,active?k[1]:0.f,k[2],active?k[3]:.5f);
+        auto* l=b.getWritePointer(0);
+        auto* r=channels>1?b.getWritePointer(1):nullptr;
+        for(int i=0;i<b.getNumSamples();++i) {
+            const auto y=core.process(l[i],r?r[i]:l[i]);
+            l[i]=y[0];if(r)r[i]=y[1];
+        }
+    }
+private:
+    skell::research::SkellAir core;
+};
 inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
+    if(type==SkellAirFX)return std::make_unique<SkellAirModule>();
     if(type==Eq || type==Air) return std::make_unique<SmoothedTone>(type);
     if(type==Tilt || type==Stereo) return std::make_unique<ExtraRackModule>(type);
     if(type==FastComp || type==BusComp) return std::make_unique<RackCompressor>(type);

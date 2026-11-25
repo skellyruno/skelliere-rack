@@ -8,7 +8,7 @@ constexpr int kNumSlots = 8, kMaxKnobs = 6;
 enum ModuleType : int {
     Empty = 0, Eq, Comp, DeEss, Sat, Air, Chorus, Delay, Reverb, Limiter, Trim, Tune,
     kNumTypes, // compatibility boundary: do not extend the legacy choice parameter
-    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, kNumRackTypes
+    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, SkellAirFX, kNumRackTypes
 };
 // Pure selection policy shared by production and host-free regression tests.
 inline int resolveRackType(float legacy, float extension) noexcept {
@@ -100,14 +100,16 @@ inline const ModuleInfo& info(int type) {
         {"Jet","Flanger","Short modulated delay with signed feedback and wet blend.",CatSpace,4,
          {{"Rate",0.05f,4,true,0.3f,Unit::LfoHz,0,nullptr},{"Depth",0,1,false,0.7f,Unit::Pct,0,nullptr},{"Feedback",-0.8f,0.8f,false,0.3f,Unit::Pct,0,nullptr},{"Mix",0,1,false,0.45f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
         {"Slap 120","Single-repeat slapback","Short feed-forward echo with independent repeat tone and level.",CatSpace,3,
-         {{"Time",25,120,false,85,Unit::Ms,0,nullptr},{"Tone",1000,16000,true,6000,Unit::Hz,0,nullptr},{"Mix",0,1,false,0.25f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,1}},false}
+         {{"Time",25,120,false,85,Unit::Ms,0,nullptr},{"Tone",1000,16000,true,6000,Unit::Hz,0,nullptr},{"Mix",0,1,false,0.25f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,1}},false},
+        {"Air","Dynamic two-band air enhancement","Separate presence and brilliance bands with linked dynamic protection and output trim.",CatTone,4,
+         {{"Mid Air",0,1,false,0,Unit::Pct,0,nullptr},{"High Air",0,1,false,0,Unit::Pct,0,nullptr},{"Protection",0,1,false,1,Unit::Pct,0,nullptr},{"Trim",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Air",0,2},{"Control",2,2}},false}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 // User-facing branding is separate from the legacy host choice strings.
 // Preserve host choice names and all normalized automation/state identities.
 inline const char* displayName(int type) noexcept {
-    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120"};
+    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air"};
     return names[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 inline float toNorm(const Knob& k,float v) {
