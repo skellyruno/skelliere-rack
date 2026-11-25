@@ -51,7 +51,7 @@ public:
 
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
-    static constexpr int kWidth = 248, kHeight = 580;
+    static constexpr int kWidth = 248, kHeight = 650;
     int preferredWidth() const { return 232; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
@@ -170,7 +170,11 @@ private:
     float inShown = -90.0f, outShown = -90.0f;
     juce::TextButton prevPreset{"<"}, nextPreset{">"}, snapA{"A"}, snapB{"B"}, snapCopy{"COPY"},
         undoBtn{"UNDO"}, redoBtn{"REDO"}, clearBtn{"CLEAR"}, bypassBtn{"BYPASS"};
-    juce::TextButton scaleBtn[4];
+    juce::TextButton scaleBtn[5];
+    juce::TextButton stripsToggle{"STRIPS"};
+    struct StripDrawer final : juce::Component {
+        void paint(juce::Graphics& g) override {g.fillAll(Colour(0xff25221e));g.setColour(pal::amber.withAlpha(.6f));g.drawRect(getLocalBounds(),1);}
+    } stripDrawer;
     juce::ComboBox presetBox;
     std::unique_ptr<juce::ButtonParameterAttachment> bypassAtt;
     LcdDisplay lcd;

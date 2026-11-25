@@ -3,6 +3,7 @@
 // printed legends and cream needle meters. All colours live here so the whole plugin can be re-skinned in one place.
 #include <JuceHeader.h>
 #include "Modules.h"
+#include <map>
 
 
 namespace skl::ui {
@@ -11,21 +12,21 @@ using juce::Colour;
 using juce::Graphics;
 
 namespace pal {
-inline const Colour chassis   {0xff08090a};
-inline const Colour chassis2  {0xff131416};
-inline const Colour barTop    {0xff2b2d31};
-inline const Colour barBot    {0xff17181a};
+inline const Colour chassis   {0xff100f0e};
+inline const Colour chassis2  {0xff201e1b};
+inline const Colour barTop    {0xff393631};
+inline const Colour barBot    {0xff201e1b};
 inline const Colour plateTop  {0xff2a2c30};
-inline const Colour plateBot  {0xff131416};
-inline const Colour ink       {0xffdedacb};
-inline const Colour inkDim    {0xff8f908a};
+inline const Colour plateBot  {0xff201e1b};
+inline const Colour ink       {0xffeee3cc};
+inline const Colour inkDim    {0xffb2aa99};
 inline const Colour line      {0xff3a3d42};
-inline const Colour amber     {0xffb8dca3};
+inline const Colour amber     {0xffe4c69b};
 inline const Colour lcdBg     {0xff060a07};
 inline const Colour lcdInk    {0xffb9d7a7};
 inline const Colour warn      {0xffef6a5b};
-inline const Colour vuFaceTop {0xfff6edc9};
-inline const Colour vuFaceBot {0xffd9c68a};
+inline const Colour vuFaceTop {0xffffe5b4};
+inline const Colour vuFaceBot {0xffc69859};
 inline const Colour vuInk     {0xff2b2418};
 inline const Colour vuRed     {0xffa02a1d};
 }
@@ -51,7 +52,7 @@ inline Colour capColour(int cat) {
         default:          return Colour(0xffc9cbce);   // aluminium caps
     }
 }
-inline Colour pointerColour(int cat) { return cat == CatDynamics ? Colour(0xfff1eee2) : Colour(0xff17181a); }
+inline Colour pointerColour(int cat) { return cat == CatDynamics ? Colour(0xfff1eee2) : Colour(0xff201e1b); }
 
 inline juce::String knobText(const Knob& k, float norm) {
     const float v = toReal(k, norm);
@@ -91,6 +92,42 @@ inline void paintBrushed(Graphics& g, juce::Rectangle<float> r, float opacity = 
     g.fillRect(r);
 }
 
+// Original machined cap, drawn once per metal finish at high resolution.
+inline const juce::Image& machinedCap(Colour colour) {
+    static std::map<juce::uint32,juce::Image> cache;
+    const auto key=colour.getARGB();
+    if(auto it=cache.find(key);it!=cache.end())return it->second;
+    constexpr int n=192;
+    juce::Image image(juce::Image::ARGB,n,n,true);
+    juce::Image::BitmapData pixels(image,juce::Image::BitmapData::writeOnly);
+    for(int y=0;y<n;++y)for(int x=0;x<n;++x){
+        const float dx=(x+.5f-n*.5f)/(n*.5f),dy=(y+.5f-n*.5f)/(n*.5f);
+        const float r=std::sqrt(dx*dx+dy*dy);
+        if(r>=1.f)continue;
+        const float a=std::atan2(dy,dx);
+        const float grain=std::sin(r*425.f+.35f*std::sin(a*19.f))*.022f
+                         +std::sin(r*143.f)*.018f;
+        const float reflection=.62f+.29f*std::cos(a+.85f)+.12f*std::cos(2*a-1.2f);
+        float shine=reflection+grain;
+        if(r>.92f)shine=.65f+.25f*std::cos(a+.9f);
+        if(r>.975f)shine=.22f+.38f*juce::jmax(0.f,std::cos(a+1.4f));
+        const float alpha=juce::jlimit(0.f,1.f,(1-r)*n*.5f);
+        const auto tint=colour.interpolatedWith(shine>.72f?juce::Colours::white:juce::Colours::black,
+            shine>.72f?(shine-.72f)*.55f:juce::jlimit(0.f,.68f,(.72f-shine)*.93f));
+        pixels.setPixelColour(x,y,tint.withAlpha(alpha));
+    }
+    return cache.emplace(key,image).first->second;
+}
+
+inline void paintMonogram(Graphics& g,juce::Rectangle<float> r,Colour ink) {
+    const float x=r.getX(),y=r.getY(),w=r.getWidth(),h=r.getHeight();
+    juce::Path shield;shield.startNewSubPath(x+w*.5f,y);
+    shield.lineTo(x+w*.91f,y+h*.16f);shield.lineTo(x+w*.91f,y+h*.82f);
+    shield.lineTo(x+w*.5f,y+h);shield.lineTo(x+w*.09f,y+h*.82f);shield.lineTo(x+w*.09f,y+h*.16f);shield.closeSubPath();
+    g.setColour(ink);g.strokePath(shield,juce::PathStrokeType(1.1f));
+    g.setFont(font(h*.73f,true));g.drawFittedText("S",r.toNearestInt(),juce::Justification::centred,1);
+}
+
 inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
     g.setColour(juce::Colours::black.withAlpha(0.55f));
     g.fillEllipse(cx - r, cy - r + 1.0f, 2 * r, 2 * r);
@@ -106,19 +143,24 @@ inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
 
 // The needle meter used by the compressor, de-esser and limiter. value is gain reduction in dB (0 to 20).
 inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value) {
-    g.setColour(Colour(0xff101010));
-    g.fillRoundedRectangle(r, 4.0f);
-    auto face = r.reduced(3.0f);
-    g.setGradientFill(juce::ColourGradient::vertical(pal::vuFaceTop, face.getY(), pal::vuFaceBot, face.getBottom()));
-    g.fillRoundedRectangle(face, 3.0f);
+    g.setColour(juce::Colours::black.withAlpha(.45f));g.fillRoundedRectangle(r.translated(0,2),8);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff514a3e),r.getY(),Colour(0xff151411),r.getBottom()));
+    g.fillRoundedRectangle(r,7);
+    g.setColour(Colour(0xff9c8b6b).withAlpha(.70f));g.drawRoundedRectangle(r.reduced(.7f),6,1.1f);
+    const auto inner=r.reduced(5);
+    g.setColour(Colour(0xff100e0c));g.fillRoundedRectangle(inner,6);
+    auto face=inner.reduced(3.0f);
+    g.setGradientFill(juce::ColourGradient(pal::vuFaceTop,face.getCentreX(),face.getCentreY(),pal::vuFaceBot,face.getX(),face.getBottom(),true));
+    g.fillRoundedRectangle(face,5);
+    g.setColour(Colour(0xff8c6234));g.drawRoundedRectangle(face,5,.9f);
 
     juce::Graphics::ScopedSaveState save(g);
     g.reduceClipRegion(face.toNearestInt());
     // The meter is much wider than it is tall. Fit the arc in both axes,
     // keeping its full scale, labels and hub inside the actual face.
-    const float cx = face.getCentreX(), cy = face.getBottom() - 6.0f;
+    const float cx = face.getCentreX(), cy = face.getBottom() - 7.0f;
     const float sc = face.getWidth() / 130.0f;
-    const float sy = juce::jmax(0.1f, (face.getHeight() - 14.0f) / 57.0f);
+    const float sy = juce::jmax(0.1f, (face.getHeight() - 20.0f) / 57.0f);
     const float labelSize = juce::jlimit(8.0f, 11.0f, 8.0f * sc);
     auto pt = [&](float rad, float v) {
         const float a = juce::degreesToRadians(-50.0f + v * 5.0f);
@@ -162,7 +204,7 @@ public:
         setColour(juce::ComboBox::outlineColourId, Colour(0xff000000));
         setColour(juce::ComboBox::textColourId, pal::ink);
         setColour(juce::ComboBox::arrowColourId, pal::amber);
-        setColour(juce::PopupMenu::backgroundColourId, Colour(0xff17181a));
+        setColour(juce::PopupMenu::backgroundColourId, Colour(0xff201e1b));
         setColour(juce::PopupMenu::textColourId, pal::ink);
         setColour(juce::PopupMenu::highlightedBackgroundColourId, pal::amber);
         setColour(juce::PopupMenu::highlightedTextColourId, Colour(0xff1d1704));
@@ -182,7 +224,8 @@ public:
     void drawButtonBackground(Graphics& g, juce::Button& b, const Colour&, bool hover, bool down) override {
         auto r = b.getLocalBounds().toFloat().reduced(0.5f);
         const bool on = b.getToggleState();
-        Colour top = on ? Colour(0xff0b0c0d) : Colour(0xff3d4045), bot = on ? Colour(0xff1b1c1e) : Colour(0xff1e2023);
+        Colour top=on?Colour(0xffc9ab7f):Colour(0xff34312c),bot=on?Colour(0xff8b7153):Colour(0xff201e1b);
+        if(b.getProperties().contains("quiet")) {top=on?Colour(0xff494238):Colour(0xff282522);bot=Colour(0xff191714);}
         if (down) std::swap(top, bot);
         if (hover && !down) { top = top.brighter(0.12f); bot = bot.brighter(0.08f); }
         g.setColour(juce::Colours::black.withAlpha(0.5f));
@@ -198,8 +241,8 @@ public:
         }
     }
     void drawButtonText(Graphics& g, juce::TextButton& b, bool, bool) override {
-        g.setFont(font(13.0f, true));
-        g.setColour(b.getToggleState() ? pal::amber : pal::ink);
+        g.setFont(font(11.5f, true));
+        g.setColour(b.getToggleState()&&!b.getProperties().contains("quiet") ? Colour(0xff20180f) : pal::ink);
         auto r = b.getLocalBounds();
         if (b.getToggleState() && b.getClickingTogglesState() && !b.getProperties().contains("plain")) r = r.withTrimmedLeft(12);
         g.drawFittedText(b.getButtonText(), r, juce::Justification::centred, 1);
@@ -215,39 +258,30 @@ public:
         g.setColour(pal::amber); g.fillPath(p);
     }
 
-    void drawRotarySlider(Graphics& g, int x, int y, int w, int h, float pos, float a0, float a1, juce::Slider& s) override {
-        const float size = (float) juce::jmin(w, h);
-        const float cx = (float) x + (float) w * 0.5f, cy = (float) y + (float) h * 0.5f, R = size * 0.34f;
-        const float ang = a0 + pos * (a1 - a0);
-        const Colour cap((juce::uint32) (int) s.getProperties().getWithDefault("cap", (int) 0xffc9cbce));
-        const Colour ptr((juce::uint32) (int) s.getProperties().getWithDefault("ptr", (int) 0xff17181a));
-
-        for (int i = 0; i <= 10; ++i) {   // printed scale
-            const float a = a0 + (a1 - a0) * (float) i / 10.0f, sn = std::sin(a), cs = -std::cos(a);
-            const float r0 = R * 1.18f, r1 = R * (i % 5 == 0 ? 1.38f : 1.29f);
-            const bool light = (bool) s.getProperties().getWithDefault("lightFace", false);
-            g.setColour((light ? Colour(0xff30363b) : pal::ink).withAlpha(0.7f));
-            g.drawLine(cx + sn * r0, cy + cs * r0, cx + sn * r1, cy + cs * r1, i % 5 == 0 ? 1.4f : 1.0f);
+    void drawRotarySlider(Graphics& g,int x,int y,int w,int h,float pos,float a0,float a1,juce::Slider& s) override {
+        const float size=float(juce::jmin(w,h)),cx=x+w*.5f,cy=y+h*.5f,R=size*.385f;
+        const float ang=a0+pos*(a1-a0);
+        const Colour cap((juce::uint32)(int)s.getProperties().getWithDefault("cap",(int)0xffc9c0ad));
+        const Colour ptr((juce::uint32)(int)s.getProperties().getWithDefault("ptr",(int)0xff1b1815));
+        const bool light=bool(s.getProperties().getWithDefault("lightFace",false));
+        const auto tick=light?Colour(0xff403a30):Colour(0xffe6ddc6);
+        for(int n=0;n<=10;++n){
+            const float a=a0+(a1-a0)*n/10.f,rad=R*1.19f;
+            const float dot=n%5==0?1.45f:1.f;
+            g.setColour(tick.withAlpha(n%5==0?.94f:.65f));
+            g.fillEllipse(cx+std::sin(a)*rad-dot,cy-std::cos(a)*rad-dot,2*dot,2*dot);
         }
-        g.setColour(juce::Colours::black.withAlpha(0.55f));
-        g.fillEllipse(cx - R, cy - R + 2.6f, 2 * R, 2 * R);
-        g.setGradientFill(juce::ColourGradient(Colour(0xff3a3c40), cx - R * 0.5f, cy - R * 0.7f, Colour(0xff0a0a0b), cx + R * 0.6f, cy + R, true));
-        g.fillEllipse(cx - R, cy - R, 2 * R, 2 * R);
-        for (int i = 0; i < 30; ++i) {   // knurled skirt
-            const float a = (float) i * juce::MathConstants<float>::twoPi / 30.0f, sn = std::sin(a), cs = std::cos(a);
-            g.setColour((i % 2 ? juce::Colours::white : juce::Colours::black).withAlpha(i % 2 ? 0.20f : 0.55f));
-            g.drawLine(cx + sn * R * 0.80f, cy + cs * R * 0.80f, cx + sn * R * 0.98f, cy + cs * R * 0.98f, 1.0f);
-        }
-        const float r = R * 0.78f;
-        g.setColour(juce::Colours::white.withAlpha(.15f));g.drawEllipse(cx-R*.98f,cy-R*.98f,R*1.96f,R*1.96f,.8f);
-        g.setGradientFill(juce::ColourGradient(cap.brighter(0.35f), cx - r * 0.6f, cy - r * 0.7f, cap.darker(0.45f), cx + r * 0.8f, cy + r * 0.9f, true));
-        g.fillEllipse(cx - r, cy - r, 2 * r, 2 * r);
-        g.setColour(juce::Colours::black.withAlpha(0.45f)); g.drawEllipse(cx - r, cy - r, 2 * r, 2 * r, 1.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.12f)); g.drawEllipse(cx - r * 0.62f, cy - r * 0.62f, r * 1.24f, r * 1.24f, 0.8f);
-        const float sn = std::sin(ang), cs = -std::cos(ang);
-        g.setColour(ptr);
-        g.drawLine(cx + sn * r * 0.30f, cy + cs * r * 0.30f, cx + sn * r * 0.93f, cy + cs * r * 0.93f, 2.6f);
-        if (s.hasKeyboardFocus(false)) { g.setColour(pal::amber.withAlpha(0.8f)); g.drawEllipse(cx - R * 1.1f, cy - R * 1.1f, R * 2.2f, R * 2.2f, 1.2f); }
+        g.setColour(juce::Colours::black.withAlpha(.30f));g.fillEllipse(cx-R-1,cy-R+3,2*R+2,2*R+2);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff5b554a),cy-R,Colour(0xff100f0e),cy+R));
+        g.fillEllipse(cx-R,cy-R,2*R,2*R);
+        g.setColour(Colour(0xff0b0a09));g.drawEllipse(cx-R,cy-R,2*R,2*R,1.f);
+        const float r=R*.91f;
+        g.drawImage(machinedCap(cap),juce::Rectangle<float>(cx-r,cy-r,2*r,2*r));
+        const float sn=std::sin(ang),cs=-std::cos(ang);
+        g.setColour(juce::Colours::white.withAlpha(.32f));
+        g.drawLine(cx+sn*r*.34f+.7f,cy+cs*r*.34f+.6f,cx+sn*r*.91f+.7f,cy+cs*r*.91f+.6f,2.f);
+        g.setColour(ptr);g.drawLine(cx+sn*r*.34f,cy+cs*r*.34f,cx+sn*r*.91f,cy+cs*r*.91f,2.2f);
+        if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawEllipse(cx-R*1.1f,cy-R*1.1f,R*2.2f,R*2.2f,1.f);}
     }
 
     void drawScrollbar(Graphics& g, juce::ScrollBar&, int x, int y, int w, int h, bool vertical, int thumbStart, int thumbSize, bool over, bool down) override {
