@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include <BinaryData.h>
 #include "Modules.h"
+#include "RackSprites.h"
 
 namespace skl::ui {
 // Asset-specific row strides, confirmed against the exact embedded PNGs.
@@ -19,7 +20,8 @@ inline juce::Image decodeRackPanel(const void* bytes, int size, int stride = 215
         destination.setPixelColour(i % stride, i / stride, source.getPixelColour(i % 570, i / 570));
     return panel;
 }
-inline bool hasRackSkin(int type) { return type == skl::Eq || type == skl::Air; }
+inline bool hasToneMaterial(int type) { return type == skl::Eq || type == skl::Air; }
+inline bool hasRackSkin(int type) { return hasAnimatedSkin(type); }
 inline const juce::Image& rackPanel(int type, int choice) {
     static const juce::Image air = decodeRackPanel(BinaryData::air_lift_faceplate_png, BinaryData::air_lift_faceplate_pngSize);
     static const juce::Image earth = decodeRackPanel(BinaryData::earth_faceplate_png, BinaryData::earth_faceplate_pngSize);
@@ -27,7 +29,7 @@ inline const juce::Image& rackPanel(int type, int choice) {
     static const juce::Image lift = decodeRackPanel(BinaryData::classic_lift_faceplate_png, BinaryData::classic_lift_faceplate_pngSize);
     static const juce::Image bird = decodeRackPanel(BinaryData::blackbird_faceplate_png, BinaryData::blackbird_faceplate_pngSize, 216);
     static const juce::Image empty;
-    if (!hasRackSkin(type) || choice < 1 || choice > 3) return empty;
+    if (!hasToneMaterial(type) || choice < 1 || choice > 3) return empty;
     if (choice == 3) return bird;
     if (type == skl::Eq) return choice == 1 ? earth : eq;
     return choice == 1 ? air : lift;
@@ -55,7 +57,7 @@ inline const juce::Image& rackMaterial(int type, int choice) {
     static const auto lift = materialTile(rackPanel(skl::Air, 2), {26, 38, 163, 9});
     static const auto bird = materialTile(rackPanel(skl::Eq, 3), {28, 103, 160, 237});
     static const juce::Image empty;
-    if (!hasRackSkin(type) || choice < 1 || choice > 3) return empty;
+    if (!hasToneMaterial(type) || choice < 1 || choice > 3) return empty;
     if (choice == 3) return bird;
     if (type == skl::Eq) return choice == 1 ? earth : eq;
     return choice == 1 ? air : lift;
@@ -63,8 +65,20 @@ inline const juce::Image& rackMaterial(int type, int choice) {
 inline bool lightRackSkin(int type, int choice) {
     return (choice == 1 || choice == 2) && rackMaterial(type, choice).isValid();
 }
+inline bool rackSkinAvailable(int type,int choice) {
+    if(choice==0) return true;
+    if(!hasRackSkin(type) || !rackSprite(switchSpriteFor(type,choice)).valid()) return false;
+    for(int i=0;i<info(type).numKnobs;++i)
+        if(!rackSprite(knobSpriteFor(type,choice,i)).valid()) return false;
+    return !hasToneMaterial(type) || rackMaterial(type,choice).isValid();
+}
 inline juce::String rackPanelName(int type, int choice) {
     if (choice == 0) return "Original";
+    if(type==skl::Trim) return choice==1?"Blackbird fader":"Classic Instruments fader";
+    if(type==skl::Comp) return "Custom optical";
+    if(type==skl::ProgramOpto) return "Optical";
+    if(type==skl::FastComp) return choice==1?"FET classic":choice==2?"FET modern":"FET vintage";
+    if(type==skl::BusComp) return "Blue bus";
     if (choice == 3) return "Blackbird graphite";
     if (type == skl::Eq) return choice == 1 ? "AirEQ Earth" : "CS-EQ";
     return choice == 1 ? "AirEQ Air" : "CS-Lift";
@@ -81,12 +95,12 @@ public:
             if (!hasRackSkin(type)) return;
             juce::PopupMenu menu;
             for (int choice = 0; choice < 4; ++choice)
-                menu.addItem(choice + 1, rackPanelName(type, choice),
-                             choice == 0 || rackMaterial(type, choice).isValid(), getChoice_() == choice);
+                if (choice == 0 || knobSpriteFor(type,choice,0)!=NoSprite)
+                    menu.addItem(choice + 1, rackPanelName(type, choice), rackSkinAvailable(type,choice), getChoice_() == choice);
             juce::Component::SafePointer<ArtworkButton> safeThis(this);
             menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [safeThis, type](int result) {
                 if (safeThis == nullptr || safeThis->getType_() != type || result < 1 || result > 4) return;
-                safeThis->apply_(result - 1);
+                if(rackSkinAvailable(type,result-1)) safeThis->apply_(result - 1);
             });
         };
     }

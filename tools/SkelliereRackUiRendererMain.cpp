@@ -28,6 +28,9 @@ int main(int argc, char** argv) {
         {"rack_original_100", 1260, 820, 0, 0},
         {"rack_aireq_100", 1260, 820, 0, 1},
         {"rack_classic_100", 1260, 820, 0, 2},
+        {"rack_sprites_min", 1260, 820, 0, 1},
+        {"rack_sprites_max", 1260, 820, 0, 1},
+        {"rack_fader_100", 1260, 820, 5, 1},
         {"rack_blackbird_100", 1260, 820, 0, 3},
         {"rack_aireq_80", 1008, 656, 0, 1},
         {"rack_aireq_125", 1575, 1025, 0, 1},
@@ -44,16 +47,25 @@ int main(int argc, char** argv) {
     options.mustDiffer = {
         {"rack_original_100", "rack_aireq_100"},
         {"rack_aireq_100", "rack_classic_100"},
-        {"rack_classic_100", "rack_blackbird_100"}
+        {"rack_classic_100", "rack_blackbird_100"},
+        {"rack_sprites_min", "rack_sprites_max"}
     };
+#if SKELLIERE_FULL_ARTWORK
+    options.scenes.push_back({"rack_full_opto_bus",1260,820,6,1});
+    options.scenes.push_back({"rack_full_fet_modern",1260,820,7,2});
+    options.scenes.push_back({"rack_full_fet_vintage",1260,820,7,3});
+    options.scenes.push_back({"rack_full_instrument_fader",1260,820,5,2});
+#endif
     int expectedWidth = 1260, expectedHeight = 820;
     int expectedArtworkSlots = 2;
     bool expectProgramOpto = false;
+    bool bindingChecks = true;
     options.configure = [&](const skellcore::ui::headless::Scene& scene) {
         expectedWidth = scene.width; expectedHeight = scene.height;
         processor.clearRack();
         expectedArtworkSlots = scene.theme == 0 ? 2 : 0;
-        expectProgramOpto = scene.theme == 4;
+        expectProgramOpto = scene.theme == 4 || scene.theme == 6;
+        bindingChecks = true;
         if(scene.theme == 0) { processor.addModule(skl::Eq,0); processor.addModule(skl::Air,1); }
         if(scene.theme == 1) {
             processor.addModule(skl::Tilt,0); processor.addModule(skl::Stereo,1);
@@ -64,16 +76,32 @@ int main(int argc, char** argv) {
             processor.addModule(skl::ProgramOpto,0); processor.addModule(skl::FastComp,1);
             processor.addModule(skl::BusComp,2);
         }
+        if(scene.theme == 5) processor.addModule(skl::Trim,0);
+        if(scene.theme == 6) { processor.addModule(skl::Comp,0);processor.addModule(skl::ProgramOpto,1);processor.addModule(skl::BusComp,2); }
+        if(scene.theme == 7) processor.addModule(skl::FastComp,0);
         visit(editor, [&](juce::Component& c) {
             if (auto* ui = dynamic_cast<skl::ui::RackUI*>(&c))
                 if (ui->onScale) ui->onScale(static_cast<float>(scene.width) / 1260.0f);
-            if (auto* slot = dynamic_cast<skl::ui::SlotComponent*>(&c)) { slot->rebuild(); slot->setArtworkChoice(scene.mode); }
+            if (auto* slot = dynamic_cast<skl::ui::SlotComponent*>(&c)) { slot->rebuild(); slot->setArtworkChoice(scene.mode); bindingChecks=slot->exerciseSpriteBindings() && bindingChecks; }
             if(auto* viewport = dynamic_cast<juce::Viewport*>(&c))
                 if(dynamic_cast<skl::ui::RackStrip*>(viewport->getViewedComponent())) viewport->setViewPosition(scene.theme == 3 ? 1200 : 0,0);
         });
+        if(scene.id=="rack_sprites_min" || scene.id=="rack_sprites_max") {
+            const float value=scene.id=="rack_sprites_max"?1.0f:0.0f;
+            for(int slot=0;slot<2;++slot) {
+                processor.apvts.getParameter(SkellierProcessor::onId(slot))->setValueNotifyingHost(value);
+                for(int k=0;k<skl::info(processor.slotType(slot)).numKnobs;++k)
+                    processor.apvts.getParameter(SkellierProcessor::knobId(slot,k))->setValueNotifyingHost(value);
+            }
+        }
     };
     options.inspect = [&] {
         juce::StringArray errors;
+        if(!bindingChecks) errors.add("Live sprite slider/button parameter binding failed");
+        for(int id=1;id<skl::ui::RackSpriteCount;++id) {
+            const auto& sprite=skl::ui::rackSprite(id);
+            if(!sprite.valid() || sprite.source(0.0)==sprite.source(1.0)) errors.add("Packed sprite missing or invalid endpoint frames");
+        }
         if (editor.getWidth() != expectedWidth || editor.getHeight() != expectedHeight)
             errors.add("Editor scaling dimensions do not match the scene");
         int visibleArtworkSlots = 0;

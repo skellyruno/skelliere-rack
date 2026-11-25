@@ -3,6 +3,7 @@
 // printed legends and cream needle meters. All colours live here so the whole plugin can be re-skinned in one place.
 #include <JuceHeader.h>
 #include "Modules.h"
+#include "RackSprites.h"
 
 namespace skl::ui {
 
@@ -214,6 +215,18 @@ public:
     }
 
     void drawRotarySlider(Graphics& g, int x, int y, int w, int h, float pos, float a0, float a1, juce::Slider& s) override {
+        const int sprite=(int)s.getProperties().getWithDefault("rackSprite",0);
+        const juce::Rectangle<int> spriteBounds(x,y,w,h);
+        if (rackSprite(sprite).valid()) {
+            if(isFaderSprite(sprite)) {
+                const int cy=spriteBounds.getCentreY();
+                g.setColour(Colour(0xff08090a)); g.fillRoundedRectangle(float(x+4),float(cy-2),float(std::max(1,w-8)),4.0f,2.0f);
+                g.setColour(Colour(0xff62666b));g.drawHorizontalLine(cy,float(x+5),float(x+w-5));
+            }
+            rackSprite(sprite).draw(g,spriteBounds,pos);
+            if (s.hasKeyboardFocus(false)) {g.setColour(pal::amber);g.drawRoundedRectangle(spriteBounds.toFloat().reduced(1.0f),3.0f,1.0f);}
+            return;
+        }
         const float size = (float) juce::jmin(w, h);
         const float cx = (float) x + (float) w * 0.5f, cy = (float) y + (float) h * 0.5f, R = size * 0.34f;
         const float ang = a0 + pos * (a1 - a0);

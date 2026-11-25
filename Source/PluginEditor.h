@@ -14,6 +14,7 @@ public:
     void resized() override;
     void paint(juce::Graphics&) override;
     void setLightFace(bool light);
+    void setSprite(int id);
     juce::Slider slider;
 private:
     juce::String label_, text_;
@@ -56,6 +57,7 @@ public:
     void setArtworkChoice(int choice);
     void syncArtwork();
     bool artworkLayoutIsValid() const;
+    bool exerciseSpriteBindings();
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override { dragging = false; }

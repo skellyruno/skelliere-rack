@@ -34,11 +34,20 @@ void KnobCell::setLightFace(bool light) {
     repaint();
 }
 
+void KnobCell::setSprite(int id) {
+    slider.getProperties().set("rackSprite",id);
+    slider.setSliderStyle(isFaderSprite(id)?juce::Slider::RotaryHorizontalDrag:juce::Slider::RotaryVerticalDrag);
+    resized();
+    slider.repaint();
+}
+
 void KnobCell::resized() {
     if (compact_) slider.setBounds(0, 0, getHeight(), getHeight());
     else {
-        const int size = juce::jmin(54, getHeight() - 24);
-        slider.setBounds((getWidth() - size) / 2, 0, size, size);
+        const int size = juce::jmax(1,juce::jmin(54, getHeight() - 24));
+        if(isFaderSprite((int)slider.getProperties().getWithDefault("rackSprite",0)))
+            slider.setBounds(2,0,getWidth()-4,size);
+        else slider.setBounds((getWidth() - size) / 2, 0, size, size);
     }
 }
 
@@ -92,6 +101,12 @@ void LevelMeter::paint(Graphics& g) {
 }
 
 void PowerButton::paintButton(Graphics& g, bool hover, bool down) {
+    const int sprite=(int)getProperties().getWithDefault("rackSprite",0);
+    if(rackSprite(sprite).draw(g,getLocalBounds().reduced(1),getToggleState()?1.0:0.0)) {
+        if(hover||down) {g.setColour(juce::Colours::white.withAlpha(down?.16f:.07f));g.fillRoundedRectangle(getLocalBounds().toFloat(),3.0f);}
+        if(hasKeyboardFocus(false)) {g.setColour(pal::amber);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f),3.0f,1.0f);}
+        return;
+    }
     auto r = getLocalBounds().toFloat().reduced(2.0f);
     const float cx = r.getCentreX(), cy = r.getCentreY(), R = juce::jmin(r.getWidth(), r.getHeight()) * 0.5f;
     g.setColour(juce::Colours::black.withAlpha(0.6f)); g.fillEllipse(cx - R, cy - R + 1.5f, 2 * R, 2 * R);
@@ -174,12 +189,17 @@ void SlotComponent::setArtworkChoice(int choice) {
 }
 
 void SlotComponent::syncArtwork() {
-    if (!hasRackSkin(type)) return;
-    const int choice = juce::jlimit(0, 3, proc.artworkChoices[static_cast<size_t>(index)].load());
+    const int choice = hasRackSkin(type)?juce::jlimit(0,3,proc.artworkChoices[static_cast<size_t>(index)].load()):0;
     if (choice == appliedArtworkChoice) return;
     appliedArtworkChoice = choice;
-    artButton.setButtonText("SKIN: " + rackPanelName(type, choice).toUpperCase());
-    for (const auto& cell : cells) cell->setLightFace(lightRackSkin(type, choice));
+    const int effective=rackSkinAvailable(type,choice)?choice:0;
+    artButton.setButtonText("SKIN: " + rackPanelName(type,effective).toUpperCase());
+    for (size_t i=0;i<cells.size();++i) {
+        cells[i]->setLightFace(lightRackSkin(type,effective));
+        cells[i]->setSprite(knobSpriteFor(type,effective,static_cast<int>(i)));
+    }
+    powerBtn.getProperties().set("rackSprite",switchSpriteFor(type,effective));
+    powerBtn.repaint();
     repaint();
 }
 
@@ -188,7 +208,8 @@ bool SlotComponent::artworkLayoutIsValid() const {
     if (cells.size() != static_cast<size_t>(info(type).numKnobs)) return false;
     const bool art = hasRackSkin(type);
     if (artButton.isVisible() != art) return false;
-    if (art && appliedArtworkChoice != 0 && !rackMaterial(type, appliedArtworkChoice).isValid()) return false;
+    if (art && appliedArtworkChoice != 0 && knobSpriteFor(type,appliedArtworkChoice,0)!=NoSprite
+        && !rackSkinAvailable(type,appliedArtworkChoice)) return false;
     const Rectangle<int> body(8, 106, getWidth() - 16, getHeight() - 156);
     for (size_t i = 0; i < cells.size(); ++i) {
         const auto& cell = *cells[i];
@@ -198,6 +219,25 @@ bool SlotComponent::artworkLayoutIsValid() const {
             if (cell.getBounds().intersects(cells[j]->getBounds())) return false;
     }
     return true;
+}
+
+bool SlotComponent::exerciseSpriteBindings() {
+    if(cells.empty() || !hasRackSkin(type) || !rackSkinAvailable(type,appliedArtworkChoice) || appliedArtworkChoice==0) return true;
+    auto* param=proc.apvts.getParameter(SkellierProcessor::knobId(index,0));
+    auto* on=proc.apvts.getParameter(SkellierProcessor::onId(index));
+    if(!param || !on) return false;
+    const float old=param->getValue(), oldOn=on->getValue();
+    auto& slider=cells[0]->slider;
+    param->setValueNotifyingHost(0.0f);
+    const bool hostMin=std::abs(slider.getValue())<1e-5;
+    slider.setValue(1.0,juce::sendNotificationSync);
+    const bool userMax=std::abs(param->getValue()-1.0f)<1e-5;
+    on->setValueNotifyingHost(0.0f);
+    const bool hostOff=!powerBtn.getToggleState();
+    powerBtn.setToggleState(true,juce::sendNotificationSync);
+    const bool userOn=on->getValue()>.5f;
+    param->setValueNotifyingHost(old); on->setValueNotifyingHost(oldOn);
+    return hostMin && userMax && hostOff && userOn;
 }
 
 void SlotComponent::syncSolo() { soloBtn.setToggleState(proc.soloSlot.load() == index, juce::dontSendNotification); }
@@ -218,7 +258,7 @@ void SlotComponent::resized() {
     const int w = getWidth(), h = getHeight();
     footRect = Rectangle<int>(10, h - 44, w - 20, 34);
     if (type == Empty) return;
-    powerBtn.setBounds(11, 11, 24, 24);
+    powerBtn.setBounds(7, 10, 32, 26);
     removeBtn.setBounds(w - 30, 13, 20, 20);
     rightBtn.setBounds(w - 52, 13, 20, 20);
     leftBtn.setBounds(w - 74, 13, 20, 20);
@@ -312,7 +352,7 @@ void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
         g.setColour(legendInk); g.setFont(legendFont);
         g.drawText(legend, Rectangle<float>(r.getX() + 13.0f, r.getY() + 2.0f, (float) tw + 4.0f, 13.0f), juce::Justification::centredLeft, false);
     }
-    if (mi.hasVU) {
+    if (mi.hasVU && !hasRackSkin(type)) {
         g.setColour(pal::inkDim); g.setFont(font(11.0f, true));
         g.drawText("-" + juce::String(needle, 1) + " dB", footRect, juce::Justification::centredRight, false);
     }
