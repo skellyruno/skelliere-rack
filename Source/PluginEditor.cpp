@@ -321,16 +321,24 @@ void SlotComponent::resized() {
 }
 
 void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff222326), 0.0f, Colour(0xff101112), b.getHeight()));
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff1b1d20),0.0f,Colour(0xff111214),b.getHeight()));
     g.fillRect(b);
-    paintBrushed(g, b, 0.8f);
-    g.setColour(juce::Colours::white.withAlpha(0.10f)); g.drawHorizontalLine(0, 0.0f, b.getWidth()); g.drawVerticalLine(0, 0.0f, b.getHeight());
-    g.setColour(juce::Colours::black.withAlpha(0.7f)); g.drawHorizontalLine((int) b.getHeight() - 1, 0.0f, b.getWidth()); g.drawVerticalLine((int) b.getWidth() - 1, 0.0f, b.getHeight());
-    for (int i = 0; i < 4; ++i) paintScrew(g, i % 2 ? b.getWidth() - 9.0f : 9.0f, i < 2 ? 9.0f : b.getHeight() - 9.0f, 4.5f, (float) (index + i) * 0.7f);
-    g.setColour(pal::inkDim.withAlpha(0.5f)); g.setFont(font(40.0f, true));
-    g.drawText(slotLetter(index), b.withTrimmedBottom(60.0f).withTrimmedTop(b.getHeight() - 130.0f), juce::Justification::centred, false);
-    g.setFont(font(11.0f, true));
-    g.drawText(dragOver ? "DROP MODULE HERE" : "EMPTY", Rectangle<float>(0.0f, b.getHeight() - 56.0f, b.getWidth(), 16.0f), juce::Justification::centred, false);
+    paintBrushed(g,b,0.35f);
+    auto inner=b.reduced(13.0f,18.0f);
+    g.setColour(Colour(0xff07080a).withAlpha(.42f));
+    g.fillRoundedRectangle(inner,4.0f);
+    g.setColour(Colour(0xff393d43).withAlpha(.52f));
+    g.drawRoundedRectangle(inner.reduced(.5f),4.0f,1.0f);
+    for(int i=0;i<4;++i)
+        paintScrew(g,i%2?b.getWidth()-9.0f:9.0f,i<2?9.0f:b.getHeight()-9.0f,4.0f,0.7f*(index+i));
+    const float cx=b.getCentreX(),cy=b.getCentreY();
+    g.setColour(dragOver?pal::amber:Colour(0xff71767c).withAlpha(.45f));
+    g.drawLine(cx-11.0f,cy,cx+11.0f,cy,1.5f);
+    g.drawLine(cx,cy-11.0f,cx,cy+11.0f,1.5f);
+    g.setFont(font(10.0f,true));
+    g.drawText(dragOver?"DROP MODULE HERE":"EMPTY SLOT",
+               Rectangle<float>(10.0f,cy+23.0f,b.getWidth()-20.0f,18.0f),
+               juce::Justification::centred,false);
 }
 
 juce::Rectangle<int> SlotComponent::nativeBounds(FaceRect r) const {
