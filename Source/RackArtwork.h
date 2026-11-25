@@ -71,9 +71,9 @@ inline juce::Image materialTile(const juce::Image& panel, juce::Rectangle<int> s
 }
 inline const juce::Image& rackMaterial(int type, int choice) {
     static const auto earth = materialTile(rackPanel(skl::Eq, 1), {28, 41, 55, 20});
-    static const auto air = materialTile(rackPanel(skl::Air, 1), {28, 39, 159, 26});
+    static const auto air = materialTile(rackPanel(skl::Air, 1), {28, 41, 55, 20});
     static const auto eq = materialTile(rackPanel(skl::Eq, 2), {26, 39, 60, 9});
-    static const auto lift = materialTile(rackPanel(skl::Air, 2), {26, 38, 163, 9});
+    static const auto lift = materialTile(rackPanel(skl::Air, 2), {26, 39, 60, 9});
     static const auto bird = materialTile(rackPanel(skl::Eq, 3), {28, 103, 160, 237});
     static const juce::Image empty;
     if (!hasToneMaterial(type) || choice < 1 || choice > 3) return empty;
@@ -129,7 +129,9 @@ inline juce::Image restoreNativePanel(const juce::Image& original, int type, int
             // All labels/knob holes are removed from the same coherent field.
             // Preserve the 5px external relief and source corner hardware.
             float fill=juce::jlimit(0.0f,1.0f,static_cast<float>(juce::jmin(x-3,w-4-x))/5.0f);
-            fill*=juce::jlimit(0.0f,1.0f,static_cast<float>(juce::jmin(y-3,h-4-y))/5.0f);
+            // Source vendor logos extend to the extreme top edge in some
+            // packed panels. Clean across full height while protecting the
+            // original corner screws and side relief separately.
             for(int corner=0;corner<4;++corner) {
                 const int cx=corner%2?w-18:18,cy=corner/2?h-18:18;
                 const float dx=static_cast<float>(x-cx),dy=static_cast<float>(y-cy);

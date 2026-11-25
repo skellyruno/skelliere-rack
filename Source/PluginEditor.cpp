@@ -558,7 +558,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
-    infoLabel.setText("Double-click or drag a module into a slot. Quad EQ and Air Lift include native faceplate layouts. Every knob controls the effect.", juce::dontSendNotification);
+    infoLabel.setText("Double-click a module to add it, or drag it into an empty slot. Module controls connect to the live effect.", juce::dontSendNotification);
     addAndMakeVisible(infoLabel);
     refresh();
 }
@@ -681,7 +681,7 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-    lcd.setText("v0.3.0 RACK-01 - modular vocal and mixing rack");
+    lcd.setText("Skelliere Rack  |  Vocal & Mixing Effects");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
@@ -826,9 +826,8 @@ void RackUI::paint(Graphics& g) {
         }
     }
     g.setColour(Colour(0xff050506)); g.fillRect(Rectangle<int>(260, 196, 972, 556));
-    g.setColour(Colour(0xff101214)); g.fillRect(840, 754, 382, 18);
-    g.setColour(pal::ink); g.setFont(font(10.0f, true));
-    g.drawText("v0.3.0 RACK-01  |  Scroll right for slots E-H", Rectangle<int>(846, 754, 370, 18), juce::Justification::centredRight, false);
+    // The rack rail is hardware framing; do not paint development text over
+    // the bottom of the viewport or the actual module footers.
 }
 
 // =================================================================== editor window
