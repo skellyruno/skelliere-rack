@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <string_view>
 using namespace skl;
 static void require(bool v,const char* m){if(!v){std::fprintf(stderr,"%s\n",m);std::exit(1);}}
 static std::vector<float> run(int type,const std::vector<float>& input,const std::vector<std::pair<int,float>>& changes={},bool active=true,int block=257){
@@ -16,12 +17,15 @@ static std::vector<float> run(int type,const std::vector<float>& input,const std
     return output;
 }
 static double rms(const std::vector<float>& v,int start=0,int end=-1){
-    if(end<0)end=(int)v.size();double s=0;for(int i=start;i<end;++i)s+=v[i]*v[i];return std::sqrt(s/(end-start));
+    if(end<0)end=(int)v.size();
+    double s=0;for(int i=start;i<end;++i)s+=v[i]*v[i];
+    return std::sqrt(s/(end-start));
 }
 static std::vector<float> tone(float freq,float amp=0.15f){std::vector<float> a(48000);for(size_t i=0;i<a.size();++i)a[i]=amp*std::sin(2*kPi*freq*i/48000);return a;}
 static double delta(const std::vector<float>& a,const std::vector<float>& b){double e=0;for(size_t i=0;i<a.size();++i){const auto d=a[i]-b[i];e+=d*d;}return std::sqrt(e/a.size());}
 int main(){
     static_assert(kNumRackTypes==26&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25,"Catalog IDs changed");
+    for(int t=1;t<kNumRackTypes;++t)require(std::string_view(displayName(t)).rfind("Skell ",0)==0,"Missing Skell prefix");
     const auto quiet=tone(1000,.001f), loud=tone(1000,.2f), low=tone(80),high=tone(8000);
     require(rms(run(Gate,quiet,{{0,-35},{1,48}}),24000)<rms(quiet,24000)*.02,"Gate fails quiet attenuation");
     require(rms(run(Gate,loud,{{0,-35}}),24000)>rms(loud,24000)*.98,"Gate fails loud opening");

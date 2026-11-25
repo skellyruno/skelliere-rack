@@ -78,7 +78,7 @@ inline const juce::Image& brushedImage() {
         Graphics g(im);
         juce::Random rng(1234);
         for (int y = 0; y < 256; ++y) {
-            g.setColour((rng.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha(rng.nextFloat() * 0.07f));
+            g.setColour((rng.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha(rng.nextFloat() * 0.025f));
             g.drawHorizontalLine(y, 0.0f, 256.0f);
         }
         return im;
@@ -239,6 +239,7 @@ public:
             g.drawLine(cx + sn * R * 0.80f, cy + cs * R * 0.80f, cx + sn * R * 0.98f, cy + cs * R * 0.98f, 1.0f);
         }
         const float r = R * 0.78f;
+        g.setColour(juce::Colours::white.withAlpha(.15f));g.drawEllipse(cx-R*.98f,cy-R*.98f,R*1.96f,R*1.96f,.8f);
         g.setGradientFill(juce::ColourGradient(cap.brighter(0.35f), cx - r * 0.6f, cy - r * 0.7f, cap.darker(0.45f), cx + r * 0.8f, cy + r * 0.9f, true));
         g.fillEllipse(cx - r, cy - r, 2 * r, 2 * r);
         g.setColour(juce::Colours::black.withAlpha(0.45f)); g.drawEllipse(cx - r, cy - r, 2 * r, 2 * r, 1.0f);

@@ -39,7 +39,11 @@ void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVertic
 
 void KnobCell::resized() {
     if(compact_)slider.setBounds(0,0,getHeight(),getHeight());
-    else slider.setBounds(2,0,juce::jmax(1,getWidth()-4),juce::jmax(1,getHeight()-27));
+    else {
+        const int size=juce::jmax(1,juce::jmin(getWidth()-4,getHeight()-32,144));
+        const int top=juce::jmax(0,(getHeight()-size-30)/2);
+        slider.setBounds((getWidth()-size)/2,top,size,size);
+    }
 }
 
 void KnobCell::paint(Graphics& g) {
@@ -59,10 +63,11 @@ void KnobCell::paint(Graphics& g) {
         g.drawFittedText(text_,readout.withTrimmedTop(getHeight()/2),juce::Justification::topLeft,1);
         return;
     }
-    g.setColour(lightFace_ ? Colour(0xff20262b) : pal::ink); g.setFont(font(11.5f, true));
-    g.drawText(label_, Rectangle<int>(0, getHeight() - 24, getWidth(), 12), juce::Justification::centred, false);
-    g.setColour(lightFace_ ? Colour(0xff41494e) : pal::inkDim); g.setFont(font(10.0f));
-    g.drawText(text_, Rectangle<int>(0, getHeight() - 12, getWidth(), 12), juce::Justification::centred, false);
+    const int y=juce::jmin(getHeight()-28,slider.getBottom()+2);
+    g.setColour(lightFace_?Colour(0xff17211e):Colour(0xfff4eee1));g.setFont(font(12.5f,true));
+    g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,14),juce::Justification::centred,1);
+    g.setColour(lightFace_?Colour(0xff34423c):Colour(0xffd0d3c8));g.setFont(font(11.5f));
+    g.drawFittedText(text_,Rectangle<int>(2,y+14,getWidth()-4,14),juce::Justification::centred,1);
 }
 
 // =================================================================== small displays
@@ -242,7 +247,6 @@ void SlotComponent::setMeter(float gr) {
     if (std::fabs(needle - shownNeedle) > 0.04f) {
         shownNeedle = needle;
         repaint(vuRect.expanded(2));
-        repaint(footRect);
     }
 }
 
@@ -291,8 +295,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour(Colour(0xffd2d9cc));pg.setFont(font(11,true));
         pg.drawText(slotLetter(index),40,8,21,28,juce::Justification::centred,false);
         pg.setColour(ink);pg.setFont(font(10,true));
-        pg.drawText("SKELL AUDIO  /  "+juce::String(type).paddedLeft('0',2),18,42,w-36,16,juce::Justification::centred,false);
-        pg.setFont(font(19,true));pg.drawFittedText(juce::String(mi.name).toUpperCase(),Rectangle<int>(12,57,w-24,25),juce::Justification::centred,1);
+        pg.drawText("SKELLIERE  /  MODEL "+juce::String(type).paddedLeft('0',2),18,42,w-36,16,juce::Justification::centred,false);
+        pg.setFont(font(18,true));pg.drawFittedText(juce::String(displayName(type)).toUpperCase(),Rectangle<int>(12,57,w-24,25),juce::Justification::centred,1);
         pg.setColour(p.accent.withAlpha(.8f));pg.fillRect(18,mi.hasVU?80:91,w-36,2);
         pg.setColour(ink.withAlpha(.64f));pg.setFont(font(10,true));pg.drawText(p.series,16,517,w-32,15,juce::Justification::centred,false);
         pg.setColour(Colour(0xff15191a));pg.fillRect(6,h-45,w-12,39);
@@ -303,7 +307,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     if(mi.hasVU&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),needle);
         g.setColour(pal::vuInk);g.setFont(font(10,true));
-        g.drawText(juce::String(-needle,1)+" dB",vuRect.withTrimmedTop(vuRect.getHeight()-16).reduced(6,2),juce::Justification::centredRight,false);
+        g.drawText(juce::String(needle<.05f?0.f:-needle,1)+" dB",vuRect.withTrimmedTop(vuRect.getHeight()-16).reduced(6,2),juce::Justification::centredRight,false);
     }
     if(!powerBtn.getToggleState()){g.setColour(juce::Colours::black.withAlpha(.19f));g.fillRect(6,40,w-12,h-85);}
 }
@@ -368,7 +372,7 @@ void ModuleTile::paint(Graphics& g) {
     paintOriginalMini(g,sw,type);
     auto text = r.reduced(5.0f).withTrimmedLeft(40.0f);
     g.setColour(pal::ink); g.setFont(font(12.0f, true));
-    g.drawFittedText(juce::String(mi.name).toUpperCase(),text.removeFromTop(17.0f).toNearestInt(),juce::Justification::centredLeft,1);
+    g.drawFittedText(juce::String(displayName(type)).toUpperCase(),text.removeFromTop(17.0f).toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(pal::inkDim); g.setFont(font(10.0f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(selected ? pal::amber : Colour(0xff000000)); g.drawRoundedRectangle(r, 3.0f, selected ? 1.6f : 1.0f);
@@ -421,7 +425,7 @@ void LibraryPanel::select(int type) {
     const juce::String hint = (type == Eq || type == Air)
         ? "\n\nChoose a native faceplate at the bottom of its slot. All knobs remain active."
         : "\n\nDouble-click or drag into a slot.";
-    infoLabel.setText(juce::String(mi.name).toUpperCase() + "\n" + mi.desc + hint, juce::dontSendNotification);
+    infoLabel.setText(juce::String(displayName(type)).toUpperCase() + "\n" + mi.desc + hint, juce::dontSendNotification);
 }
 
 void LibraryPanel::refresh() {
@@ -431,7 +435,7 @@ void LibraryPanel::refresh() {
     for (auto* t : tiles) {
         const auto& mi = info(t->type);
         const bool show = (category < 0 || (int) mi.cat == category) &&
-                          (q.isEmpty() || (juce::String(mi.name) + " " + mi.sub).toLowerCase().contains(q));
+                          (q.isEmpty() || (juce::String(displayName(type)) + " " + mi.sub).toLowerCase().contains(q));
         t->setVisible(show);
         if(show){t->setBounds(0,n*47,w,43);++n;}
     }
@@ -460,30 +464,22 @@ void LibraryPanel::paint(Graphics& g) {
 }
 
 void PathStrip::paint(Graphics& g) {
-    g.setColour(pal::inkDim); g.setFont(font(12.0f, true));
-    g.drawText("SIGNAL PATH", Rectangle<int>(4, 0, 100, getHeight()), juce::Justification::centredLeft, false);
-    int x = 108;
-    const auto f = font(12.5f, true);
-    auto key = [&](const juce::String& text, bool lit) {
-        const int w = textWidth(f, text) + 18;
-        if (x + w > getWidth()) return;
-        auto r = Rectangle<float>((float) x, 5.0f, (float) w, (float) getHeight() - 10.0f);
-        g.setColour(Colour(0xff0e0f11)); g.fillRoundedRectangle(r, 3.0f);
-        g.setColour(Colour(0xff000000)); g.drawRoundedRectangle(r, 3.0f, 1.0f);
-        g.setColour(lit ? pal::ink : pal::inkDim.withAlpha(0.6f)); g.setFont(f);
-        g.drawText(text, r, juce::Justification::centred, false);
-        x += w;
+    g.setColour(pal::inkDim);g.setFont(font(11,true));
+    g.drawText("SIGNAL PATH",4,0,96,getHeight(),juce::Justification::centredLeft,false);
+    int count=0;for(int s=0;s<kNumSlots;++s)if(proc.slotType(s)!=Empty)++count;
+    int x=104;const int remaining=getWidth()-104-2*36-12*(count+1);
+    const int cell=juce::jmax(38,juce::jmin(172,remaining/juce::jmax(1,count)));
+    auto key=[&](juce::String text,int width,bool lit){
+        auto r=Rectangle<int>(x,5,width,getHeight()-10);
+        g.setColour(Colour(0xff101315));g.fillRoundedRectangle(r.toFloat(),3);
+        g.setColour(lit?pal::ink:pal::inkDim);g.setFont(font(10.5f,true));
+        g.drawFittedText(text,r.reduced(4,1),juce::Justification::centred,1);x+=width;
     };
-    auto arrow = [&] { g.setColour(pal::inkDim); g.drawText(">", Rectangle<int>(x, 0, 18, getHeight()), juce::Justification::centred, false); x += 18; };
-    key("IN", true);
-    for (int s = 0; s < kNumSlots; ++s) {
-        const int t = proc.slotType(s);
-        if (t == Empty) continue;
-        arrow();
-        key(slotLetter(s) + "  " + juce::String(info(t).name).toUpperCase(), proc.slotOn(s));
-    }
-    arrow();
-    key("OUT", true);
+    auto arrow=[&]{g.setColour(pal::inkDim);g.drawText(">",x,0,12,getHeight(),juce::Justification::centred,false);x+=12;};
+    key("IN",36,true);
+    for(int s=0;s<kNumSlots;++s){const int t=proc.slotType(s);if(t==Empty)continue;
+        arrow();key(slotLetter(s)+" "+juce::String(displayName(t)).toUpperCase(),cell,proc.slotOn(s));}
+    arrow();key("OUT",36,true);
 }
 
 // =================================================================== RackUI
@@ -532,7 +528,7 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-    lcd.setText("SKELL AUDIO  /  25 ANALOG-STYLE PROCESSORS");
+    lcd.setText("SKELLIERE RACK  /  25 SKELL EFFECTS");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
@@ -650,12 +646,11 @@ void RackUI::paint(Graphics& g) {
         g.setColour(juce::Colours::white.withAlpha(0.14f)); g.drawHorizontalLine(r.getY() + 1, f.getX() + 5.0f, f.getRight() - 5.0f);
     };
     bar({12, 10, 1236, 48}); bar({12, 64, 1236, 56}); bar({12, 126, 1236, 40});
-    g.setColour(juce::Colours::black.withAlpha(0.6f)); g.setFont(font(26.0f, true));
-    g.drawText("SKELLIERE", Rectangle<int>(30, 12, 200, 48), juce::Justification::centredLeft, false);
-    g.setColour(pal::ink); g.drawText("SKELLIERE", Rectangle<int>(29, 11, 200, 48), juce::Justification::centredLeft, false);
-    g.setColour(pal::inkDim); g.setFont(font(11.0f, true));
-    g.drawRoundedRectangle(Rectangle<float>(214.0f, 22.0f, 46.0f, 24.0f), 2.0f, 1.2f);
-    g.drawText("RACK", Rectangle<int>(214, 22, 46, 24), juce::Justification::centred, false);
+    g.setFont(font(23,true));g.setColour(juce::Colours::black.withAlpha(.6f));
+    g.drawFittedText("SKELLIERE RACK",Rectangle<int>(29,14,250,28),juce::Justification::centredLeft,1);
+    g.setColour(pal::ink);g.drawFittedText("SKELLIERE RACK",Rectangle<int>(28,13,250,28),juce::Justification::centredLeft,1);
+    g.setColour(Colour(0xffb8dca3));g.setFont(font(9,true));
+    g.drawText("SKELL AUDIO  /  ANALOG COLLECTION",29,41,245,12,juce::Justification::centredLeft,false);
 
     const Rectangle<int> frame(244, 174, 1004, 600);
     g.setColour(Colour(0xff030304)); g.fillRoundedRectangle(frame.toFloat(), 5.0f);

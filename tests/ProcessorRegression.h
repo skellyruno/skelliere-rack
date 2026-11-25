@@ -18,6 +18,8 @@ inline void processorRegression() {
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
     // Original normalized choice values must retain every legacy identity.
     auto* legacy=p.apvts.getParameter(p.typeId(0));
+    auto* choices=dynamic_cast<juce::AudioParameterChoice*>(legacy);
+    require(choices && choices->choices.size()==12 && choices->choices[1]=="Quad EQ" && choices->choices[11]=="Skelly Tune","Host legacy choice labels changed");
     for(int t=0;t<skl::kNumTypes;++t) { legacy->setValueNotifyingHost((float)t/11); require(p.slotType(0)==t,"Legacy choice automation remapped"); }
     p.clearRack();
     for(int type=skl::Tilt;type<skl::kNumRackTypes;++type) {

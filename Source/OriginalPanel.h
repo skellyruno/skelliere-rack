@@ -39,7 +39,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     const auto p=originalSpec(type,finish);g.setColour(Colour(0xff0d0f10));g.fillRoundedRectangle(r,3);
     const auto plate=r.reduced(3);
     g.setGradientFill(juce::ColourGradient::vertical(p.metal.brighter(.20f),plate.getY(),p.metal.darker(.22f),plate.getBottom()));
-    g.fillRoundedRectangle(plate,2);paintBrushed(g,plate,.55f);
+    g.fillRoundedRectangle(plate,2);paintBrushed(g,plate,.40f);
     g.setColour(juce::Colours::white.withAlpha(.17f));g.drawRoundedRectangle(plate.reduced(.5f),2,1);
     g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(plate.reduced(2),2,.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-8:plate.getX()+8,i<2?plate.getY()+9:plate.getBottom()-9,3.8f,.8f*i);
