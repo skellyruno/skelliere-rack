@@ -2,7 +2,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Look.h"
-#include "RackArtwork.h"
+#include "OriginalPanel.h"
 
 namespace skl::ui {
 
@@ -52,7 +52,7 @@ public:
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
     static constexpr int kWidth = 248, kHeight = 580;
-    int preferredWidth() const { return nativeChoice>0?216:kWidth; }
+    int preferredWidth() const { return 232; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
     void rebuild();
@@ -75,7 +75,7 @@ private:
     void paintEmpty(juce::Graphics&, juce::Rectangle<float>);
     void paintFaceplate(juce::Graphics&, juce::Rectangle<float>);
     void paintNativeFace(juce::Graphics&);
-    juce::Rectangle<int> nativeBounds(FaceRect) const;
+
     SkellierProcessor& proc;
     int index, type = 0;
     bool dragOver = false, dragging = false;
@@ -86,9 +86,8 @@ private:
     juce::Rectangle<int> vuRect, footRect;
     int appliedArtworkChoice = -1, nativeChoice = 0;
     juce::Rectangle<int> panelBounds;
-    ArtworkButton artButton{[this] { return type; },
-                            [this] { return proc.artworkChoices[static_cast<size_t>(index)].load(); },
-                            [this](int choice) { setArtworkChoice(choice); }};
+    juce::Image panelCache;
+    juce::TextButton artButton{"FINISH"};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};

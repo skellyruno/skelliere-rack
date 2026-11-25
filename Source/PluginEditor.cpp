@@ -1,5 +1,5 @@
 #include "PluginEditor.h"
-#include "RackMeter.h"
+#include "MeterCalibration.h"
 
 using namespace skl;
 using namespace skl::ui;
@@ -35,27 +35,11 @@ void KnobCell::setLightFace(bool light) {
     repaint();
 }
 
-void KnobCell::setSprite(int id) {
-    slider.getProperties().set("rackSprite",id);
-    slider.setSliderStyle(isFaderSprite(id)?juce::Slider::RotaryHorizontalDrag:juce::Slider::RotaryVerticalDrag);
-    resized();
-    slider.repaint();
-}
+void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVerticalDrag); }
 
 void KnobCell::resized() {
-    if (compact_) slider.setBounds(0, 0, getHeight(), getHeight());
-    else if(nativeFace_) {
-        if(sideReadout_) {
-            const int side=juce::jmax(1,getWidth()/2);
-            slider.setBounds(side,0,juce::jmax(1,getWidth()-side),juce::jmax(1,getHeight()));
-        } else slider.setBounds(1,0,juce::jmax(1,getWidth()-2),juce::jmax(1,getHeight()-24));
-    }
-    else {
-        const int size = juce::jmax(1,juce::jmin(54, getHeight() - 24));
-        if(isFaderSprite((int)slider.getProperties().getWithDefault("rackSprite",0)))
-            slider.setBounds(2,0,getWidth()-4,size);
-        else slider.setBounds((getWidth() - size) / 2, 0, size, size);
-    }
+    if(compact_)slider.setBounds(0,0,getHeight(),getHeight());
+    else slider.setBounds(2,0,juce::jmax(1,getWidth()-4),juce::jmax(1,getHeight()-27));
 }
 
 void KnobCell::paint(Graphics& g) {
@@ -116,12 +100,6 @@ void LevelMeter::paint(Graphics& g) {
 }
 
 void PowerButton::paintButton(Graphics& g, bool hover, bool down) {
-    const int sprite=(int)getProperties().getWithDefault("rackSprite",0);
-    if(rackSprite(sprite).draw(g,getLocalBounds().reduced(1),getToggleState()?1.0:0.0)) {
-        if(hover||down) {g.setColour(juce::Colours::white.withAlpha(down?.16f:.07f));g.fillRoundedRectangle(getLocalBounds().toFloat(),3.0f);}
-        if(hasKeyboardFocus(false)) {g.setColour(pal::amber);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f),3.0f,1.0f);}
-        return;
-    }
     auto r = getLocalBounds().toFloat().reduced(2.0f);
     const float cx = r.getCentreX(), cy = r.getCentreY(), R = juce::jmin(r.getWidth(), r.getHeight()) * 0.5f;
     g.setColour(juce::Colours::black.withAlpha(0.6f)); g.fillEllipse(cx - R, cy - R + 1.5f, 2 * R, 2 * R);
@@ -156,6 +134,8 @@ void StripButton::mouseDown(const juce::MouseEvent& e) {
 SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     addAndMakeVisible(powerBtn);
     addAndMakeVisible(artButton);
+    artButton.setTooltip("Cycle original Skell metal finishes");
+    artButton.onClick=[this]{setArtworkChoice((proc.artworkChoices[static_cast<size_t>(index)].load()+1)%4);};
     powerAtt = std::make_unique<juce::ButtonParameterAttachment>(*proc.apvts.getParameter(SkellierProcessor::onId(i)), powerBtn);
     for (auto* b : {&leftBtn, &rightBtn, &removeBtn, &soloBtn}) addAndMakeVisible(*b);
     leftBtn.onClick = [this] { proc.moveSlot(index, index - 1, false); };
@@ -175,9 +155,9 @@ void SlotComponent::rebuild() {
     type = proc.slotType(index);
     cells.clear();
     const bool filled = type != Empty;
-    const bool hasArtwork = hasRackSkin(type);
+    const bool hasArtwork = filled;
     artButton.setVisible(hasArtwork);
-    appliedArtworkChoice = -1;
+    appliedArtworkChoice = -1; panelCache={};
     for (auto* c : std::initializer_list<juce::Component*>{&powerBtn, &leftBtn, &rightBtn, &removeBtn, &soloBtn}) c->setVisible(filled);
     if (filled) {
         const auto& mi = info(type);
@@ -204,61 +184,47 @@ void SlotComponent::setArtworkChoice(int choice) {
 }
 
 void SlotComponent::syncArtwork() {
-    const int choice = hasRackSkin(type)?juce::jlimit(0,3,proc.artworkChoices[static_cast<size_t>(index)].load()):0;
-    if (choice == appliedArtworkChoice) return;
-    appliedArtworkChoice = choice;
-    const int effective=rackSkinAvailable(type,choice)?choice:0;
-    nativeChoice=effective;
-    artButton.setButtonText("FACE: " + rackPanelName(type,effective).toUpperCase());
-    for (size_t i=0;i<cells.size();++i) {
-        cells[i]->setNativeFace(effective>0,effective>0 && nativeFace(type,effective).leftReadout && i>0);
-        cells[i]->setLightFace(effective>0?nativeFace(type,effective).light:false);
-        cells[i]->setSprite(knobSpriteFor(type,effective,static_cast<int>(i)));
+    const int choice=juce::jlimit(0,3,proc.artworkChoices[static_cast<size_t>(index)].load());
+    if(choice==appliedArtworkChoice)return;
+    appliedArtworkChoice=choice;nativeChoice=choice;panelCache={};
+    const auto spec=originalSpec(type,choice);
+    static const char* names[]={"GRAPHITE","SIGNATURE","SILVER","MIDNIGHT"};
+    artButton.setButtonText(names[choice]);
+    for(auto& c:cells){
+        c->setNativeFace(true);c->setLightFace(spec.light);
+        c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
+        c->slider.getProperties().set("ptr",(int)(spec.light?juce::Colours::white:juce::Colours::black).getARGB());
+        c->slider.repaint();
     }
-    powerBtn.getProperties().set("rackSprite",switchSpriteFor(type,effective));
-    powerBtn.repaint();
-    resized();
-    if(auto* parent=getParentComponent()) parent->resized();
-    repaint();
+    resized();repaint();
 }
 
 bool SlotComponent::artworkLayoutIsValid() const {
-    if (type == Empty) return cells.empty();
-    if (cells.size() != static_cast<size_t>(info(type).numKnobs)) return false;
-    const bool art = hasRackSkin(type);
-    if (artButton.isVisible() != art) return false;
-    if (art && appliedArtworkChoice != 0 && knobSpriteFor(type,appliedArtworkChoice,0)!=NoSprite
-        && !rackSkinAvailable(type,appliedArtworkChoice)) return false;
-    if(nativeChoice>0 && !validNativeFace(type,nativeChoice)) return false;
-    const Rectangle<int> body=nativeChoice>0?panelBounds:Rectangle<int>(8,106,getWidth()-16,getHeight()-156);
-    for (size_t i = 0; i < cells.size(); ++i) {
-        const auto& cell = *cells[i];
-        if (!body.contains(cell.getBounds()) || !cell.getLocalBounds().contains(cell.slider.getBounds())
-            || cell.getBounds().intersects(footRect)
-            || (nativeChoice>0 && (cell.getBounds().intersects(powerBtn.getBounds()) || cell.getBounds().intersects(vuRect)))) return false;
-        for (size_t j = 0; j < i; ++j)
-            if (cell.getBounds().intersects(cells[j]->getBounds())) return false;
+    if(type==Empty)return cells.empty();
+    if(cells.size()!=static_cast<size_t>(info(type).numKnobs))return false;
+    const auto body=getLocalBounds().withTrimmedTop(78).withTrimmedBottom(48);
+    for(size_t i=0;i<cells.size();++i){
+        const auto& c=*cells[i];
+        if(!body.contains(c.getBounds())||!c.getLocalBounds().contains(c.slider.getBounds())||c.getBounds().intersects(vuRect)||c.getBounds().intersects(footRect))return false;
+        for(size_t j=0;j<i;++j)if(c.getBounds().intersects(cells[j]->getBounds()))return false;
     }
     return true;
 }
 
 bool SlotComponent::exerciseSpriteBindings() {
-    if(cells.empty() || !hasRackSkin(type) || !rackSkinAvailable(type,appliedArtworkChoice) || appliedArtworkChoice==0) return true;
-    auto* param=proc.apvts.getParameter(SkellierProcessor::knobId(index,0));
-    auto* on=proc.apvts.getParameter(SkellierProcessor::onId(index));
-    if(!param || !on) return false;
-    const float old=param->getValue(), oldOn=on->getValue();
-    auto& slider=cells[0]->slider;
-    param->setValueNotifyingHost(0.0f);
-    const bool hostMin=std::abs(slider.getValue())<1e-5;
-    slider.setValue(1.0,juce::sendNotificationSync);
-    const bool userMax=std::abs(param->getValue()-1.0f)<1e-5;
-    on->setValueNotifyingHost(0.0f);
-    const bool hostOff=!powerBtn.getToggleState();
-    powerBtn.setToggleState(true,juce::sendNotificationSync);
-    const bool userOn=on->getValue()>.5f;
-    param->setValueNotifyingHost(old); on->setValueNotifyingHost(oldOn);
-    return hostMin && userMax && hostOff && userOn;
+    if(cells.empty())return true;
+    bool ok=true;
+    for(size_t i=0;i<cells.size();++i){
+        auto* p=proc.apvts.getParameter(SkellierProcessor::knobId(index,static_cast<int>(i)));
+        const float old=p->getValue();
+        p->setValueNotifyingHost(0);ok=ok&&std::abs(cells[i]->slider.getValue())<1e-5;
+        cells[i]->slider.setValue(1,juce::sendNotificationSync);ok=ok&&std::abs(p->getValue()-1)<1e-5;
+        p->setValueNotifyingHost(old);
+    }
+    auto* on=proc.apvts.getParameter(SkellierProcessor::onId(index));const float old=on->getValue();
+    on->setValueNotifyingHost(0);ok=ok&&!powerBtn.getToggleState();
+    powerBtn.setToggleState(true,juce::sendNotificationSync);ok=ok&&on->getValue()>.5f;on->setValueNotifyingHost(old);
+    return ok;
 }
 
 void SlotComponent::syncSolo() { soloBtn.setToggleState(proc.soloSlot.load() == index, juce::dontSendNotification); }
@@ -277,51 +243,14 @@ void SlotComponent::setMeter(float gr) {
 }
 
 void SlotComponent::resized() {
-    sectionRects.clear();
-    vuRect = {}; panelBounds={};
-    const int w = getWidth(), h = getHeight();
-    footRect = Rectangle<int>(10, h - 44, w - 20, 34);
-    if (type == Empty) return;
-    powerBtn.setBounds(7, 10, 32, 26);
-    removeBtn.setBounds(w - 30, 13, 20, 20);
-    rightBtn.setBounds(w - 52, 13, 20, 20);
-    leftBtn.setBounds(w - 74, 13, 20, 20);
-    soloBtn.setBounds(12, h - 40, 26, 26);
-    const auto& mi = info(type);
-    artButton.setBounds(44, h - 40, mi.hasVU ? w - 118 : w - 56, 28);
-    if(nativeChoice>0) {
-        const auto& panel=rackPanel(type,nativeChoice);
-        const int ph=h-80, pw=juce::roundToInt(float(ph)*panel.getWidth()/panel.getHeight());
-        panelBounds=Rectangle<int>((w-pw)/2,36,pw,ph);
-        const auto layout=nativeFace(type,nativeChoice);
-        for(size_t i=0;i<cells.size();++i) cells[i]->setBounds(nativeBounds(layout.controls[i]));
-        powerBtn.setBounds(nativeBounds(layout.power));
-        vuRect=nativeBounds(layout.meter);
-        return;
-    }
-    const int controlX = 8;
-    const int controlW = w - controlX - 8;
-    const int cellW = 84;
-    int y = 106;
-    if (mi.hasVU) { vuRect = Rectangle<int>(10, y, w - 20, 62); y += 70; }
-    int totalRows = 0;
-    for (int s = 0; s < mi.numSections; ++s) totalRows += (mi.sections[s].count + 1) / 2;
-    // Reserve the footer and fit tall module layouts (notably Program Opto).
-    const int rowH = juce::jlimit(36, 78, (h - 50 - y - mi.numSections * 26) / juce::jmax(1, totalRows));
-    for (int s = 0; s < mi.numSections; ++s) {
-        const auto& sec = mi.sections[s];
-        const int rows = (sec.count + 1) / 2, sh = 20 + rowH * rows;
-        sectionRects.push_back(Rectangle<int>(controlX, y, controlW, sh));
-        for (int j = 0; j < sec.count; ++j) {
-            const int idx = sec.first + j;
-            if (idx >= (int) cells.size()) break;
-            const int col = sec.count > 1 ? j % 2 : 0, row = j / 2;
-            const int columns = sec.count > 1 ? 2 : 1;
-            const int cx = controlX + (controlW - columns * cellW) / 2 + col * cellW;
-            cells[(size_t) idx]->setBounds(cx, y + 18 + row * rowH, cellW, rowH);
-        }
-        y += sh + 6;
-    }
+    sectionRects.clear();vuRect={};panelBounds={};
+    const int w=getWidth(),h=getHeight();footRect={10,h-43,w-20,32};
+    if(type==Empty)return;
+    powerBtn.setBounds(12,9,27,27);removeBtn.setBounds(w-29,10,21,24);
+    rightBtn.setBounds(w-54,10,21,24);leftBtn.setBounds(w-79,10,21,24);
+    soloBtn.setBounds(12,h-40,30,26);artButton.setBounds(48,h-40,w-60,26);
+    const auto layout=originalLayout(type,w);vuRect=layout.meter;
+    for(size_t i=0;i<cells.size();++i)cells[i]->setBounds(layout.cells[i]);
 }
 
 void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
@@ -345,110 +274,31 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
                juce::Justification::centred,false);
 }
 
-juce::Rectangle<int> SlotComponent::nativeBounds(FaceRect r) const {
-    if(r.w<=0 || r.h<=0 || panelBounds.isEmpty()) return {};
-    const float sx=panelBounds.getWidth()/215.0f, sy=panelBounds.getHeight()/570.0f;
-    const int x=panelBounds.getX()+juce::roundToInt(r.x*sx),y=panelBounds.getY()+juce::roundToInt(r.y*sy);
-    return {x,y,juce::roundToInt((r.x+r.w)*sx)+panelBounds.getX()-x,
-                juce::roundToInt((r.y+r.h)*sy)+panelBounds.getY()-y};
-}
+
 
 void SlotComponent::paintNativeFace(Graphics& g) {
-    const auto f=nativeFace(type,nativeChoice);
-    const auto& panel=restoredRackPanel(type,nativeChoice);
-    if(!panel.isValid() || panelBounds.isEmpty()) return;
-    const Colour ink=f.light?Colour(0xff252a2e):Colour(0xffe3e6e9);
-    g.setColour(pal::chassis2);g.fillAll();
-    // The complete source-derived panel is reconstructed and cached once,
-    // rather than painting unrelated rectangular patches every frame.
-    g.drawImage(panel,panelBounds.toFloat());
-    const auto& mi=info(type);
-    auto label=[&](juce::String text,FaceRect rect,int size) {
-        if(!text.isEmpty()) {
-            g.setColour(ink);
-            g.setFont(font(static_cast<float>(size),true));
-            g.drawFittedText(text,nativeBounds(rect),juce::Justification::centred,1);
-        }
-    };
-    // Use original face coordinates for identification and controls.
-    label("SKELLIERE",{38,4,139,29},12);
-    if(type==skl::Eq && nativeChoice==2) {
-        for(int y:{126,207,287,369}) {
-            const auto r=nativeBounds({15,y,185,1}).toFloat();
-            g.setColour(ink.withAlpha(.18f));g.drawLine(r.getX(),r.getY(),r.getRight(),r.getY(),.7f);
-        }
-    } else if(type==skl::Air && nativeChoice==2) {
-        const auto r=nativeBounds({12,255,191,1}).toFloat();
-        g.setColour(ink.withAlpha(.17f));g.drawLine(r.getX(),r.getY(),r.getRight(),r.getY(),.7f);
+    const auto p=originalSpec(type,nativeChoice);const auto& mi=info(type);
+    const int w=getWidth(),h=getHeight();if(w<=0||h<=0)return;
+    const Colour ink=p.light?Colour(0xff202928):Colour(0xffeee9dc);
+    if(!panelCache.isValid()||panelCache.getWidth()!=w||panelCache.getHeight()!=h){
+        panelCache=juce::Image(juce::Image::ARGB,w,h,true);Graphics pg(panelCache);
+        paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
+        pg.setColour(Colour(0xff15191a));pg.fillRect(6,4,w-12,36);
+        pg.setColour(Colour(0xffd2d9cc));pg.setFont(font(11,true));
+        pg.drawText(slotLetter(index),40,8,21,28,juce::Justification::centred,false);
+        pg.setColour(ink);pg.setFont(font(10,true));
+        pg.drawText("SKELL AUDIO  /  "+juce::String(type).paddedLeft('0',2),18,42,w-36,16,juce::Justification::centred,false);
+        pg.setFont(font(19,true));pg.drawFittedText(juce::String(mi.name).toUpperCase(),Rectangle<int>(12,57,w-24,25),juce::Justification::centred,1);
+        pg.setColour(p.accent.withAlpha(.8f));pg.fillRect(18,mi.hasVU?80:91,w-36,2);
+        pg.setColour(ink.withAlpha(.64f));pg.setFont(font(10,true));pg.drawText(p.series,16,517,w-32,15,juce::Justification::centred,false);
+        pg.setColour(Colour(0xff15191a));pg.fillRect(6,h-45,w-12,39);
     }
-    label(juce::String(mi.name).toUpperCase(),{22,533,171,30},13);
-    if(mi.hasVU && !vuRect.isEmpty()) {
-        // Live GR, no vendor calibration values presented as ours.
-        if(!drawSourceMeter(g,vuRect,type,nativeChoice,needle,powerBtn.getToggleState()))
-            paintVU(g,vuRect.toFloat().reduced(3.0f),needle);
-        g.setColour(pal::inkDim);g.setFont(font(11,true));
-        g.drawText("-"+juce::String(needle,1)+" dB",footRect,juce::Justification::centredRight,false);
-    }
-    g.setColour(pal::ink);g.setFont(font(15,true));
-    g.drawText(slotLetter(index),Rectangle<int>(12,8,35,25),juce::Justification::centredLeft,false);
-    g.setFont(font(10,true));
-    g.drawFittedText(juce::String(mi.name).toUpperCase(),Rectangle<int>(40,8,getWidth()-118,25),juce::Justification::centredLeft,1);
+    g.drawImageAt(panelCache,0,0);
+    if(mi.hasVU&&!vuRect.isEmpty())paintVU(g,vuRect.toFloat(),needle);
+    if(!powerBtn.getToggleState()){g.setColour(juce::Colours::black.withAlpha(.19f));g.fillRect(6,40,w-12,h-85);}
 }
 
-void SlotComponent::paintFaceplate(Graphics& g, Rectangle<float> b) {
-    if(nativeChoice>0) { paintNativeFace(g);return; }
-    const auto& mi = info(type);
-    const Colour cat = categoryColour(mi.cat);
-    const float W = b.getWidth(), H = b.getHeight();
-    g.setGradientFill(juce::ColourGradient::vertical(pal::plateTop, 0.0f, pal::plateBot, H));
-    g.fillRect(b);
-    g.setColour(cat.withAlpha(0.05f)); g.fillRect(b);
-    paintBrushed(g, b, 0.9f);
-    const auto& material = rackMaterial(type, appliedArtworkChoice);
-    const bool light = lightRackSkin(type, appliedArtworkChoice);
-    const Colour legendInk = light ? Colour(0xff20262b) : pal::ink;
-    if (material.isValid()) {
-        const auto surface = Rectangle<float>(8.0f, 104.0f, W - 16.0f, H - 153.0f);
-        g.setTiledImageFill(material, 8, 104, 1.0f);
-        g.fillRoundedRectangle(surface, 4.0f);
-        g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(light ? 0.09f : 0.02f),
-            surface.getY(), juce::Colours::black.withAlpha(light ? 0.10f : 0.18f), surface.getBottom()));
-        g.fillRoundedRectangle(surface, 4.0f);
-        g.setColour(juce::Colours::black.withAlpha(0.55f)); g.drawRoundedRectangle(surface, 4.0f, 1.0f);
-    }
-    g.setColour(juce::Colours::white.withAlpha(0.16f)); g.drawHorizontalLine(0, 0.0f, W); g.drawVerticalLine(0, 0.0f, H);
-    g.setColour(juce::Colours::black.withAlpha(0.7f)); g.drawHorizontalLine((int) H - 1, 0.0f, W); g.drawVerticalLine((int) W - 1, 0.0f, H);
-    for (int i = 0; i < 4; ++i) paintScrew(g, i % 2 ? W - 9.0f : 9.0f, i < 2 ? 9.0f : H - 9.0f, 4.5f, (float) (index * 3 + i) * 0.7f);
-
-    g.setColour(pal::ink.withAlpha(0.85f)); g.setFont(font(17.0f, true));
-    g.drawText(slotLetter(index), Rectangle<float>(42.0f, 10.0f, 30.0f, 26.0f), juce::Justification::centredLeft, false);
-    g.setColour(pal::inkDim); g.setFont(font(9.0f, true));
-    g.drawText("SKELLIERE", Rectangle<float>(16.0f, 44.0f, W - 32.0f, 12.0f), juce::Justification::centredLeft, false);
-    g.setColour(pal::ink); g.setFont(font(20.0f, true));
-    g.drawText(juce::String(mi.name).toUpperCase(), Rectangle<float>(16.0f, 55.0f, W - 32.0f, 24.0f), juce::Justification::centredLeft, true);
-    g.setColour(pal::inkDim); g.setFont(font(10.5f));
-    g.drawText(mi.sub, Rectangle<float>(16.0f, 79.0f, W - 32.0f, 14.0f), juce::Justification::centredLeft, true);
-    g.setColour(cat); g.fillRect(Rectangle<float>(16.0f, 97.0f, W - 32.0f, 2.5f));
-    if (mi.hasVU) paintVU(g, vuRect.toFloat(), needle);
-
-    const auto legendFont = font(10.5f, true);
-    for (size_t s = 0; s < sectionRects.size(); ++s) {
-        const auto r = sectionRects[s].toFloat();
-        g.setColour(legendInk.withAlpha(light ? 0.48f : 0.38f));
-        g.drawRoundedRectangle(r.withTrimmedTop(8.0f), 3.0f, 1.2f);
-        const juce::String legend = juce::String(mi.sections[s].legend).toUpperCase();
-        const int tw = textWidth(legendFont, legend);
-        const Colour back = light ? Colour(0xffcbd1d5) : material.isValid() ? Colour(0xff202123)
-                                 : pal::plateTop.interpolatedWith(pal::plateBot, r.getY() / H);
-        g.setColour(back); g.fillRect(Rectangle<float>(r.getX() + 8.0f, r.getY() + 2.0f, (float) tw + 10.0f, 13.0f));
-        g.setColour(legendInk); g.setFont(legendFont);
-        g.drawText(legend, Rectangle<float>(r.getX() + 13.0f, r.getY() + 2.0f, (float) tw + 4.0f, 13.0f), juce::Justification::centredLeft, false);
-    }
-    if (mi.hasVU) {
-        g.setColour(pal::inkDim); g.setFont(font(11.0f, true));
-        g.drawText("-" + juce::String(needle, 1) + " dB", footRect, juce::Justification::centredRight, false);
-    }
-}
+void SlotComponent::paintFaceplate(Graphics& g,Rectangle<float>) {paintNativeFace(g);}
 
 void SlotComponent::paint(Graphics& g) {
     auto b = getLocalBounds().toFloat();
@@ -505,21 +355,7 @@ void ModuleTile::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(pal::plateTop, sw.getY(), pal::plateBot, sw.getBottom()));
     g.fillRoundedRectangle(sw, 2.0f);
     paintBrushed(g, sw, 0.9f);
-    const auto& panel=restoredRackPanel(type,1);
-    if(panel.isValid()) {
-        g.drawImageWithin(panel,(int)sw.getX(),(int)sw.getY(),(int)sw.getWidth(),(int)sw.getHeight(),juce::RectanglePlacement::centred);
-        const int spriteId=knobSpriteFor(type,1,0);
-        if(spriteId!=NoSprite) {
-            const int sz=juce::jmin(28,juce::roundToInt(sw.getWidth()-2.0f));
-            const auto target=juce::Rectangle<int>(sz,sz).withCentre(sw.getCentre().toInt());
-            rackSprite(spriteId).draw(g,target,static_cast<double>(defaultNorm(type,0)));
-        }
-    } else {
-        g.setColour(categoryColour(mi.cat)); g.fillRect(sw.removeFromBottom(3.0f));
-        const float kr=7.0f;
-        g.setColour(capColour(mi.cat));g.fillEllipse(sw.getCentreX()-kr,sw.getCentreY()-kr,2*kr,2*kr);
-        g.setColour(pointerColour(mi.cat));g.drawLine(sw.getCentreX(),sw.getCentreY(),sw.getCentreX()+3,sw.getCentreY()-5,1.6f);
-    }
+    paintOriginalMini(g,sw,type);
     auto text = r.reduced(5.0f).withTrimmedLeft(40.0f);
     g.setColour(pal::ink); g.setFont(font(12.0f, true));
     g.drawFittedText(juce::String(mi.name).toUpperCase(), text.removeFromTop(30.0f).toNearestInt(), juce::Justification::centredLeft, 2);
@@ -686,7 +522,7 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-    lcd.setText("Skelliere Rack  |  Vocal & Mixing Effects");
+    lcd.setText("SKELL AUDIO  /  25 ANALOG-STYLE PROCESSORS");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
@@ -711,14 +547,14 @@ RackUI::RackUI(SkellierProcessor& p)
     viewport.setScrollBarThickness(12);
     addAndMakeVisible(viewport);
     addAndMakeVisible(pathStrip);
-    for (int s = 0; s < kNumSlots; ++s) { proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.addParameterListener(SkellierProcessor::extraId(s), this); }
+    for (int s = 0; s < kNumSlots; ++s) { proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.addParameterListener(SkellierProcessor::extraId(s), this); proc.apvts.addParameterListener(SkellierProcessor::onId(s), this); }
     startTimerHz(30);
 }
 
 RackUI::~RackUI() {
     stopTimer();
     cancelPendingUpdate();
-    for (int s = 0; s < kNumSlots; ++s) { proc.apvts.removeParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.removeParameterListener(SkellierProcessor::extraId(s), this); }
+    for (int s = 0; s < kNumSlots; ++s) { proc.apvts.removeParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.removeParameterListener(SkellierProcessor::extraId(s), this); proc.apvts.removeParameterListener(SkellierProcessor::onId(s), this); }
 }
 
 void RackUI::say(const juce::String& t) { lcd.setText(t); }
@@ -760,7 +596,6 @@ void RackUI::timerCallback() {
     }
     undoBtn.setEnabled(proc.canUndo());
     redoBtn.setEnabled(proc.canRedo());
-    pathStrip.repaint();
 }
 
 void RackUI::resized() {

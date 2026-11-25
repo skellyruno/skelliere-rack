@@ -8,7 +8,7 @@ constexpr int kNumSlots = 8, kMaxKnobs = 6;
 enum ModuleType : int {
     Empty = 0, Eq, Comp, DeEss, Sat, Air, Chorus, Delay, Reverb, Limiter, Trim, Tune,
     kNumTypes, // compatibility boundary: do not extend the legacy choice parameter
-    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, kNumRackTypes
+    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, kNumRackTypes
 };
 // Pure selection policy shared by production and host-free regression tests.
 inline int resolveRackType(float legacy, float extension) noexcept {
@@ -82,7 +82,25 @@ inline const ModuleInfo& info(int type) {
          {{"Thresh",-60,0,false,-24,Unit::Db,0,nullptr},{"Ratio",1,10,true,3,Unit::Ratio,0,nullptr},
           {"Attack",0.5f,60,true,12,Unit::Ms,0,nullptr},{"Release",40,1000,true,240,Unit::Ms,0,nullptr},
           {"SC HP",20,400,true,80,Unit::Hz,0,nullptr},{"Makeup",-12,18,false,0,Unit::Db,0,nullptr}},
-         3,{{"Compression",0,4},{"Sidechain",4,1},{"Output",5,1}},true}
+         3,{{"Compression",0,4},{"Sidechain",4,1},{"Output",5,1}},true},
+        {"Iron Gate","Downward expander","Linked envelope gate with smooth attack and release.",CatDynamics,4,
+         {{"Thresh",-80,-10,false,-45,Unit::Db,0,nullptr},{"Range",0,60,false,36,Unit::Db,0,nullptr},{"Attack",0.2f,30,true,3,Unit::Ms,0,nullptr},{"Release",20,700,true,120,Unit::Ms,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},true},
+        {"Impact","Transient shaper","Linked fast and slow envelopes shape attack and sustain.",CatDynamics,4,
+         {{"Attack",-12,12,false,3,Unit::Db,0,nullptr},{"Sustain",-12,12,false,0,Unit::Db,0,nullptr},{"Window",10,150,true,60,Unit::Ms,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+        {"Bell 73","Parametric bell EQ","Sweepable peaking filter with adjustable Q and output.",CatTone,4,
+         {{"Freq",30,16000,true,1000,Unit::Hz,0,nullptr},{"Gain",-15,15,false,0,Unit::Db,0,nullptr},{"Q",0.3f,8,true,1,Unit::Ratio,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+        {"Crosscut","Dual filter","Independent high-pass and low-pass filters with resonance.",CatTone,4,
+         {{"HPF",20,4000,true,20,Unit::Hz,0,nullptr},{"LPF",200,20000,true,20000,Unit::Hz,0,nullptr},{"Res",0.5f,3,true,0.707f,Unit::Ratio,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+        {"Ember Clip","Soft peak shaping","Base-rate soft clipper with drive, ceiling and parallel blend.",CatTone,3,
+         {{"Drive",0,24,false,6,Unit::Db,0,nullptr},{"Ceiling",-12,0,false,-1,Unit::Db,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,1}},false},
+        {"Pulse","Tremolo","Variable shape amplitude modulation.",CatSpace,3,
+         {{"Rate",0.1f,12,true,3,Unit::LfoHz,0,nullptr},{"Depth",0,1,false,0.5f,Unit::Pct,0,nullptr},{"Shape",0,1,false,0.15f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,1}},false},
+        {"Phase Coil","Four-stage phaser","Swept all-pass stages with feedback and parallel dry blend.",CatSpace,4,
+         {{"Rate",0.05f,4,true,0.4f,Unit::LfoHz,0,nullptr},{"Depth",0,1,false,0.65f,Unit::Pct,0,nullptr},{"Feedback",0,0.75f,false,0.2f,Unit::Pct,0,nullptr},{"Mix",0,1,false,0.5f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+        {"Jet","Flanger","Short modulated delay with signed feedback and wet blend.",CatSpace,4,
+         {{"Rate",0.05f,4,true,0.3f,Unit::LfoHz,0,nullptr},{"Depth",0,1,false,0.7f,Unit::Pct,0,nullptr},{"Feedback",-0.8f,0.8f,false,0.3f,Unit::Pct,0,nullptr},{"Mix",0,1,false,0.45f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,2}},false},
+        {"Slap 120","Single-repeat slapback","Short feed-forward echo with independent repeat tone and level.",CatSpace,3,
+         {{"Time",25,120,false,85,Unit::Ms,0,nullptr},{"Tone",1000,16000,true,6000,Unit::Hz,0,nullptr},{"Mix",0,1,false,0.25f,Unit::Pct,0,nullptr}},2,{{"Control",0,2},{"Shape",2,1}},false}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }

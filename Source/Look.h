@@ -3,7 +3,7 @@
 // printed legends and cream needle meters. All colours live here so the whole plugin can be re-skinned in one place.
 #include <JuceHeader.h>
 #include "Modules.h"
-#include "RackSprites.h"
+
 
 namespace skl::ui {
 
@@ -20,9 +20,9 @@ inline const Colour plateBot  {0xff131416};
 inline const Colour ink       {0xffdedacb};
 inline const Colour inkDim    {0xff8f908a};
 inline const Colour line      {0xff3a3d42};
-inline const Colour amber     {0xfff2b92e};
+inline const Colour amber     {0xffb8dca3};
 inline const Colour lcdBg     {0xff060a07};
-inline const Colour lcdInk    {0xff8ff08a};
+inline const Colour lcdInk    {0xffb9d7a7};
 inline const Colour warn      {0xffef6a5b};
 inline const Colour vuFaceTop {0xfff6edc9};
 inline const Colour vuFaceBot {0xffd9c68a};
@@ -215,23 +215,6 @@ public:
     }
 
     void drawRotarySlider(Graphics& g, int x, int y, int w, int h, float pos, float a0, float a1, juce::Slider& s) override {
-        const int sprite=(int)s.getProperties().getWithDefault("rackSprite",0);
-        const juce::Rectangle<int> spriteBounds(x,y,w,h);
-        if (rackSprite(sprite).valid()) {
-            if(isFaderSprite(sprite)) {
-                // Align track with the actual source handle's opaque centre.
-                const auto dst=rackSprite(sprite).destination(spriteBounds).toFloat();
-                const bool bird=sprite==BlackbirdFader;
-                const float x0=dst.getX()+dst.getWidth()*(bird?28.5f/195.0f:20.5f/180.0f);
-                const float x1=dst.getX()+dst.getWidth()*(bird?166.5f/195.0f:158.5f/180.0f);
-                const float cy=dst.getY()+dst.getHeight()*(bird?24.0f/70.0f:21.0f/63.0f);
-                g.setColour(Colour(0xff08090a));g.fillRoundedRectangle(x0-2.0f,cy-2.0f,x1-x0+4.0f,4.0f,2.0f);
-                g.setColour(Colour(0xff62666b));g.drawLine(x0,cy,x1,cy,1.0f);
-            }
-            rackSprite(sprite).draw(g,spriteBounds,pos);
-            if (s.hasKeyboardFocus(false)) {g.setColour(pal::amber);g.drawRoundedRectangle(spriteBounds.toFloat().reduced(1.0f),3.0f,1.0f);}
-            return;
-        }
         const float size = (float) juce::jmin(w, h);
         const float cx = (float) x + (float) w * 0.5f, cy = (float) y + (float) h * 0.5f, R = size * 0.34f;
         const float ang = a0 + pos * (a1 - a0);
@@ -254,7 +237,7 @@ public:
             g.setColour((i % 2 ? juce::Colours::white : juce::Colours::black).withAlpha(i % 2 ? 0.20f : 0.55f));
             g.drawLine(cx + sn * R * 0.80f, cy + cs * R * 0.80f, cx + sn * R * 0.98f, cy + cs * R * 0.98f, 1.0f);
         }
-        const float r = R * 0.72f;
+        const float r = R * 0.78f;
         g.setGradientFill(juce::ColourGradient(cap.brighter(0.35f), cx - r * 0.6f, cy - r * 0.7f, cap.darker(0.45f), cx + r * 0.8f, cy + r * 0.9f, true));
         g.fillEllipse(cx - r, cy - r, 2 * r, 2 * r);
         g.setColour(juce::Colours::black.withAlpha(0.45f)); g.drawEllipse(cx - r, cy - r, 2 * r, 2 * r, 1.0f);

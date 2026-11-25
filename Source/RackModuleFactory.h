@@ -3,6 +3,7 @@
 #include "ExtraRackModules.h"
 #include "RackCompressor.h"
 #include "RackProgramOpto.h"
+#include "AnalogRackModules.h"
 namespace skl {
 inline float slewToward(float value,float target,float step) noexcept {
     return value+std::clamp(target-value,-step,step);
@@ -77,6 +78,7 @@ inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
     if(type==Tilt || type==Stereo) return std::make_unique<ExtraRackModule>(type);
     if(type==FastComp || type==BusComp) return std::make_unique<RackCompressor>(type);
     if(type==ProgramOpto) return std::make_unique<RackProgramOpto>();
+    if(type>=Gate && type<kNumRackTypes) return std::make_unique<AnalogRackModule>(type);
     return makeModule(type);
 }
 } // namespace skl
