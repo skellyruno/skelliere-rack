@@ -50,20 +50,19 @@ inline NativeFace nativeFace(int type,int choice) {
         f.power={72,64,71,42};
         f.inserts={{{7,378,201,151}}};
     }
-#if SKELLIERE_FULL_ARTWORK
     else if(type==skl::Comp) {
         f.colour=0xff77701d;f.light=false;
-        f.meter={42,41,131,87}; f.power={10,483,52,41};
+        f.meter={32,39,150,93}; f.power={10,483,52,41};
         f.controls={{{70,143,80,104},{19,247,64,84},{135,247,64,84},{67,337,82,98},{67,437,82,87}}};
         f.inserts={{{9,138,197,389}}};
     } else if(type==skl::ProgramOpto) {
         f.colour=0xffc2c6c7;
-        f.meter={42,42,131,84}; f.power={14,487,57,40};
+        f.meter={32,39,150,93}; f.power={14,487,57,40};
         f.controls={{{68,143,90,116},{12,269,89,100},{114,269,89,100},{12,370,89,100},{114,370,89,100},{76,472,100,58}}};
         f.inserts={{{9,138,197,395}}};
     } else if(type==skl::FastComp) {
         f.colour=choice==1?0xff282b2e:choice==2?0xffad7622:0xffc6c9ca; f.light=choice==3;
-        f.meter={33,43,149,122}; f.power={17,467,84,46};
+        f.meter={34,43,147,122}; f.power={17,467,84,46};
         f.controls={{{19,178,76,90},{116,178,81,90},{19,353,77,91},{119,353,77,91},{19,270,76,81}}};
         f.inserts={{{9,170,197,355}}};
     } else if(type==skl::BusComp) {
@@ -72,7 +71,6 @@ inline NativeFace nativeFace(int type,int choice) {
         f.controls={{{12,180,89,101},{115,180,89,101},{12,282,89,97},{115,282,89,97},{12,380,89,98}}};
         f.inserts={{{7,179,201,349}}};
     }
-#endif
     return f;
 }
 inline bool faceIntersects(FaceRect a, FaceRect b) {

@@ -3,16 +3,15 @@
 #include <BinaryData.h>
 #include "Modules.h"
 #include "SpriteFrames.h"
+#include "RackResource.h"
 
 namespace skl::ui {
 enum RackSprite : int {
     NoSprite=0, AirLarge, AirSmall, AirSmallAlt, AirPower,
     ClassicEqA, ClassicEqB, ClassicEqC, ClassicEqD, ClassicEqE, ClassicLiftBig, ClassicLiftSmall, ClassicPower,
     BlackbirdFader,
-#if SKELLIERE_FULL_ARTWORK
     CustomOptoLarge, CustomOptoSmall, CustomOptoSwitch, FetClassic, FetModern, FetVintage,
     Optical, OpticalSwitch, BusBlue, BusSwitch, InstrumentFader,
-#endif
     RackSpriteCount
 };
 struct PackedSprite {
@@ -21,8 +20,7 @@ struct PackedSprite {
     juce::Rectangle<int> crop;
     int columns=1;
     PackedSprite() = default;
-    PackedSprite(const void* bytes, int size, int frames, int expectedW, int expectedH) {
-        const auto raw = juce::ImageFileFormat::loadFrom(bytes, static_cast<size_t>(size));
+    PackedSprite(const juce::Image& raw, int frames, int expectedW, int expectedH) {
         if (!raw.isValid()) return;
         const auto dims = packedFrameLayout(raw.getWidth(), raw.getHeight(), frames);
         if (!dims.valid()) return;
@@ -82,7 +80,7 @@ struct PackedSprite {
 };
 inline const PackedSprite& rackSprite(int id) {
     // Decode once per resource on the GUI thread, never in DSP.
-#define SKELL_SPRITE(ID,NAME,N,W,H) case ID: { static const PackedSprite s(BinaryData::NAME##_png, BinaryData::NAME##_pngSize,N,W,H); return s; }
+#define SKELL_SPRITE(ID,NAME,N,W,H) case ID: { static const PackedSprite s(loadRackResource(#NAME),N,W,H); return s; }
     switch(id) {
         SKELL_SPRITE(AirLarge,air_knob_large,65,111,118)
         SKELL_SPRITE(AirSmall,air_knob_small,65,77,80)
@@ -97,7 +95,6 @@ inline const PackedSprite& rackSprite(int id) {
         SKELL_SPRITE(ClassicLiftSmall,classic_lift_knob_small,65,83,83)
         SKELL_SPRITE(ClassicPower,classic_in_switch,2,56,46)
         SKELL_SPRITE(BlackbirdFader,blackbird_fader,65,195,70)
-#if SKELLIERE_FULL_ARTWORK
         SKELL_SPRITE(CustomOptoLarge,custom_opto_large,65,75,102)
         SKELL_SPRITE(CustomOptoSmall,custom_opto_small,65,43,63)
         SKELL_SPRITE(CustomOptoSwitch,custom_opto_switch,2,46,81)
@@ -109,16 +106,13 @@ inline const PackedSprite& rackSprite(int id) {
         SKELL_SPRITE(BusBlue,bus_knob,65,88,106)
         SKELL_SPRITE(BusSwitch,bus_switch,2,76,44)
         SKELL_SPRITE(InstrumentFader,instrument_fader,65,180,63)
-#endif
         default: { static const PackedSprite empty; return empty; }
     }
 #undef SKELL_SPRITE
 }
 inline bool isFaderSprite(int id) noexcept {
     return id==BlackbirdFader
-#if SKELLIERE_FULL_ARTWORK
         || id==InstrumentFader
-#endif
         ;
 }
 inline int knobSpriteFor(int type,int choice,int knob) noexcept {
@@ -133,27 +127,22 @@ inline int knobSpriteFor(int type,int choice,int knob) noexcept {
                                   choice==3?ClassicEqA:(knob==0?AirLarge:AirSmall);
     if(type==skl::Trim) {
         if(choice==1) return BlackbirdFader;
-#if SKELLIERE_FULL_ARTWORK
         if(choice==2) return InstrumentFader;
-#endif
         return NoSprite;
     }
-#if SKELLIERE_FULL_ARTWORK
     if(type==skl::Comp && choice==1) return knob==0||knob==4?CustomOptoLarge:CustomOptoSmall;
     if(type==skl::ProgramOpto && choice==1) return Optical;
     if(type==skl::FastComp) return choice==1?FetClassic:choice==2?FetModern:FetVintage;
     if(type==skl::BusComp && choice==1) return BusBlue;
-#endif
     return NoSprite;
 }
 inline int switchSpriteFor(int type,int choice) noexcept {
     if(knobSpriteFor(type,choice,0)==NoSprite) return NoSprite;
-#if SKELLIERE_FULL_ARTWORK
     if(type==skl::Comp) return CustomOptoSwitch;
-    if(type==skl::ProgramOpto) return OpticalSwitch;
+    // FG-2A source toggle is labelled COMPRESS/LIMIT, not bypass.
+    if(type==skl::ProgramOpto || type==skl::FastComp || type==skl::Trim) return NoSprite;
     if(type==skl::BusComp) return BusSwitch;
-#endif
     return choice==2 || choice==3 ? ClassicPower : AirPower;
 }
-inline bool hasAnimatedSkin(int type) noexcept { return knobSpriteFor(type,1,0)!=NoSprite; }
+inline bool hasAnimatedSkin(int type) { return rackSprite(knobSpriteFor(type,1,0)).valid(); }
 }

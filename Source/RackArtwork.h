@@ -4,54 +4,65 @@
 #include "Modules.h"
 #include "RackSprites.h"
 #include "NativeFaceLayout.h"
+#include "PanelPacking.h"
 #include <map>
 #include <cmath>
 
 namespace skl::ui {
-// Asset-specific row strides, confirmed against the exact embedded PNGs.
-// Four metallic faces use 215 pixels. Blackbird uses 216; the landscape
-// container truncates its last partial row, so retain only complete rows.
-inline juce::Image decodeRackPanel(const void* bytes, int size, int stride = 215) {
-    const auto raw = juce::ImageFileFormat::loadFrom(bytes, static_cast<size_t>(size));
-    if (!raw.isValid() || (stride != 215 && stride != 216)) return {};
-    if (raw.getWidth() == 1140 && raw.getHeight() == 430 && stride == 215) stride=430;
-    else if(raw.getWidth()!=570 || raw.getHeight()!=215) return {};
-    const int rows = raw.getWidth() * raw.getHeight() / stride;
-    juce::Image panel(juce::Image::ARGB, stride, rows, true);
-    juce::Image::BitmapData source(raw, juce::Image::BitmapData::readOnly);
-    juce::Image::BitmapData destination(panel, juce::Image::BitmapData::writeOnly);
-    for (int i = 0; i < stride * rows; ++i)
-        destination.setPixelColour(i % stride, i / stride, source.getPixelColour(i % raw.getWidth(), i / raw.getWidth()));
+// The four RGB families retained 4-byte row padding in their converted
+// byte stream. At 2x this is 1292 bytes (430 2/3 pixels), not 430 or 432.
+inline juce::Image decodeRackPanel(const juce::Image& raw, bool rgbPadded=false) {
+    if(!raw.isValid()) return {};
+    const auto layout=panelPacking(raw.getWidth(),raw.getHeight(),rgbPadded);
+    if(!layout.valid()) return {};
+    juce::Image panel(juce::Image::ARGB,layout.width,layout.rows,true);
+    juce::Image::BitmapData source(raw,juce::Image::BitmapData::readOnly);
+    juce::Image::BitmapData destination(panel,juce::Image::BitmapData::writeOnly);
+    if(rgbPadded) {
+        const auto count=static_cast<size_t>(raw.getWidth())*raw.getHeight();
+        std::vector<unsigned char> bytes(count*3);
+        for(size_t i=0;i<count;++i) {
+            const auto c=source.getPixelColour(static_cast<int>(i%raw.getWidth()),static_cast<int>(i/raw.getWidth()));
+            bytes[i*3]=c.getRed();bytes[i*3+1]=c.getGreen();bytes[i*3+2]=c.getBlue();
+        }
+        for(int y=0;y<layout.rows;++y)for(int x=0;x<layout.width;++x) {
+            const auto o=layout.offset(x,y);
+            destination.setPixelColour(x,y,juce::Colour(bytes[o],bytes[o+1],bytes[o+2]));
+        }
+    } else {
+        for(int y=0;y<layout.rows;++y)for(int x=0;x<layout.width;++x) {
+            const int i=y*layout.width+x;
+            destination.setPixelColour(x,y,source.getPixelColour(i%raw.getWidth(),i/raw.getWidth()));
+        }
+    }
     return panel;
 }
 inline bool hasToneMaterial(int type) { return type == skl::Eq || type == skl::Air; }
 inline bool hasRackSkin(int type) { return hasAnimatedSkin(type); }
-inline const juce::Image& rackPanel(int type, int choice) {
-    static const juce::Image air = decodeRackPanel(BinaryData::air_lift_faceplate_png, BinaryData::air_lift_faceplate_pngSize);
-    static const juce::Image earth = decodeRackPanel(BinaryData::earth_faceplate_png, BinaryData::earth_faceplate_pngSize);
-    static const juce::Image eq = decodeRackPanel(BinaryData::classic_eq_faceplate_png, BinaryData::classic_eq_faceplate_pngSize);
-    static const juce::Image lift = decodeRackPanel(BinaryData::classic_lift_faceplate_png, BinaryData::classic_lift_faceplate_pngSize);
-    static const juce::Image bird = decodeRackPanel(BinaryData::blackbird_faceplate_png, BinaryData::blackbird_faceplate_pngSize, 216);
+inline const juce::Image& rackPanel(int type,int choice) {
     static const juce::Image empty;
-    if (choice < 1 || choice > 3) return empty;
-    if (type == skl::Trim && choice == 1) return bird;
-#if SKELLIERE_FULL_ARTWORK
-#define SKELL_PANEL(NAME,STRIDE) { static const auto panel=decodeRackPanel(BinaryData::NAME##_png,BinaryData::NAME##_pngSize,STRIDE); return panel; }
-    if(type==skl::Trim && choice==2) SKELL_PANEL(instrument_faceplate,216)
-    if(type==skl::Comp && choice==1) SKELL_PANEL(custom_opto_faceplate,216)
-    if(type==skl::ProgramOpto && choice==1) SKELL_PANEL(optical_faceplate,216)
-    if(type==skl::BusComp && choice==1) SKELL_PANEL(bus_faceplate,215)
+    if(choice<1||choice>3) return empty;
+#define SKELL_PANEL(NAME,PADDED) { static const auto panel=decodeRackPanel(loadRackResource(#NAME),PADDED); return panel; }
+    if((type==skl::Trim&&choice==1)||((type==skl::Eq||type==skl::Air)&&choice==3)) SKELL_PANEL(blackbird_faceplate,true)
+    if(type==skl::Trim&&choice==2) SKELL_PANEL(instrument_faceplate,true)
+    if(type==skl::Comp&&choice==1) SKELL_PANEL(custom_opto_faceplate,true)
+    if(type==skl::ProgramOpto&&choice==1) SKELL_PANEL(optical_faceplate,true)
+    if(type==skl::BusComp&&choice==1) SKELL_PANEL(bus_faceplate,false)
     if(type==skl::FastComp) {
-        if(choice==1) SKELL_PANEL(fet_faceplate,215)
-        if(choice==2) SKELL_PANEL(fet_modern_faceplate,215)
-        if(choice==3) SKELL_PANEL(fet_vintage_faceplate,215)
+        if(choice==1) SKELL_PANEL(fet_faceplate,false)
+        if(choice==2) SKELL_PANEL(fet_modern_faceplate,false)
+        if(choice==3) SKELL_PANEL(fet_vintage_faceplate,false)
+    }
+    if(type==skl::Eq) {
+        if(choice==1) SKELL_PANEL(earth_faceplate,false)
+        if(choice==2) SKELL_PANEL(classic_eq_faceplate,false)
+    }
+    if(type==skl::Air) {
+        if(choice==1) SKELL_PANEL(air_lift_faceplate,false)
+        if(choice==2) SKELL_PANEL(classic_lift_faceplate,false)
     }
 #undef SKELL_PANEL
-#endif
-    if(!hasToneMaterial(type)) return empty;
-    if (choice == 3) return bird;
-    if (type == skl::Eq) return choice == 1 ? earth : eq;
-    return choice == 1 ? air : lift;
+    return empty;
 }
 // The supplied artwork's printed controls are not our DSP controls. Sample
 // inspected, label-free material regions, not the unrelated printed legends.
@@ -110,7 +121,9 @@ inline juce::Image restoreNativePanel(const juce::Image& original, int type, int
     else if(type==skl::ProgramOpto) sample={179,185,24,36};
     else if(type==skl::BusComp) sample={178,186,24,36};
     else sample={27,40,150,25};
-    sample=sample.getIntersection(original.getBounds());
+    const float scale=static_cast<float>(w)/215.0f;
+    sample=juce::Rectangle<int>(juce::roundToInt(sample.getX()*scale),juce::roundToInt(sample.getY()*scale),
+        juce::roundToInt(sample.getWidth()*scale),juce::roundToInt(sample.getHeight()*scale)).getIntersection(original.getBounds());
     if(sample.isEmpty()) return original;
     // Mirror across both tile boundaries: no hard seams in the source grain.
     const auto tile=materialTile(original,sample);
@@ -121,24 +134,24 @@ inline juce::Image restoreNativePanel(const juce::Image& original, int type, int
     juce::Image::BitmapData grain(tile,juce::Image::BitmapData::readOnly);
     juce::Image::BitmapData dest(restored,juce::Image::BitmapData::writeOnly);
     const bool oldBlackbird=choice==3 && (type==skl::Air || type==skl::Eq);
-    const bool blackbird=oldBlackbird || (type==skl::Trim && choice==1);
+    const bool blackbird=oldBlackbird || type==skl::Trim;
     const bool meter=skl::info(type).hasVU && face.meter.w>0;
     for(int y=0;y<h;++y) {
         for(int x=0;x<w;++x) {
             const auto px=raw.getPixelColour(x,y);
             // All labels/knob holes are removed from the same coherent field.
             // Preserve the 5px external relief and source corner hardware.
-            float fill=juce::jlimit(0.0f,1.0f,static_cast<float>(juce::jmin(x-3,w-4-x))/5.0f);
+            float fill=juce::jlimit(0.0f,1.0f,juce::jmin(x/scale-3.0f,(w-1-x)/scale-3.0f)/5.0f);
             // Source vendor logos extend to the extreme top edge in some
             // packed panels. Clean across full height while protecting the
             // original corner screws and side relief separately.
             for(int corner=0;corner<4;++corner) {
-                const int cx=corner%2?w-18:18,cy=corner/2?h-18:18;
-                const float dx=static_cast<float>(x-cx),dy=static_cast<float>(y-cy);
+                const float cx=corner%2?w-18*scale:18*scale,cy=corner/2?h-18*scale:18*scale;
+                const float dx=(x-cx)/scale,dy=(y-cy)/scale;
                 const float radius=std::sqrt(dx*dx+dy*dy);
                 fill*=juce::jlimit(0.0f,1.0f,(radius-11.0f)/5.0f);
             }
-            if(blackbird && y<370) fill=0.0f; // original blank chamber & relief
+            if(blackbird && y<370*scale) fill=0.0f; // original blank chamber & relief
             if(meter) {
                 const auto box=face.meter;
                 const int xx=juce::roundToInt(static_cast<float>(x)*215.0f/w);
@@ -173,7 +186,9 @@ inline bool lightRackSkin(int type, int choice) {
 }
 inline bool rackSkinAvailable(int type,int choice) {
     if(choice==0) return true;
-    if(!hasRackSkin(type) || !rackSprite(switchSpriteFor(type,choice)).valid()) return false;
+    if(!hasRackSkin(type)) return false;
+    const int switchId=switchSpriteFor(type,choice);
+    if(switchId!=NoSprite && !rackSprite(switchId).valid()) return false;
     for(int i=0;i<info(type).numKnobs;++i)
         if(!rackSprite(knobSpriteFor(type,choice,i)).valid()) return false;
     return rackPanel(type,choice).isValid();

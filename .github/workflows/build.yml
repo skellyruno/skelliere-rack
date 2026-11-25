@@ -18,7 +18,7 @@ jobs:
       - name: Production DSP address and undefined behavior sanitizers
         shell: bash
         run: |
-          for source in tests/test_dsp.cpp tests/test_smooth_tone.cpp tests/test_rack_extensions.cpp tests/test_program_opto_core.cpp experiments/independent_dsp/test_original.cpp experiments/independent_dsp/test_adaptive.cpp experiments/independent_dsp/compare_dynamics.cpp experiments/independent_dsp/test_wet_duck.cpp experiments/independent_dsp/test_space_duck.cpp tests/test_sprite_frames.cpp tests/test_native_face.cpp; do
+          for source in tests/test_dsp.cpp tests/test_smooth_tone.cpp tests/test_rack_extensions.cpp tests/test_program_opto_core.cpp experiments/independent_dsp/test_original.cpp experiments/independent_dsp/test_adaptive.cpp experiments/independent_dsp/compare_dynamics.cpp experiments/independent_dsp/test_wet_duck.cpp experiments/independent_dsp/test_space_duck.cpp tests/test_sprite_frames.cpp tests/test_native_face.cpp tests/test_panel_meter.cpp; do
             test=$(basename "$source" .cpp)
             g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Itests/stub -ISkellCore/include -ISource "$source" -o /tmp/$test-sanitized
             /tmp/$test-sanitized
@@ -57,4 +57,23 @@ jobs:
         with:
           name: SkellierRack-${{ matrix.os }}
           path: out
+      - name: Validate Windows VST3 with pluginval 1.0.4
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest 'https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip' -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          $exe = Get-ChildItem pluginval -Recurse -Filter pluginval.exe | Select-Object -First 1
+          $vst = Get-ChildItem out -Directory -Filter *.vst3 | Select-Object -First 1
+          if (-not $exe -or -not $vst) { throw 'Missing pluginval or VST3' }
+          New-Item -ItemType Directory -Force validation | Out-Null
+          & $exe.FullName --strictness-level 5 --validate $vst.FullName 2>&1 | Tee-Object validation/pluginval.txt
+          if ($LASTEXITCODE -ne 0) { throw "pluginval failed: $LASTEXITCODE" }
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: Skelliere-pluginval-Windows
+          path: validation/
+          if-no-files-found: warn
 

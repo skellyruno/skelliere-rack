@@ -32,6 +32,7 @@ jobs:
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }
           $manifest = Get-Content ui-screenshots/manifest.json -Raw | ConvertFrom-Json
           if ($manifest.count -ne 19) { throw 'Screenshot manifest count mismatch' }
+          if (-not (Test-Path ui-screenshots/performance.csv)) { throw 'Missing UI/processor benchmark' }
       - name: Export actual editor evidence for connected review
         run: python tools/ci_editor_evidence.py ui-screenshots
       - uses: actions/upload-artifact@v4

@@ -34,7 +34,10 @@ private:
 
 class LevelMeter final : public juce::Component {
 public:
-    void setLevels(float inDb, float outDb) { inDb_ = inDb; outDb_ = outDb; repaint(); }
+    void setLevels(float inDb, float outDb) {
+        if(std::abs(inDb-inDb_)<.05f && std::abs(outDb-outDb_)<.05f)return;
+        inDb_=inDb;outDb_=outDb;repaint();
+    }
     void paint(juce::Graphics&) override;
 private:
     float inDb_ = -90.0f, outDb_ = -90.0f;
@@ -77,6 +80,7 @@ private:
     int index, type = 0;
     bool dragOver = false, dragging = false;
     float needle = 0.0f, shownNeedle = -1.0f;
+    double lastMeterTime=0;
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;

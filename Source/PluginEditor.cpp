@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "RackMeter.h"
 
 using namespace skl;
 using namespace skl::ui;
@@ -190,7 +191,7 @@ void SlotComponent::rebuild() {
             cells.push_back(std::move(cell));
         }
     }
-    needle = 0.0f; shownNeedle = -1.0f;
+    needle = 0.0f; shownNeedle = -1.0f; lastMeterTime=0;
     syncArtwork();
     syncSolo();
     resized();
@@ -264,7 +265,10 @@ void SlotComponent::syncSolo() { soloBtn.setToggleState(proc.soloSlot.load() == 
 
 void SlotComponent::setMeter(float gr) {
     if (type == Empty || !info(type).hasVU) return;
-    needle += (juce::jlimit(0.0f, 20.0f, gr) - needle) * 0.35f;
+    const auto now=juce::Time::getMillisecondCounterHiRes();
+    const float elapsed=lastMeterTime>0?static_cast<float>((now-lastMeterTime)*.001):1.0f/30.0f;
+    lastMeterTime=now;
+    needle=smoothReduction(needle,gr,elapsed);
     if (std::fabs(needle - shownNeedle) > 0.04f) {
         shownNeedle = needle;
         repaint(vuRect.expanded(2));
@@ -380,7 +384,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     label(juce::String(mi.name).toUpperCase(),{22,533,171,30},13);
     if(mi.hasVU && !vuRect.isEmpty()) {
         // Live GR, no vendor calibration values presented as ours.
-        paintVU(g,vuRect.toFloat().reduced(3.0f),needle);
+        if(!drawSourceMeter(g,vuRect,type,nativeChoice,needle,powerBtn.getToggleState()))
+            paintVU(g,vuRect.toFloat().reduced(3.0f),needle);
         g.setColour(pal::inkDim);g.setFont(font(11,true));
         g.drawText("-"+juce::String(needle,1)+" dB",footRect,juce::Justification::centredRight,false);
     }
