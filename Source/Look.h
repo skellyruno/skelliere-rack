@@ -222,6 +222,26 @@ inline const juce::Image& knobBody(Colour cap) {
         g.reduceClipRegion(clip);
         g.setOpacity(1.f);
         g.drawImage(skullCap,juce::Rectangle<float>(c-sr,c-sr,2*sr,2*sr));
+        // At the real editor's small cap sizes the source mark becomes faint.
+        // Reinforce the skull with an engraved silhouette, cached with the metal.
+        const float q=sr*.36f;
+        const auto transform=juce::AffineTransform::scale(q).translated(c,c);
+        juce::Path skull;
+        skull.startNewSubPath(-.68f,-.05f);
+        skull.cubicTo(-.92f,-.95f,.92f,-.95f,.68f,-.05f);
+        skull.quadraticTo(.64f,.30f,.38f,.36f);
+        skull.lineTo(.34f,.70f);skull.lineTo(-.34f,.70f);
+        skull.lineTo(-.38f,.36f);skull.quadraticTo(-.64f,.30f,-.68f,-.05f);
+        skull.closeSubPath();
+        skull.setUsingNonZeroWinding(false);
+        skull.addEllipse(-.43f,-.17f,.34f,.29f);
+        skull.addEllipse(.09f,-.17f,.34f,.29f);
+        skull.addTriangle(0.f,.14f,-.11f,.37f,.11f,.37f);
+        for(int tooth=-1;tooth<=1;++tooth)skull.addRectangle(float(tooth)*.16f-.035f,.49f,.07f,.18f);
+        g.setColour(Colour(0xfff1e6d3).withAlpha(.60f));
+        g.fillPath(skull,transform.translated(.8f,1.3f));
+        g.setColour(Colour(0xff24221f).withAlpha(.90f));g.fillPath(skull,transform);
+
     }
     return cache.emplace(key,image).first->second;
 }

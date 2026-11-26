@@ -519,8 +519,9 @@ void LibraryPanel::resized() {
     const int w=getWidth();search.setBounds(15,42,w-30,32);
     const int bw=(w-30-12)/5;
     for(int k=0;k<5;++k)cats[k].setBounds(15+k*(bw+3),83,bw,27);
-    tileViewport.setBounds(13,121,w-26,juce::jmax(60,getHeight()-169));
-    infoLabel.setBounds(15,getHeight()-45,w-30,33);
+    const int listHeight=juce::jmax(49,((getHeight()-169)/49)*49);
+    tileViewport.setBounds(13,121,w-26,listHeight);
+    infoLabel.setBounds(15,121+listHeight+10,w-30,getHeight()-121-listHeight-22);
     refresh();
 }
 
@@ -534,7 +535,7 @@ void LibraryPanel::paint(Graphics& g) {
     g.setColour(juce::Colours::white.withAlpha(.11f));g.drawRoundedRectangle(r.reduced(3.5f),5,.7f);
     g.setColour(pal::ink);g.setFont(font(14,true).withExtraKerningFactor(.12f));
     g.drawText("MODULE LIBRARY",r.withHeight(39),juce::Justification::centred,false);
-    auto list=r.reduced(11).withY(119).withHeight(getHeight()-167);
+    auto list=r.reduced(11).withY(119).withHeight(float(tileViewport.getHeight()+4));
     g.setColour(Colour(0xff100e0c));g.fillRoundedRectangle(list,5);
     g.setColour(Colour(0xff51483d));g.drawRoundedRectangle(list,5,.7f);
     for(int k=0;k<4;++k)paintScrew(g,k%2?r.getRight()-9:r.getX()+9,k<2?r.getY()+9:r.getBottom()-9,4.3f,k*.5f);
@@ -776,8 +777,8 @@ bool RackUI::slotIsFullyVisible(int slot) const{
 void RackUI::refreshRackNavigation(){
     const auto area=viewport.getViewArea();
     int first=0,last=kNumSlots-1;
-    for(int i=0;i<kNumSlots;++i)if(strip.slots[static_cast<size_t>(i)]->getRight()>area.getX()){first=i;break;}
-    for(int i=kNumSlots-1;i>=0;--i)if(strip.slots[static_cast<size_t>(i)]->getX()<area.getRight()){last=i;break;}
+    for(int i=0;i<kNumSlots;++i)if(strip.slots[static_cast<size_t>(i)]->getX()>=area.getX()){first=i;break;}
+    for(int i=kNumSlots-1;i>=0;--i)if(strip.slots[static_cast<size_t>(i)]->getRight()<=area.getRight()){last=i;break;}
     pathStrip.setVisibleRange(first,last);
 }
 void RackUI::pageRack(int direction){
@@ -785,8 +786,8 @@ void RackUI::pageRack(int direction){
     int first=0,last=0;
     for(int i=0;i<kNumSlots;++i){
         const auto bounds=strip.slots[static_cast<size_t>(i)]->getBounds();
-        if(bounds.getRight()<=area.getX())first=i+1;
-        if(bounds.getX()<area.getRight())last=i;
+        if(bounds.getX()<area.getX())first=i+1;
+        if(bounds.getRight()<=area.getRight())last=i;
     }
     revealSlot(juce::jlimit(0,kNumSlots-1,direction<0?first-1:last+1));
 }
@@ -801,12 +802,12 @@ void RackUI::setLibraryVisible(bool visible) {
 }
 
 bool RackUI::libraryLayoutIsValid() const {
-    const int left=libraryVisible?270:20;
+    const int left=libraryVisible?270:25;
     const int visibleSlots=libraryVisible?4:5;
     const int required=2*RackStrip::kPad+visibleSlots*236+(visibleSlots-1)*RackStrip::kGap;
     return library.isVisible()==libraryVisible && libraryToggle.isVisible()
         && libraryToggle.getButtonText()==(libraryVisible?"HIDE LIBRARY":"SHOW LIBRARY")
-        && viewport.getBounds()==Rectangle<int>(left,106,1234-left,602)
+        && viewport.getBounds()==Rectangle<int>(left,106,libraryVisible?964:1204,602)
         && viewport.getWidth()>=required
         && libraryToggle.getRight()<=scaleBtn[0].getX()
         && !libraryToggle.getBounds().intersects(editToggle.getBounds())
@@ -828,8 +829,8 @@ void RackUI::resized() {
     stripName.setBounds(892,9,192,30);saveStripBtn.setBounds(1090,9,132,30);
     libraryToggle.setBounds(897,66,100,27);
     library.setBounds(12,106,246,602);
-    const int rackLeft=libraryVisible?270:20;
-    viewport.setBounds(rackLeft,106,1234-rackLeft,602);
+    const int rackLeft=libraryVisible?270:25;
+    viewport.setBounds(rackLeft,106,libraryVisible?964:1204,602);
     pathStrip.setBounds(25,718,1210,60);
     refreshRackNavigation();
 }
