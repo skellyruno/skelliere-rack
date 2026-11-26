@@ -215,7 +215,7 @@ void SlotComponent::rebuild() {
             cells.push_back(std::move(cell));
         }
     }
-    needle = 0.0f; shownNeedle = -1.0f; lastMeterTime=0;outputDb=-60.f;
+    needle = 0.0f; shownNeedle = -1.0f; lastMeterTime=0;outputDb=-60.f;artworkMotion={};
     syncArtwork();
     syncSolo();
     resized();
@@ -344,14 +344,16 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
 
 
 
-void SlotComponent::advanceTapeMotion(float seconds,bool visible,bool enabled){
-    if(type!=Delay||nativeChoice!=1||!visible||!enabled||!referenceTapeArtwork().isValid())return;
-    if(!std::isfinite(seconds)||seconds<=0.f)return;
-    const float dt=juce::jlimit(0.f,.1f,seconds);
-    // Decorative transport speed, not a physical delay-time measurement.
-    tapeLeft=std::fmod(tapeLeft+dt*1.60f,juce::MathConstants<float>::twoPi);
-    tapeRight=std::fmod(tapeRight+dt*2.15f,juce::MathConstants<float>::twoPi);
-    repaint(originalLayout(type,getWidth(),editing).detail.expanded(1));
+juce::Rectangle<int> SlotComponent::artworkMotionBounds() const {
+    if(type==DeEss&&!editing)return {16,434,38,62};
+    if(type==SkellDeEsserFX)return {24,32,24,29};
+    if(type==Empty)return {};
+    return originalLayout(type,getWidth(),editing).detail;
+}
+void SlotComponent::advanceArtworkMotion(float seconds,bool visible,bool enabled,float signal){
+    const auto bounds=artworkMotionBounds();
+    if(bounds.isEmpty()||!artworkMotion.advance(seconds,visible,enabled,signal))return;
+    repaint(bounds.expanded(1));
 }
 void SlotComponent::paintNativeFace(Graphics& g) {
     const auto p=originalSpec(type,nativeChoice);const auto& mi=info(type);
@@ -387,7 +389,6 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         }
         // Sibilance: a small etched bone figure sits outside the centred lower control.
         if((type==DeEss||type==SkellDeEsserFX)&&!editing&&mi.numKnobs==3){
-            paintEngravedFigure(pg,{20.f,438.f,30.f,53.f},ink.withAlpha(.52f),BonePose::stand);
             // A tactile etched grille, deliberately static, aligned with the original figure.
             for(int row=0;row<6;++row)for(int col=0;col<4;++col){const float xx=float(w)-45.f+col*5.f,yy=449.f+row*5.f;pg.setColour(juce::Colours::black.withAlpha(.35f));pg.fillEllipse(xx,yy+.65f,2.f,2.f);pg.setColour(ink.withAlpha(.40f));pg.fillEllipse(xx,yy,1.5f,1.5f);}
         }
@@ -397,7 +398,20 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-49,w-28,8,juce::Justification::centred,false);}
     }
     g.setOpacity(1.f);g.drawImage(panelCache,getLocalBounds().toFloat());
-    if(type==Delay&&nativeChoice==1)paintReferenceTapeMotion(g,originalLayout(type,w,editing).detail.toFloat(),tapeLeft,tapeRight);
+    const auto detail=originalLayout(type,w,editing).detail;
+    if(!detail.isEmpty()&&g.clipRegionIntersects(detail)){
+        // Repaint only the optical scene; the heavy chassis/faceplate stays cached.
+        juce::Graphics::ScopedSaveState scene(g);g.reduceClipRegion(detail);
+        const auto r=detail.toFloat();const auto& m=artworkMotion;
+        if(isAirPanel(type))paintAirDetail(g,r,type,m.phase,m.level,false);
+        else if(type==Reverb||type==Chorus)paintSpaceDetail(g,r,type,m.phase,m.level,false);
+        else if(type==Delay||type==Slap)paintTapeDetail(g,r,type==Delay&&nativeChoice==1,m.left,m.right,m.phase);
+        else paintWorkshopDetail(g,r,type,m.phase,m.level,false);
+    }
+    if(type==DeEss&&!editing)
+        paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
+    if(type==SkellDeEsserFX)
+        paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
     if(type==Flanger&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);
 
@@ -812,9 +826,9 @@ void RackUI::handleAsyncUpdate() {
 }
 
 void RackUI::timerCallback() {
-    const double tapeNow=juce::Time::getMillisecondCounterHiRes();
-    const float tapeDt=lastTapeTick>0.0?float((tapeNow-lastTapeTick)*.001):0.f;
-    lastTapeTick=tapeNow;
+    const double artworkNow=juce::Time::getMillisecondCounterHiRes();
+    const float artworkDt=lastArtworkTick>0.0?float((artworkNow-lastArtworkTick)*.001):0.f;
+    lastArtworkTick=artworkNow;
     const int solo=proc.soloSlot.load();
     if(solo!=shownSolo){shownSolo=solo;pathStrip.repaint();}
     const bool bypass=proc.apvts.getRawParameterValue("bypass")->load()>.5f;
@@ -831,7 +845,9 @@ void RackUI::timerCallback() {
         strip.slots[(size_t) s]->syncSolo();
         strip.slots[(size_t) s]->syncArtwork();
         auto& slot=*strip.slots[(size_t)s];
-        slot.advanceTapeMotion(tapeDt,isShowing()&&slot.isShowing()&&viewport.getViewArea().intersects(slot.getBounds()),!bypass&&proc.slotOn(s)&&(solo<0||solo==s));
+        // Ambient light follows the existing rack input peak, not a fabricated per-effect measurement.
+        const float light=juce::jlimit(0.f,1.f,(inShown+48.f)/48.f);
+        slot.advanceArtworkMotion(artworkDt,isShowing()&&slot.isShowing()&&viewport.getViewArea().intersects(slot.getBounds()),!bypass&&proc.slotOn(s)&&(solo<0||solo==s),light);
     }
     undoBtn.setEnabled(proc.canUndo());
     redoBtn.setEnabled(proc.canRedo());

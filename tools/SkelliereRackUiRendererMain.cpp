@@ -125,12 +125,12 @@ int main(int argc, char** argv) {
     visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c))if(slot->currentType()==skl::Delay)tape=slot;});
     if(!tape)return 1;
     const auto detail=skl::ui::originalLayout(skl::Delay,tape->getWidth(),false).detail;
-    output.createDirectory();
-    auto snap=[&](int frame){auto im=tape->createComponentSnapshot(detail,true,2.f);auto file=output.getChildFile("tape-motion-"+juce::String(frame)+".png");file.deleteFile();juce::FileOutputStream stream(file);juce::PNGImageFormat png;if(!stream.openedOk()||!png.writeImageToStream(im,stream))return juce::Image{};return im;};
+    const auto motionOutput=output.getChildFile("motion");motionOutput.createDirectory();
+    auto snap=[&](int frame){auto im=tape->createComponentSnapshot(detail,true,2.f);auto file=motionOutput.getChildFile("tape-motion-"+juce::String(frame)+".png");file.deleteFile();juce::FileOutputStream stream(file);juce::PNGImageFormat png;if(!stream.openedOk()||!png.writeImageToStream(im,stream))return juce::Image{};return im;};
     auto first=snap(0);if(!first.isValid())return 1;
-    for(int i=1;i<=24;++i){tape->advanceTapeMotion(.05f,true,true);if(!snap(i).isValid())return 1;}
-    auto before=snap(25);tape->advanceTapeMotion(.1f,true,false);auto paused=snap(26);
-    tape->advanceTapeMotion(.1f,false,true);auto hidden=snap(27);
+    for(int i=1;i<=24;++i){tape->advanceArtworkMotion(.05f,true,true);if(!snap(i).isValid())return 1;}
+    auto before=snap(25);tape->advanceArtworkMotion(.1f,true,false);auto paused=snap(26);
+    tape->advanceArtworkMotion(.1f,false,true);auto hidden=snap(27);
     int changed=0,unstable=0;
     for(int y=0;y<before.getHeight();++y)for(int x=0;x<before.getWidth();++x){
         const auto b=before.getPixelAt(x,y);if(b!=first.getPixelAt(x,y))++changed;
@@ -138,6 +138,26 @@ int main(int argc, char** argv) {
     }
     if(changed<1000||unstable!=0||first.getPixelAt(3,3)!=before.getPixelAt(3,3)){std::fprintf(stderr,"Tape motion regression: %d changed, %d unstable\n",changed,unstable);return 1;}
     std::printf("Tape motion: %d changed pixels, pause and offscreen freeze passed\n",changed);
+    // Real native frames from every animated module; exact pause equality.
+    const int animated[]={skl::Air,skl::SkellAirFX,skl::Chorus,skl::Reverb,skl::Sat,skl::SoftClip,skl::Eq,skl::Tremolo,skl::Phaser,skl::Stereo,skl::Transient,skl::Slap,skl::DeEss,skl::SkellDeEsserFX};
+    for(int type:animated){
+        processor.clearRack();processor.addModule(type,0);
+        skl::ui::SlotComponent* target=nullptr;
+        visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->rebuild();slot->setArtworkChoice(1);if(slot->currentType()==type)target=slot;}});
+        if(!target)return 1;
+        const auto area=target->artworkMotionBounds();if(area.isEmpty())return 1;
+        auto capture=[&](int i){auto im=target->createComponentSnapshot(area,true,2.f);auto f=motionOutput.getChildFile("module-"+juce::String(type)+"-"+juce::String(i)+".png");f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;if(!im.isValid()||!stream.openedOk()||!png.writeImageToStream(im,stream))return juce::Image{};return im;};
+        auto a=capture(0);if(!a.isValid())return 1;
+        const int frames=args.full?47:12;
+        for(int i=1;i<=frames;++i){target->advanceArtworkMotion(.1f,true,true,.75f);if((args.full||i==frames)&&!capture(i).isValid())return 1;}
+        auto b=target->createComponentSnapshot(area,true,2.f);
+        target->advanceArtworkMotion(.1f,false,true,0.f);target->advanceArtworkMotion(.1f,true,false,0.f);
+        auto c=target->createComponentSnapshot(area,true,2.f);
+        int delta=0,unstable=0;
+        for(int y=0;y<a.getHeight();++y)for(int x=0;x<a.getWidth();++x){delta+=a.getPixelAt(x,y)!=b.getPixelAt(x,y);unstable+=b.getPixelAt(x,y)!=c.getPixelAt(x,y);}
+        if(delta<20||unstable){std::fprintf(stderr,"Artwork motion %d failed: %d changed, %d unstable\n",type,delta,unstable);return 1;}
+        std::printf("Artwork motion %d: %d changed, pause passed\n",type,delta);
+    }
     const auto result = skellcore::ui::headless::render(editor, output, options);
     for (const auto& error : result.errors) std::fprintf(stderr, "%s\n", error.toRawUTF8());
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);

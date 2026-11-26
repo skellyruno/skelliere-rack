@@ -4,6 +4,7 @@
 #include "Look.h"
 #include "OriginalPanel.h"
 #include "RackGeometry.h"
+#include "ArtworkMotion.h"
 
 namespace skl::ui {
 
@@ -64,7 +65,8 @@ public:
     void setOutputPeak(float peak);
     void syncSolo();
     void syncPowerVisual();
-    void advanceTapeMotion(float seconds,bool visible,bool enabled);
+    void advanceArtworkMotion(float seconds,bool visible,bool enabled,float signal=0.f);
+    juce::Rectangle<int> artworkMotionBounds() const;
     // Shared by the live selector, session restore and real editor harness.
     void setArtworkChoice(int choice);
     void syncArtwork();
@@ -93,7 +95,7 @@ private:
     float needle = 0.0f, shownNeedle = -1.0f;
     double lastMeterTime=0;
     float outputDb=-60.f;
-    float tapeLeft=0.f,tapeRight=0.f;
+    ArtworkMotion artworkMotion;
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;
@@ -209,7 +211,7 @@ private:
     void parameterChanged(const juce::String&, float) override { triggerAsyncUpdate(); }
     void handleAsyncUpdate() override;
     void timerCallback() override;
-    double lastTapeTick=0.0;
+    double lastArtworkTick=0.0;
     void say(const juce::String&);
     void rebuildStripButtons();
     SkellierProcessor& proc;

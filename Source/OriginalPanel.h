@@ -91,17 +91,20 @@ inline const juce::Image& airAtmosphere(){
         return im;
     }();return image;
 }
-inline void paintAirDetail(Graphics& g,juce::Rectangle<float> r,int type){
-    paintHardwarePlate(g,r,Colour(0xff394956),true,8.f,3.f);
+inline void paintAirDetail(Graphics& g,juce::Rectangle<float> r,int type,float phase=0.f,float level=0.f,bool frame=true){
+    if(frame)paintHardwarePlate(g,r,Colour(0xff394956),true,8.f,3.f);
     const auto glass=r.reduced(5.f);
     {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(glass.getX(),glass.getY(),glass.getWidth(),glass.getHeight(),5.f);g.reduceClipRegion(clip);
-    g.setOpacity(1.f);g.drawImage(airAtmosphere(),glass);
+    g.setOpacity(1.f);g.drawImage(airAtmosphere(),glass.expanded(13.f,6.f).translated(10.f*std::sin(phase),4.f*std::sin(phase*2.f)));
+    // Luminous haze moves independently of the cached sky. Glass remains fixed.
+    const float hx=glass.getX()+glass.getWidth()*(.32f+.09f*std::sin(phase));
+    g.setGradientFill(juce::ColourGradient(Colour(0xfff3e6cb).withAlpha(.08f+.19f*level),hx,glass.getY()+26.f,juce::Colours::transparentWhite,hx+glass.getWidth()*.44f,glass.getCentreY(),true));g.fillRect(glass);
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,glass.getCentreY(),Colour(0xff10202e).withAlpha(.88f),glass.getBottom()));g.fillRect(glass);
     // Original drifting skeleton silhouette within the cloud artwork.
-    paintEngravedFigure(g,{glass.getX()+glass.getWidth()*.64f,glass.getY()+9,glass.getWidth()*.19f,glass.getHeight()*.59f},Colour(0xffeae5d1).withAlpha(.76f),BonePose::floatUp);
+    paintEngravedFigure(g,{glass.getX()+glass.getWidth()*.64f,glass.getY()+9,glass.getWidth()*.19f,glass.getHeight()*.59f},Colour(0xffeae5d1).withAlpha(.76f),BonePose::floatUp,phase);
     // A small atmospheric halo links the engraved figure to the sky rather than the bezel.
     g.setGradientFill(juce::ColourGradient(Colour(0xffdce6e7).withAlpha(.13f),glass.getX()+glass.getWidth()*.74f,glass.getY()+glass.getHeight()*.38f,juce::Colours::transparentWhite,glass.getX()+glass.getWidth()*.90f,glass.getY()+glass.getHeight()*.70f,true));g.fillRect(glass);
-    for(int i=0;i<7;++i){const float xx=glass.getX()+14.f+i*glass.getWidth()*.11f,yy=glass.getY()+12.f+float((i*17)%29);g.setColour(Colour(0xfff4e8cd).withAlpha(.26f));g.drawLine(xx-2,yy,xx+2,yy,.65f);g.drawLine(xx,yy-2,xx,yy+2,.65f);}
+    for(int i=0;i<7;++i){const float xx=glass.getX()+14.f+i*glass.getWidth()*.11f,yy=glass.getY()+12.f+float((i*17)%29)+3.f*std::sin(phase+i);g.setColour(Colour(0xfff4e8cd).withAlpha(.19f+.10f*std::sin(phase*2.f+i)+.09f*level));g.drawLine(xx-2,yy,xx+2,yy,.65f);g.drawLine(xx,yy-2,xx,yy+2,.65f);}
     // Fine rising curves are symbolic: the actual processing controls remain below.
     juce::Path lift;lift.startNewSubPath(glass.getX()+15,glass.getBottom()-24);lift.cubicTo(glass.getX()+glass.getWidth()*.38f,glass.getBottom()-25,glass.getX()+glass.getWidth()*.55f,glass.getY()+31,glass.getX()+glass.getWidth()*.60f,glass.getY()+29);
     g.setColour(Colour(0xfff4e6c7).withAlpha(.10f));g.strokePath(lift,juce::PathStrokeType(5.f));g.setColour(Colour(0xfff4e6c7).withAlpha(.34f));g.strokePath(lift,juce::PathStrokeType(.65f));
@@ -112,8 +115,8 @@ inline void paintAirDetail(Graphics& g,juce::Rectangle<float> r,int type){
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff7c8b8e),glass.getY(),Colour(0xffd8e5e6),glass.getBottom()));g.drawRoundedRectangle(glass.reduced(1.f),4.f,.7f);
 }
 // Decorative optical windows for space processors. All control values remain real.
-inline void paintSpaceDetail(Graphics& g,juce::Rectangle<float> r,int type){
-    paintHardwarePlate(g,r,Colour(0xff363a40),true,8.f,3.f);
+inline void paintSpaceDetail(Graphics& g,juce::Rectangle<float> r,int type,float phase=0.f,float level=0.f,bool frame=true){
+    if(frame)paintHardwarePlate(g,r,Colour(0xff363a40),true,8.f,3.f);
     auto glass=r.reduced(6.f);
     {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(glass.getX(),glass.getY(),glass.getWidth(),glass.getHeight(),4.f);g.reduceClipRegion(clip);
     const float x=glass.getX(),y=glass.getY(),w=glass.getWidth(),h=glass.getHeight();
@@ -124,17 +127,17 @@ inline void paintSpaceDetail(Graphics& g,juce::Rectangle<float> r,int type){
         // Receding room geometry and reflections: conceptual depth, no fake meter.
         juce::Path floor;floor.startNewSubPath(x,y+h);floor.lineTo(x+w*.43f,y+h*.51f);floor.lineTo(x+w*.57f,y+h*.51f);floor.lineTo(x+w,y+h);floor.closeSubPath();
         g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff69523d),y+h*.51f,Colour(0xff171319),y+h));g.fillPath(floor);
-        for(int k=0;k<2;++k){const float xx=x+w*(k?.81f:.19f);g.setGradientFill(juce::ColourGradient(Colour(0xffe1ab6b).withAlpha(.35f),xx,y+h*.36f,juce::Colours::transparentBlack,xx+24.f,y+h*.68f,true));g.fillEllipse(xx-32,y+h*.08f,64,h*.66f);g.setColour(Colour(0xffe3b57e).withAlpha(.8f));g.fillRoundedRectangle(xx-1.4f,y+h*.31f,2.8f,5.f,1.f);}
+        for(int k=0;k<2;++k){const float xx=x+w*(k?.81f:.19f);g.setGradientFill(juce::ColourGradient(Colour(0xffe1ab6b).withAlpha(.25f+.15f*level+.06f*std::sin(phase+k)),xx,y+h*.36f,juce::Colours::transparentBlack,xx+24.f,y+h*.68f,true));g.fillEllipse(xx-32,y+h*.08f,64,h*.66f);g.setColour(Colour(0xffe3b57e).withAlpha(.8f));g.fillRoundedRectangle(xx-1.4f,y+h*.31f,2.8f,5.f,1.f);}
         for(int i=0;i<4;++i){float t=(i+1.f)/5.f;float yy=y+h*(.53f+.47f*t*t);g.setColour(Colour(0xffc8a88a).withAlpha(.16f));g.drawLine(x+w*.43f*(1-t),yy,x+w*(.57f+.43f*t),yy,.7f);}
-        g.setGradientFill(juce::ColourGradient(Colour(0xffe0b075).withAlpha(.32f),x+w*.5f,y+h*.36f,juce::Colours::transparentBlack,x+w*.65f,y+h*.68f,true));g.fillEllipse(x+w*.32f,y+h*.08f,w*.36f,h*.68f);
+        g.setGradientFill(juce::ColourGradient(Colour(0xffe0b075).withAlpha(.27f+.22f*level+.04f*std::sin(phase)),x+w*.5f,y+h*.36f,juce::Colours::transparentBlack,x+w*.65f,y+h*.68f,true));g.fillEllipse(x+w*.32f,y+h*.08f,w*.36f,h*.68f);
         // Soft lamp behind the figure separates the silhouette from the chamber linework.
         const float cx=x+w*.5f,cy=y+h*.42f;
         g.setGradientFill(juce::ColourGradient(Colour(0xff392b2c).withAlpha(.52f),cx,cy,juce::Colours::transparentBlack,cx+29.f,cy+18.f,true));g.fillEllipse(cx-36,cy-32,72,64);
-        paintEngravedFigure(g,{x+w*.42f,y+h*.17f,w*.16f,h*.51f},Colour(0xffe7c5a1).withAlpha(.91f),BonePose::stand);
+        paintEngravedFigure(g,{x+w*.42f,y+h*.17f,w*.16f,h*.51f},Colour(0xffe7c5a1).withAlpha(.91f),BonePose::stand,phase);
     }else{
-        for(int band=0;band<3;++band){juce::Path wave;for(int k=0;k<=100;++k){float t=float(k)/100.f;float yy=y+h*.44f+std::sin(t*juce::MathConstants<float>::twoPi*1.4f+band*.65f)*h*.20f;float xx=x+w*.34f+w*.32f*t;if(k==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);}g.setColour(Colour(0xff6cc8cf).withAlpha(.08f));g.strokePath(wave,juce::PathStrokeType(7.f));g.setColour(Colour(0xffa2d9d7).withAlpha(.28f));g.strokePath(wave,juce::PathStrokeType(2.6f));g.setColour(Colour(0xffe2e9d6).withAlpha(.8f-.18f*band));g.strokePath(wave,juce::PathStrokeType(.9f));}
-        paintEngravedFigure(g,{x+w*.12f,y+8,w*.20f,h*.60f},Colour(0xffcfe8dc).withAlpha(.88f),BonePose::mirror);
-        paintEngravedFigure(g,{x+w*.68f,y+8,w*.20f,h*.60f},Colour(0xffb6d0ce).withAlpha(.81f),BonePose::reverse);
+        for(int band=0;band<3;++band){juce::Path wave;for(int k=0;k<=100;++k){float t=float(k)/100.f;float yy=y+h*.44f+std::sin(t*juce::MathConstants<float>::twoPi*1.4f+band*.65f-phase)*h*.20f;float xx=x+w*.34f+w*.32f*t;if(k==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);}g.setColour(Colour(0xff6cc8cf).withAlpha(.08f+.14f*level));g.strokePath(wave,juce::PathStrokeType(7.f));g.setColour(Colour(0xffa2d9d7).withAlpha(.28f));g.strokePath(wave,juce::PathStrokeType(2.6f));g.setColour(Colour(0xffe2e9d6).withAlpha(.8f-.18f*band));g.strokePath(wave,juce::PathStrokeType(.9f));}
+        paintEngravedFigure(g,{x+w*.12f,y+8,w*.20f,h*.60f},Colour(0xffcfe8dc).withAlpha(.88f),BonePose::mirror,phase);
+        paintEngravedFigure(g,{x+w*.68f,y+8,w*.20f,h*.60f},Colour(0xffb6d0ce).withAlpha(.81f),BonePose::reverse,-phase);
     }
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,y+h*.54f,Colour(0xff080b12).withAlpha(.83f),y+h));g.fillRect(glass);
     g.setColour(Colour(0xffe9dfcb));g.setFont(font(10.f,true).withExtraKerningFactor(.16f));g.drawText(type==Reverb?"REFLECTION CHAMBER":"TWIN MODULATION",glass.withY(y+h-18.f).withHeight(14),juce::Justification::centred,false);}
@@ -157,6 +160,31 @@ inline const juce::Image& reelMetal(){
     }();return image;
 }
 // Photographed reel faces rotate; housing, rim and spindle stay fixed.
+// A bounded, lazy 120-angle cache preserves the original photo's metal texture.
+// Directional shading was fitted from the bright flange pixels of the supplied
+// 250x142 reference. Remove the rotating low-frequency component and restore
+// the same light in screen space; dark cutouts are not relit like metal.
+inline const juce::Image& referenceReelFrame(int reel,float angle){
+    constexpr int count=120,n=104;constexpr float c=52.f,cy=68.4f;
+    static std::array<std::array<juce::Image,count>,2> frames;
+    const int k=juce::jlimit(0,count-1,int(angle*count/juce::MathConstants<float>::twoPi+.5f)%count);
+    auto& im=frames[(size_t)reel][(size_t)k];if(im.isValid())return im;
+    const float cx=reel?188.8f:62.8f,a=float(k)*juce::MathConstants<float>::twoPi/count;
+    im=juce::Image(juce::Image::RGB,n,n,true,juce::SoftwareImageType());
+    {juce::Graphics rg(im);rg.setOpacity(1.f);rg.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+     rg.drawImageTransformed(referenceTapeArtwork(),juce::AffineTransform::rotation(a,cx,cy).translated(c-cx,c-cy));}
+    const float ca=std::cos(a),sa=std::sin(a),base=reel?.547f:.567f,sx=reel?-.122f:.088f,sy=reel?.071f:.064f;
+    {juce::Image::BitmapData px(im,juce::Image::BitmapData::readWrite);
+    for(int y=0;y<n;++y)for(int x=0;x<n;++x){
+        const float u=(x+.5f-c)/51.f,v=(y+.5f-c)/51.f;
+        if(u*u+v*v>1.f)continue;
+        const auto col=px.getPixelColour(x,y);
+        const float lum=.299f*col.getFloatRed()+.587f*col.getFloatGreen()+.114f*col.getFloatBlue();
+        const float src=base+sx*(u*ca+v*sa)+sy*(-u*sa+v*ca),dst=base+sx*u+sy*v;
+        const float f=1.f+metal::smooth(.30f,.50f,lum)*(juce::jlimit(.80f,1.25f,dst/std::max(.25f,src))-1.f);
+        px.setPixelColour(x,y,Colour::fromFloatRGBA(metal::sat(col.getFloatRed()*f),metal::sat(col.getFloatGreen()*f),metal::sat(col.getFloatBlue()*f),1.f));
+    }}return im;
+}
 inline void paintReferenceTapeMotion(Graphics& g,juce::Rectangle<float> r,float left,float right){
     const auto& art=referenceTapeArtwork();if(!art.isValid())return;
     juce::Graphics::ScopedSaveState window(g);
@@ -167,11 +195,11 @@ inline void paintReferenceTapeMotion(Graphics& g,juce::Rectangle<float> r,float 
         const float cx=centres[i];
         {juce::Graphics::ScopedSaveState face(g);juce::Path clip;clip.addEllipse(cx-faceRadius,cy-faceRadius,2*faceRadius,2*faceRadius);g.reduceClipRegion(clip);
         g.setOpacity(1.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-        g.drawImageTransformed(art,juce::AffineTransform::rotation(angles[i],cx,cy));}
+        g.drawImage(referenceReelFrame(i,angles[i]),juce::Rectangle<float>(cx-52.f,cy-52.f,104.f,104.f));}
         {juce::Graphics::ScopedSaveState hub(g);juce::Path clip;clip.addEllipse(cx-hubRadius,cy-hubRadius,2*hubRadius,2*hubRadius);g.reduceClipRegion(clip);g.setOpacity(1.f);g.drawImageAt(art,0,0);}
     }
 }
-inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReference=true) {
+inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReference=true,float left=0.f,float right=0.f,float phase=0.f) {
     // Only the decorative compartment is supplied artwork. Actual delay parameters
     // remain native, interactive controls. Other finishes retain the procedural renderer.
     const auto& art=referenceTapeArtwork();
@@ -179,8 +207,9 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
         g.setColour(juce::Colours::black.withAlpha(.65f));g.fillRoundedRectangle(r.expanded(.6f).translated(0,2.5f),7.f);
         juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),6.f);g.reduceClipRegion(clip);
         g.setOpacity(1.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.drawImage(art,r);
+        paintReferenceTapeMotion(g,r,left,right);
         // Retain the small original Skell mechanic on the transport plate.
-        paintEngravedFigure(g,{r.getX()+15.f,r.getBottom()-15.f,7.f,12.f},Colour(0xffd8c19e).withAlpha(.65f),BonePose::stand);
+        paintEngravedFigure(g,{r.getX()+15.f,r.getBottom()-15.f,7.f,12.f},Colour(0xffd8c19e).withAlpha(.65f),BonePose::stand,phase);
         return;
     }
     // Decorative tape-inspired mechanical illustration. It is not a signal meter and does not
@@ -265,7 +294,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
          reflect.addColour(.58,juce::Colours::transparentBlack);g.setGradientFill(reflect);g.fillPath(disc);}
         // Fine machining rings on the reel flange, behind the cutouts.
         for(int ring=0;ring<3;++ring){const float rr=fr*(.91f+ring*.022f);g.setColour(Colour(0xfff4dfb9).withAlpha(.10f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.5f);}
-        const float turn=k==0?-1.11f:.49f;                                                // reels deliberately out of phase
+        const float turn=k==0?-1.11f+left:.49f+right;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
             const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.53f;
             const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.53f;
@@ -304,7 +333,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
         g.setColour(Colour(0xffffe4bc).withAlpha(.65f));g.fillEllipse(cx-fr*.095f,cy-fr*.10f,fr*.07f,fr*.05f);
     }
     // Tiny original mechanic etched on the transport bed, not on the reel faces.
-    paintEngravedFigure(g,{bed.getX()+5,bed.getY()+1,12,bed.getHeight()-2},Colour(0xffddc093).withAlpha(.72f),BonePose::stand);
+    paintEngravedFigure(g,{bed.getX()+5,bed.getY()+1,12,bed.getHeight()-2},Colour(0xffddc093).withAlpha(.72f),BonePose::stand,phase);
     paintOpticalFinish(g,win);
     // Curved glass over the window.
     {   juce::Graphics::ScopedSaveState keep(g);
