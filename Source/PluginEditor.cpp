@@ -368,13 +368,18 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour((p.light?juce::Colours::white:juce::Colours::black).withAlpha(.24f));
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
-        if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat());}
+        if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat());}
         if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,type==Flanger,MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(mi.numKnobs==5&&!layout.meter.isEmpty()){
             const float y=float(layout.cells[4].getCentreY());
             pg.setColour(ink.withAlpha(.34f));pg.drawHorizontalLine(int(y),24.f,float(layout.cells[4].getX()-8));
             pg.drawHorizontalLine(int(y),float(layout.cells[4].getRight()+8),float(w-24));
+        }
+        // Sibilance: a small etched bone figure sits outside the centred lower control.
+        if((type==DeEss||type==SkellDeEsserFX)&&!editing&&mi.numKnobs==3){
+            paintEngravedFigure(pg,{20.f,438.f,30.f,53.f},ink.withAlpha(.52f),BonePose::stand);
+            for(int i=0;i<5;++i){const float xx=float(w)-45.f+i*4.f;pg.setColour(ink.withAlpha(.18f+.055f*i));pg.drawVerticalLine(int(xx),454.f-i*2.f,474.f+i*2.f);}
         }
         // Side-mounted value pills provide the separation; no extra grid lines.
         if(editing){pg.setColour(ink.withAlpha(.24f));pg.drawHorizontalLine(h-52,20,w-20);
@@ -651,7 +656,7 @@ void PathStrip::paint(Graphics& g) {
     auto key=[&](const juce::String& text,int width,bool lit,bool model,bool focused=false){
         auto r=Rectangle<float>(float(x),float(h)*.5f-16.f,float(width),32.f);
         g.setColour(juce::Colours::black.withAlpha(.76f));g.fillRoundedRectangle(r.translated(0,2),6);
-        paintRaisedKey(g,r,Colour(lit?0xff302d28:0xff24211e),focused,false);
+        paintRaisedKey(g,r,Colour(focused?0xff443728:lit?0xff302d28:0xff24211e),focused,false);
         if(focused){for(int halo=5;halo>=1;--halo){g.setColour(Colour(0xffeeb66e).withAlpha(.028f*float(6-halo)));g.drawRoundedRectangle(r.expanded(float(halo)),7.f,float(halo));}}
         g.setColour(focused?Colour(0xffffdfaa):lit?Colour(0xff96836a):Colour(0xff575043));g.drawRoundedRectangle(r.reduced(.7f),5,focused?1.55f:.7f);
         if(model&&lit&&!focused){g.setColour(Colour(0xffa58c66));g.fillEllipse(r.getX()+6,r.getCentreY()-1.3f,2.6f,2.6f);}
@@ -925,6 +930,8 @@ void RackUI::paintChassis(Graphics& g) {
     paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff151310),true,9.f,3.f);
     const auto header=Rectangle<float>(8,4,1244,95);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb5a38a).withAlpha(.065f),header.getY(),juce::Colours::transparentBlack,header.getBottom()));g.fillRoundedRectangle(header,5.f);
+    // Gentle upper-left reflection across the machined header; not a second border.
+    g.setGradientFill(juce::ColourGradient(Colour(0xffd6bf9f).withAlpha(.085f),header.getX()+120.f,header.getY(),juce::Colours::transparentWhite,header.getRight(),header.getBottom(),true));g.fillRoundedRectangle(header,5.f);
     g.setColour(Colour(0xff91816b).withAlpha(.44f));g.drawHorizontalLine(61,20,1240);
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawHorizontalLine(62,20,1240);g.setColour(Colour(0xff777064).withAlpha(.5f));
     g.drawHorizontalLine(100,12,1248);

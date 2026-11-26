@@ -185,9 +185,11 @@ inline void paintRaisedKey(Graphics& g,juce::Rectangle<float> r,Colour body,bool
     juce::ColourGradient rim(body.interpolatedWith(Colour(0xffd8c19f),.36f),r.getX(),r.getY(),Colour(0xff0a0907),r.getRight(),r.getBottom(),false);
     g.setGradientFill(rim);g.fillRoundedRectangle(r,5.f);
     const auto face=r.reduced(2.1f);
+    g.setColour(juce::Colours::black.withAlpha(.46f));g.drawRoundedRectangle(face.expanded(.65f),4.7f,.75f);
     const auto top=on?body.brighter(.13f):body.brighter(.09f);
     g.setGradientFill(juce::ColourGradient::vertical(pressed?body.darker(.18f):top,face.getY(),pressed?top:body.darker(.28f),face.getBottom()));
     g.fillRoundedRectangle(face,4.f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffffead0).withAlpha(on?.10f:.055f),face.getY(),juce::Colours::transparentWhite,face.getCentreY()));g.fillRoundedRectangle(face.withHeight(face.getHeight()*.48f),3.f);
     g.setColour(Colour(0xffffead0).withAlpha(on?.40f:.22f));g.drawHorizontalLine(int(face.getY())+1,face.getX()+4,face.getRight()-4);
     g.setColour(juce::Colours::black.withAlpha(.58f));g.drawHorizontalLine(int(face.getBottom())-1,face.getX()+4,face.getRight()-4);
 }

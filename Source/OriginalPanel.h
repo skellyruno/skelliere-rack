@@ -1,6 +1,7 @@
 #pragma once
 #include "Look.h"
 namespace skl::ui {
+#include "AtelierArt.h"
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
     static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xdfc6a7,0x62352e,0x5d4132,0xc4c0ad,0x27333e,0x2f3424,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x51282a,0x706449,0x496464,0x45484a};
@@ -8,6 +9,9 @@ inline PanelSpec originalSpec(int type,int finish) {
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
     if(finish==1&&(type==Air||type==SkellAirFX))metal=Colour(type==Air?0xff344e60:0xff284251);
+    if(finish==1&&type==Sat)metal=Colour(0xff594033);
+    if(finish==1&&type==Reverb)metal=Colour(0xff423b4a);
+    if(finish==1&&type==Chorus)metal=Colour(0xff29454a);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
@@ -27,12 +31,12 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
     if(mi.hasVU||type==Flanger)l.meter={15,106,width-30,120};
-    if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus)l.detail={16,106,width-32,120};
+    if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
     // Four-window controls leave a lower breathing area like real rack gear.
     // Five-control compressors need the bottom row for makeup gain.
     const int top=window?(n==5?(editing?248:253):242):108;
-    const int bottom=editing?520:(window&&n==4?515:window&&n==5?565:548),available=bottom-top;
+    const int bottom=editing?520:(window&&n==4?515:window&&n==5&&!l.meter.isEmpty()?565:548),available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
         for(int k=0;k<n;++k)l.cells[k]={12,top+k*row,width-24,row-4};
@@ -73,7 +77,7 @@ inline const juce::Image& airAtmosphere(){
             const float beam=std::pow(std::max(0.f,std::cos(19.f*(u-.31f)-7.f*v)),16.f)*glow*.065f;
             auto sky=Colour(0xff142c43).interpolatedWith(Colour(0xff6595ad),metal::sat(.42f*glow+.18f*(1-v)));
             auto lit=Colour(0xff9cb8c6).interpolatedWith(Colour(0xfff4e9d2),glow*.80f);
-            auto colour=sky.interpolatedWith(lit,metal::sat(cloud*.88f+beam));
+            auto colour=sky.interpolatedWith(lit,metal::sat(cloud*.95f+beam));
             pixels.setPixelColour(x,y,colour);}}
         return im;
     }();return image;
@@ -84,13 +88,16 @@ inline void paintAirDetail(Graphics& g,juce::Rectangle<float> r,int type){
     {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(glass.getX(),glass.getY(),glass.getWidth(),glass.getHeight(),5.f);g.reduceClipRegion(clip);
     g.setOpacity(1.f);g.drawImage(airAtmosphere(),glass);
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,glass.getCentreY(),Colour(0xff10202e).withAlpha(.88f),glass.getBottom()));g.fillRect(glass);
+    // Original drifting skeleton silhouette within the cloud artwork.
+    paintEngravedFigure(g,{glass.getX()+glass.getWidth()*.64f,glass.getY()+9,glass.getWidth()*.19f,glass.getHeight()*.59f},Colour(0xffeae5d1).withAlpha(.80f),BonePose::floatUp);
+    for(int i=0;i<7;++i){const float xx=glass.getX()+14.f+i*glass.getWidth()*.11f,yy=glass.getY()+12.f+float((i*17)%29);g.setColour(Colour(0xfff4e8cd).withAlpha(.26f));g.drawLine(xx-2,yy,xx+2,yy,.65f);g.drawLine(xx,yy-2,xx,yy+2,.65f);}
     // Fine rising curves are symbolic: the actual processing controls remain below.
     juce::Path lift;lift.startNewSubPath(glass.getX()+15,glass.getBottom()-24);lift.cubicTo(glass.getX()+glass.getWidth()*.38f,glass.getBottom()-25,glass.getX()+glass.getWidth()*.55f,glass.getY()+31,glass.getRight()-15,glass.getY()+29);
     g.setColour(Colour(0xfff4e6c7).withAlpha(.24f));g.strokePath(lift,juce::PathStrokeType(3.1f));g.setColour(Colour(0xfff4e6c7).withAlpha(.85f));g.strokePath(lift,juce::PathStrokeType(.85f));
     if(type==SkellAirFX){g.setColour(Colour(0xffc2e9ee).withAlpha(.58f));g.strokePath(lift,juce::PathStrokeType(.8f),juce::AffineTransform::translation(0,-8.f));}
     g.setColour(Colour(0xfff4e8d0));g.setFont(font(10.f,true).withExtraKerningFactor(.17f));g.drawText(type==Air?"HIGH SHELF":"PRESENCE / BRILLIANCE",glass.withY(glass.getBottom()-19).withHeight(14),juce::Justification::centred,false);
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::black.withAlpha(.44f),glass.getY(),juce::Colours::transparentBlack,glass.getY()+12));g.fillRect(glass.withHeight(12));}
-    g.setColour(Colour(0xff0b141b));g.drawRoundedRectangle(glass,5.f,1.2f);
+    paintOpticalFinish(g,glass);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff7c8b8e),glass.getY(),Colour(0xffd8e5e6),glass.getBottom()));g.drawRoundedRectangle(glass.reduced(1.f),4.f,.7f);
 }
 // Decorative optical windows for space processors. All control values remain real.
@@ -101,16 +108,21 @@ inline void paintSpaceDetail(Graphics& g,juce::Rectangle<float> r,int type){
     const float x=glass.getX(),y=glass.getY(),w=glass.getWidth(),h=glass.getHeight();
     g.setGradientFill(juce::ColourGradient(Colour(type==Reverb?0xff53404e:0xff264c5f),x+w*.24f,y+h*.20f,Colour(0xff10151d),x+w*.82f,y+h*.85f,true));g.fillRect(glass);
     if(type==Reverb){
+        // Recessed arched chamber with converging floor and illuminated distant figure.
+        for(int i=0;i<5;++i){float t=i/5.f;auto a=glass.reduced(9.f+w*.31f*t,5.f+h*.28f*t);juce::Path arch;arch.startNewSubPath(a.getX(),a.getBottom());arch.lineTo(a.getX(),a.getY()+a.getHeight()*.30f);arch.quadraticTo(a.getCentreX(),a.getY()-a.getHeight()*.22f,a.getRight(),a.getY()+a.getHeight()*.30f);arch.lineTo(a.getRight(),a.getBottom());g.setColour(Colour(0xffd7af83).withAlpha(.38f-t*.20f));g.strokePath(arch,juce::PathStrokeType(1.6f-t));}
+        paintEngravedFigure(g,{x+w*.42f,y+h*.17f,w*.16f,h*.51f},Colour(0xffe7c5a1).withAlpha(.81f),BonePose::stand);
         // Receding room geometry and reflections: conceptual depth, no fake meter.
         for(int k=0;k<6;++k){float t=float(k)/6.f;auto room=glass.reduced(5.f+w*.30f*t,4.f+h*.30f*t);g.setColour(Colour(0xffccb79d).withAlpha(.32f-.036f*k));g.drawRoundedRectangle(room,2.f,1.1f);}
         for(int i=0;i<4;++i){const float ax=(i%2)?x+w:x,ay=(i/2)?y+h:y;g.setColour(Colour(0xffd4b491).withAlpha(.26f));g.drawLine(ax,ay,x+w*.5f,y+h*.44f,.85f);}
         for(int k=0;k<4;++k){const float a=10.f+k*9.f;g.setColour(Colour(0xffe4c8a3).withAlpha(.24f-.04f*k));g.drawEllipse(x+w*.5f-a,y+h*.43f-a*.46f,a*2.f,a*.92f,.9f);}
     }else{
+        paintEngravedFigure(g,{x+w*.15f,y+8,w*.20f,h*.60f},Colour(0xffcfe8dc).withAlpha(.75f),BonePose::mirror);
+        paintEngravedFigure(g,{x+w*.65f,y+8,w*.20f,h*.60f},Colour(0xffb6d0ce).withAlpha(.54f),BonePose::mirror);
         for(int band=0;band<3;++band){juce::Path wave;for(int k=0;k<=100;++k){float t=float(k)/100.f;float yy=y+h*.44f+std::sin(t*juce::MathConstants<float>::twoPi*1.4f+band*.65f)*h*.20f;float xx=x+8.f+(w-16.f)*t;if(k==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);}g.setColour(Colour(0xffb3e1df).withAlpha(.16f));g.strokePath(wave,juce::PathStrokeType(3.f));g.setColour(Colour(0xffe2e9d6).withAlpha(.8f-.18f*band));g.strokePath(wave,juce::PathStrokeType(.9f));}
     }
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,y+h*.54f,Colour(0xff080b12).withAlpha(.83f),y+h));g.fillRect(glass);
     g.setColour(Colour(0xffe9dfcb));g.setFont(font(10.f,true).withExtraKerningFactor(.16f));g.drawText(type==Reverb?"REFLECTION CHAMBER":"TWIN MODULATION",glass.withY(y+h-18.f).withHeight(14),juce::Justification::centred,false);}
-    g.setColour(Colour(0xff0a0d12));g.drawRoundedRectangle(glass,4.f,1.1f);g.setColour(Colour(0xffbcb5a5).withAlpha(.36f));g.drawRoundedRectangle(glass.reduced(1.f),3.f,.7f);
+    paintOpticalFinish(g,glass);g.setColour(Colour(0xffbcb5a5).withAlpha(.36f));g.drawRoundedRectangle(glass.reduced(1.f),3.f,.7f);
 }
 inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     // Decorative tape-inspired mechanical illustration. It is not a signal meter and does not
@@ -139,7 +151,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     recess.lineTo(bed.getRight()-32.f,bed.getY()+4.f);recess.lineTo(bed.getRight()-22.f,bed.getBottom());recess.closeSubPath();
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff16110b),bed.getY(),Colour(0xff48341f),bed.getBottom()));g.fillPath(recess);
     g.setColour(Colour(0xffc9a477).withAlpha(.48f));g.strokePath(recess,juce::PathStrokeType(.8f));
-    const float radius=std::min(win.getWidth()*.226f,win.getHeight()*.435f);
+    const float radius=std::min(win.getWidth()*.234f,win.getHeight()*.445f);
     const float cy=win.getCentreY()-5.f;
     const float cxs[2]={win.getX()+win.getWidth()*.255f,win.getX()+win.getWidth()*.745f};
     const float floorY=std::min(cy+radius*.98f,win.getBottom()-22.f);
@@ -185,7 +197,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         // Independent reel metal: flatter and broader than the knob cap.
         const auto flangeFace=juce::Rectangle<float>(cx-fr*.975f,cy-fr*.975f,fr*1.95f,fr*1.95f);
         juce::ColourGradient brushed(Colour(0xffeadcc4),flangeFace.getX(),flangeFace.getY(),Colour(0xff857562),flangeFace.getRight(),flangeFace.getBottom(),false);
-        brushed.addColour(.34,Colour(0xffbaa98e));brushed.addColour(.65,Colour(0xffd5c6aa));g.setGradientFill(brushed);g.fillEllipse(flangeFace);
+        brushed.addColour(.23,Colour(0xffb3a08a));brushed.addColour(.55,Colour(0xffe4d3b5));brushed.addColour(.79,Colour(0xff92816c));g.setGradientFill(brushed);g.fillEllipse(flangeFace);
         {juce::Graphics::ScopedSaveState save(g);juce::Path cp;cp.addEllipse(flangeFace);g.reduceClipRegion(cp);paintBrushed(g,flangeFace,.66f);}
         {juce::Graphics::ScopedSaveState save(g);
          juce::Path disc;disc.addEllipse(cx-fr*.94f,cy-fr*.94f,fr*1.88f,fr*1.88f);g.reduceClipRegion(disc);
@@ -227,6 +239,9 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff0b0a08));g.fillEllipse(cx-fr*.065f,cy-fr*.065f,fr*.13f,fr*.13f);
         g.setColour(Colour(0xffffe4bc).withAlpha(.65f));g.fillEllipse(cx-fr*.095f,cy-fr*.10f,fr*.07f,fr*.05f);
     }
+    // Tiny original mechanic etched on the transport bed, not on the reel faces.
+    paintEngravedFigure(g,{bed.getX()+5,bed.getY()+1,12,bed.getHeight()-2},Colour(0xffddc093).withAlpha(.72f),BonePose::stand);
+    paintOpticalFinish(g,win);
     // Curved glass over the window.
     {   juce::Graphics::ScopedSaveState keep(g);
         juce::Path clipWin;clipWin.addRoundedRectangle(win.getX(),win.getY(),win.getWidth(),win.getHeight(),4.f);
@@ -263,6 +278,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     g.setColour(Colour(0xffd0bda1).withAlpha(.56f));g.drawRoundedRectangle(r.reduced(1.4f),4.f,.75f);
     g.setColour(juce::Colours::black.withAlpha(.36f));g.drawRoundedRectangle(r.reduced(2.8f),3.f,.7f);
     auto f=r.reduced(6);
+    if(type==Reverb||type==Chorus){g.setColour(Colour(0xff151e25));g.fillRoundedRectangle(f,2.f);paintBoneFigure(g,f.reduced(1.f),Colour(0xffd4c8b0),type==Reverb?BonePose::stand:BonePose::mirror);return;}
     if(isAirPanel(type)){juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(f.getX(),f.getY(),f.getWidth(),f.getHeight(),2.f);g.reduceClipRegion(clip);g.setOpacity(1.f);g.drawImage(airAtmosphere(),f);g.setColour(Colour(0xfff2e9d0));g.drawLine(f.getX()+2,f.getBottom()-3,f.getRight()-2,f.getY()+3,.9f);return;}
     if(type==Bell){
         // Physical equalizer control rather than a generic curve: like the
