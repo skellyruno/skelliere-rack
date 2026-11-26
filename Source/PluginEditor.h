@@ -68,7 +68,9 @@ public:
     bool exerciseSpriteBindings();
     void paint(juce::Graphics&) override;
     void resized() override;
-    void mouseDown(const juce::MouseEvent&) override { dragging = false; }
+    void mouseDown(const juce::MouseEvent&) override;
+    std::function<void(int)> onSelected;
+    std::function<void(const juce::String&)> onNotice;
     void mouseDrag(const juce::MouseEvent&) override;
     bool isInterestedInDragSource(const SourceDetails&) override;
     void itemDragEnter(const SourceDetails&) override { dragOver = true; repaint(); }
@@ -139,10 +141,20 @@ private:
 
 class PathStrip final : public juce::Component {
 public:
-    explicit PathStrip(SkellierProcessor& p) : proc(p) {}
+    explicit PathStrip(SkellierProcessor& p);
     void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void resized() override;
+    void setVisibleRange(int first,int last);
+    std::function<void(int)> onNavigate;
+    std::function<void(int)> onPage;
+    int slotAt(juce::Point<int>) const;
 private:
+    void updateHitRects();
     SkellierProcessor& proc;
+    std::array<juce::Rectangle<int>,skl::kNumSlots> hitRects{};
+    juce::TextButton previous{"<"}, next{">"};
+    juce::String rangeText{"A - D"};
 };
 
 class StripButton final : public juce::TextButton {
@@ -168,7 +180,11 @@ public:
     void setLibraryVisible(bool visible);
     bool isLibraryVisible() const noexcept { return libraryVisible; }
     bool libraryLayoutIsValid() const;
+    void revealSlot(int slot);
+    bool slotIsFullyVisible(int slot) const;
 private:
+    void refreshRackNavigation();
+    void pageRack(int direction);
     void parameterChanged(const juce::String&, float) override { triggerAsyncUpdate(); }
     void handleAsyncUpdate() override;
     void timerCallback() override;

@@ -79,7 +79,21 @@ inline void processorRegression() {
     set("bypass",1);
     require(p.gainReduction(0)==0.f,"Bypass All displayed stale gain reduction");
     set("bypass",0);
-    // Per-instance artwork must survive editor recreation and session save only.
+    // Structural editing preserves finish and history; older strip XML remains accepted.
+    p.clearRack();p.addModule(skl::Comp,0);p.addModule(skl::Eq,1);
+    p.artworkChoices[0]=3;p.artworkChoices[1]=2;
+    p.moveSlot(0,1,false);
+    require(p.slotType(1)==skl::Comp&&p.artworkChoices[1]==3&&p.artworkChoices[0]==2,"Move did not carry finish");
+    p.undo();require(p.slotType(0)==skl::Comp&&p.artworkChoices[0]==3,"Undo lost finish");
+    p.redo();require(p.slotType(1)==skl::Comp&&p.artworkChoices[1]==3,"Redo lost finish");
+    p.moveSlot(1,2,true);require(p.slotType(2)==skl::Comp&&p.artworkChoices[2]==3,"Duplicate lost finish");
+    p.soloSlot.store(1);require(p.addModule(skl::Gate,1),"Insert failed");
+    require(p.slotType(2)==skl::Comp&&p.artworkChoices[2]==3&&p.soloSlot.load()==2,"Insert did not move finish/solo");
+    p.clearRack();for(int i=0;i<skl::kNumSlots;++i)require(p.addModule(skl::Trim,i),"Full rack setup failed");
+    p.removeSlot(7);p.undo();require(p.canRedo(),"Missing redo before failed copy");
+    p.moveSlot(0,1,true);require(p.canRedo(),"Failed copy discarded redo history");
+    p.redo();require(p.slotType(7)==skl::Empty,"Redo after failed copy failed");
+    // Per-instance artwork must survive editor recreation and session save.
     SkellierProcessor other; p.artworkChoices[0]=3;
     require(other.artworkChoices[0]==1,"Artwork leaked between instances");
     juce::MemoryBlock state; p.getStateInformation(state); p.artworkChoices[0]=0;

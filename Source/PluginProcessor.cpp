@@ -242,6 +242,7 @@ void SkellierProcessor::setParam(const juce::String& id, float realValue) {
 
 SkellierProcessor::SlotValues SkellierProcessor::readSlot(int s) const {
     SlotValues v; v.type = slotType(s); v.on = slotOn(s);
+    v.artwork=artworkChoices[static_cast<size_t>(s)].load();
     for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = kRaw[s][k]->load();
     return v;
 }
@@ -253,6 +254,7 @@ void SkellierProcessor::writeSlot(int s, const SlotValues& v) {
     setParam(extraId(s), 0.0f);
     setParam(typeId(s), v.type < kNumTypes ? (float) v.type : 0.0f);
     if (v.type >= kNumTypes) setParam(extraId(s), (float) (v.type - kNumTypes + 1));
+    if(v.artwork>=0)artworkChoices[static_cast<size_t>(s)].store(juce::jlimit(0,3,v.artwork));
     setParam(onId(s), v.on ? 1.0f : 0.0f);
 }
 
@@ -281,6 +283,8 @@ bool SkellierProcessor::addModule(int type, int slot) {
         if (empty < 0) return false;
         pushUndo();
         for (int s = empty; s > target; --s) writeSlot(s, readSlot(s - 1));
+        const int solo=soloSlot.load();
+        if(solo>=target&&solo<empty)soloSlot.store(solo+1);
         SlotValues v; v.type = type;
         for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(type).numKnobs ? defaultNorm(type, k) : 0.5f;
         writeSlot(target, v);
@@ -302,17 +306,18 @@ void SkellierProcessor::removeSlot(int slot) {
 
 void SkellierProcessor::moveSlot(int from, int to, bool copy) {
     if (from < 0 || from >= kNumSlots || to < 0 || to >= kNumSlots || from == to || slotType(from) == Empty) return;
-    pushUndo();
     const auto a = readSlot(from);
     if (copy) {
         int target = to;
         if (slotType(target) != Empty) {
             target = -1;
             for (int s = 0; s < kNumSlots; ++s) if (slotType(s) == Empty) { target = s; break; }
-            if (target < 0) { undoStack.pop_back(); return; }
+            if (target < 0) return; // no mutation: preserve both history stacks
         }
+        pushUndo();
         writeSlot(target, a);
     } else {
+        pushUndo();
         const auto b = readSlot(to);
         writeSlot(to, a);
         writeSlot(from, b);
@@ -348,6 +353,7 @@ juce::String SkellierProcessor::captureRack() const {
         const auto v = readSlot(s);
         auto* e = root.createNewChildElement("SLOT");
         e->setAttribute("i", s); e->setAttribute("type", v.type); e->setAttribute("on", v.on ? 1 : 0);
+        e->setAttribute("art",v.artwork);
         for (int k = 0; k < kMaxKnobs; ++k) e->setAttribute("k" + juce::String(k), (double) v.k[k]);
     }
     return root.toString(juce::XmlElement::TextFormat().singleLine());
@@ -362,6 +368,8 @@ void SkellierProcessor::restoreRack(const juce::String& text) {
         if (i < 0 || i >= kNumSlots) continue;
         vals[i].type = juce::jlimit(0, (int) kNumRackTypes - 1, e->getIntAttribute("type", 0));
         vals[i].on = e->getIntAttribute("on", 1) != 0;
+        // Older dream strips have no finish field: preserve the receiving slot finish.
+        vals[i].artwork = juce::jlimit(-1,3,e->getIntAttribute("art",-1));
         for (int k = 0; k < kMaxKnobs; ++k) vals[i].k[k] = juce::jlimit(0.0f, 1.0f, (float) e->getDoubleAttribute("k" + juce::String(k), 0.5));
     }
     soloSlot.store(-1);
@@ -410,8 +418,11 @@ bool SkellierProcessor::saveStrip(const juce::String& name) {
 bool SkellierProcessor::loadStrip(const juce::String& name) {
     const auto f = stripsFolder().getChildFile(juce::File::createLegalFileName(name) + ".xml");
     if (!f.existsAsFile()) return false;
+    const auto text=f.loadFileAsString();
+    const auto xml=juce::XmlDocument::parse(text);
+    if(xml==nullptr||!xml->hasTagName("RACK")||xml->getChildByName("SLOT")==nullptr)return false;
     pushUndo();
-    restoreRack(f.loadFileAsString());
+    restoreRack(text);
     return true;
 }
 void SkellierProcessor::deleteStrip(const juce::String& name) {

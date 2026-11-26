@@ -62,7 +62,7 @@ public:
     int latencyOfTune() const;
 private:
     static std::unique_ptr<skl::ModuleBase> makeModule(int t) { return skl::makeRackModule(t); }
-    struct SlotValues { int type=0; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; };
+    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; };
     void parameterChanged(const juce::String&,float) override;
     void setParam(const juce::String&,float);
     SlotValues readSlot(int) const;

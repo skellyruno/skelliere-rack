@@ -288,7 +288,7 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
     g.drawLine(cx-11.0f,cy,cx+11.0f,cy,1.5f);
     g.drawLine(cx,cy-11.0f,cx,cy+11.0f,1.5f);
     g.setFont(font(10.0f,true));
-    g.drawText(dragOver?"DROP MODULE HERE":"EMPTY SLOT",
+    g.drawText(dragOver?"DROP MODULE HERE":"CLICK TO ADD EFFECT",
                Rectangle<float>(10.0f,cy+23.0f,b.getWidth()-20.0f,18.0f),
                juce::Justification::centred,false);
 }
@@ -340,6 +340,48 @@ void SlotComponent::paint(Graphics& g) {
     if (dragOver) { g.setColour(pal::amber); g.drawRect(b.reduced(2.0f), 2.0f); }
 }
 
+void SlotComponent::mouseDown(const juce::MouseEvent& e) {
+    dragging=false;
+    if(type!=Empty&&!e.mods.isPopupMenu())return;
+    // Empty slots can add effects without opening the module library.
+    // Popups are asynchronous; do not retain an unsafe editor pointer.
+    juce::PopupMenu menu;
+    if(type==Empty){
+        const int cats[]={CatDynamics,CatTone,CatSpace,CatUtility};
+        const char* labels[]={"Dynamics","Tone / EQ","Modulation / Space","Utility"};
+        for(int i=0;i<4;++i){
+            juce::PopupMenu group;
+            for(int t=1;t<kNumRackTypes;++t)if(info(t).cat==cats[i])
+                group.addItem(100+t,displayName(t));
+            menu.addSubMenu(labels[i],group);
+        }
+    }else{
+        menu.addItem(1,proc.slotOn(index)?"Bypass effect":"Enable effect");
+        menu.addItem(2,proc.soloSlot.load()==index?"Exit solo":"Solo effect");
+        menu.addItem(3,"Move left",index>0);
+        menu.addItem(4,"Move right",index<kNumSlots-1);
+        menu.addItem(5,"Duplicate to first empty slot");
+        menu.addSeparator();menu.addItem(6,"Remove effect");
+    }
+    juce::Component::SafePointer<SlotComponent> safe(this);
+    const int originalType=type;
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[safe,originalType](int choice){
+        if(safe==nullptr||choice==0||safe->proc.slotType(safe->index)!=originalType)return;
+        auto& p=safe->proc;const int slot=safe->index;
+        if(choice>=101&&choice<100+kNumRackTypes){
+            if(!p.addModule(choice-100,slot)&&safe->onNotice)safe->onNotice("Rack full");
+        }else if(choice==1){
+            p.apvts.getParameter(SkellierProcessor::onId(slot))->setValueNotifyingHost(p.slotOn(slot)?0.f:1.f);
+        }else if(choice==2)p.soloSlot.store(p.soloSlot.load()==slot?-1:slot);
+        else if(choice==3||choice==4)p.moveSlot(slot,slot+(choice==3?-1:1),false);
+        else if(choice==5){
+            int free=-1;for(int i=0;i<kNumSlots;++i)if(p.slotType(i)==Empty){free=i;break;}
+            if(free>=0){p.moveSlot(slot,free,true);if(safe->onSelected)safe->onSelected(free);}
+            else if(safe->onNotice)safe->onNotice("Rack full — remove an effect to duplicate");
+        }else if(choice==6)p.removeSlot(slot);
+    });
+}
+
 void SlotComponent::mouseDrag(const juce::MouseEvent& e) {
     if (type == Empty || dragging || e.getMouseDownY() > 44 || e.getDistanceFromDragStart() < 6) return;
     if (auto* c = juce::DragAndDropContainer::findParentDragContainerFor(this)) { dragging = true; c->startDragging("slot:" + juce::String(index), this); }
@@ -353,7 +395,7 @@ bool SlotComponent::isInterestedInDragSource(const SourceDetails& d) {
 void SlotComponent::itemDropped(const SourceDetails& d) {
     dragOver = false; dragging = false; repaint();
     const auto s = d.description.toString();
-    if (s.startsWith("mod:")) proc.addModule(s.substring(4).getIntValue(), index);
+    if (s.startsWith("mod:")) {if(!proc.addModule(s.substring(4).getIntValue(), index)&&onNotice)onNotice("Cannot insert — no empty slot to the right");}
     else if (s.startsWith("slot:")) proc.moveSlot(s.substring(5).getIntValue(), index, juce::ModifierKeys::currentModifiers.isAltDown());
 }
 
@@ -498,9 +540,43 @@ void LibraryPanel::paint(Graphics& g) {
     for(int k=0;k<4;++k)paintScrew(g,k%2?r.getRight()-9:r.getX()+9,k<2?r.getY()+9:r.getBottom()-9,4.3f,k*.5f);
 }
 
+PathStrip::PathStrip(SkellierProcessor& p):proc(p){
+    for(auto* b:{&previous,&next})addAndMakeVisible(*b);
+    previous.setTooltip("Previous rack page");next.setTooltip("Next rack page");
+    previous.onClick=[this]{if(onPage)onPage(-1);};
+    next.onClick=[this]{if(onPage)onPage(1);};
+}
+void PathStrip::resized(){
+    previous.setBounds(18,31,26,23);next.setBounds(114,31,26,23);
+    updateHitRects();
+}
+void PathStrip::setVisibleRange(int first,int last){
+    const auto text=slotLetter(first)+" - "+slotLetter(last);
+    if(text!=rangeText){rangeText=text;repaint(18,30,122,25);}
+    previous.setEnabled(first>0);next.setEnabled(last<kNumSlots-1);
+}
+void PathStrip::updateHitRects(){
+    hitRects.fill(juce::Rectangle<int>());
+    int count=0;for(int i=0;i<kNumSlots;++i)if(proc.slotType(i)!=Empty)++count;
+    constexpr int port=55,arrow=20;int x=174+port+arrow;
+    const int cell=juce::jmax(35,(getWidth()-174-18-2*port-arrow*(count+1))/juce::jmax(1,count));
+    for(int i=0;i<kNumSlots;++i)if(proc.slotType(i)!=Empty){
+        hitRects[static_cast<size_t>(i)]={x,getHeight()/2-16,cell,32};x+=cell+arrow;
+    }
+}
+int PathStrip::slotAt(juce::Point<int> point) const{
+    for(int i=0;i<kNumSlots;++i)if(hitRects[static_cast<size_t>(i)].contains(point))return i;
+    return -1;
+}
+void PathStrip::mouseDown(const juce::MouseEvent& e){
+    updateHitRects();const int slot=slotAt(e.getPosition());
+    if(slot>=0&&onNavigate)onNavigate(slot);
+}
 void PathStrip::paint(Graphics& g) {
+    updateHitRects();
     const int h=getHeight();g.setColour(pal::ink);g.setFont(font(14,true).withExtraKerningFactor(.12f));
-    g.drawText("SIGNAL PATH",18,0,134,h,juce::Justification::centredLeft,false);
+    g.drawText("SIGNAL PATH",18,3,134,25,juce::Justification::centredLeft,false);
+    g.setColour(pal::inkDim);g.setFont(font(12,true));g.drawText(rangeText,46,31,65,23,juce::Justification::centred,false);
     g.setColour(Colour(0xff8b7d66).withAlpha(.65f));g.drawVerticalLine(152,7,h-7);
     const bool bypass=proc.apvts.getRawParameterValue("bypass")->load()>.5f;
     const int solo=proc.soloSlot.load();
@@ -609,6 +685,9 @@ RackUI::RackUI(SkellierProcessor& p)
     viewport.setScrollBarThickness(8);
     addAndMakeVisible(viewport);
     addAndMakeVisible(pathStrip);
+    pathStrip.onNavigate=[this](int slot){revealSlot(slot);};
+    pathStrip.onPage=[this](int direction){pageRack(direction);};
+    for(auto& slot:strip.slots){slot->onSelected=[this](int i){revealSlot(i);};slot->onNotice=[this](const juce::String& message){say(message);};}
     stripDrawer.toFront(false);
     for (int s = 0; s < kNumSlots; ++s) { proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.addParameterListener(SkellierProcessor::extraId(s), this); proc.apvts.addParameterListener(SkellierProcessor::onId(s), this); }
     proc.apvts.addParameterListener("bypass",this);
@@ -670,6 +749,7 @@ void RackUI::timerCallback() {
     }
     undoBtn.setEnabled(proc.canUndo());
     redoBtn.setEnabled(proc.canRedo());
+    refreshRackNavigation();
 }
 
 void RackUI::setEditMode(bool enabled) {
@@ -679,6 +759,36 @@ void RackUI::setEditMode(bool enabled) {
     if(!enabled){stripsToggle.setToggleState(false,juce::dontSendNotification);stripDrawer.setVisible(false);}
     for(auto& slot:strip.slots)if(slot)slot->setEditMode(enabled);
     resized();repaint();
+}
+void RackUI::revealSlot(int slot){
+    if(slot<0||slot>=kNumSlots)return;
+    const auto bounds=strip.slots[static_cast<size_t>(slot)]->getBounds();
+    int x=viewport.getViewPositionX();
+    const int width=viewport.getViewArea().getWidth();
+    if(bounds.getX()<x)x=bounds.getX()-RackStrip::kPad;
+    else if(bounds.getRight()>x+width)x=bounds.getRight()+RackStrip::kPad-width;
+    viewport.setViewPosition(juce::jmax(0,x),0);
+    refreshRackNavigation();
+}
+bool RackUI::slotIsFullyVisible(int slot) const{
+    return slot>=0&&slot<kNumSlots&&viewport.getViewArea().contains(strip.slots[static_cast<size_t>(slot)]->getBounds());
+}
+void RackUI::refreshRackNavigation(){
+    const auto area=viewport.getViewArea();
+    int first=0,last=kNumSlots-1;
+    for(int i=0;i<kNumSlots;++i)if(strip.slots[static_cast<size_t>(i)]->getRight()>area.getX()){first=i;break;}
+    for(int i=kNumSlots-1;i>=0;--i)if(strip.slots[static_cast<size_t>(i)]->getX()<area.getRight()){last=i;break;}
+    pathStrip.setVisibleRange(first,last);
+}
+void RackUI::pageRack(int direction){
+    const auto area=viewport.getViewArea();
+    int first=0,last=0;
+    for(int i=0;i<kNumSlots;++i){
+        const auto bounds=strip.slots[static_cast<size_t>(i)]->getBounds();
+        if(bounds.getRight()<=area.getX())first=i+1;
+        if(bounds.getX()<area.getRight())last=i;
+    }
+    revealSlot(juce::jlimit(0,kNumSlots-1,direction<0?first-1:last+1));
 }
 void RackUI::setLibraryVisible(bool visible) {
     libraryVisible=visible;
@@ -721,6 +831,7 @@ void RackUI::resized() {
     const int rackLeft=libraryVisible?270:20;
     viewport.setBounds(rackLeft,106,1234-rackLeft,602);
     pathStrip.setBounds(25,718,1210,60);
+    refreshRackNavigation();
 }
 
 void RackUI::paint(Graphics& g) {
