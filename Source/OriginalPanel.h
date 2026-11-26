@@ -3,7 +3,7 @@
 namespace skl::ui {
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xc9b398,0x75463f,0x5d4132,0xc4c0ad,0x384859,0x414b35,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x344b61,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x663d38,0x706449,0x496464,0x45484a};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xd2b493,0x75463f,0x5d4132,0xc4c0ad,0x384859,0x3e412f,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x323d46,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x593531,0x706449,0x496464,0x45484a};
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -11,7 +11,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
     const bool light=metal.getPerceivedBrightness()>.45f;
-    const auto cap=type%4==0?Colour(0xffc6b69e):Colour(0xffd9ccba);
+    const auto cap=type%4==0?Colour(0xffbca487):Colour(0xffccbaa1);
     const char* series=info(type).cat==CatDynamics?"DYNAMICS":info(type).cat==CatTone?"TONE":info(type).cat==CatSpace?"MOD / SPACE":"UTILITY";
     return {metal,accent,cap,light,series};
 }
@@ -22,13 +22,13 @@ struct OriginalLayout {
 };
 // Reference proportions: the tall 650px panels are replaced by a compact
 // hardware panel of 586px. Preserve every knob, including Bell's four real controls.
-inline OriginalLayout originalLayout(int type,int width) {
+inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
     if(mi.hasVU||type==Flanger)l.meter={18,107,width-36,123};
     if(type==Delay||type==Slap)l.detail={19,107,width-38,123};
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
-    const int top=window?238:108,bottom=532,available=bottom-top;
+    const int top=window?238:108,bottom=editing?532:560,available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
         for(int k=0;k<n;++k)l.cells[k]={12,top+k*row,width-24,row-4};
@@ -39,7 +39,7 @@ inline OriginalLayout originalLayout(int type,int width) {
         const int hero=available/2;l.cells[0]={mid-82,top,164,hero-4};
         for(int k=1;k<3;++k)l.cells[k]={12+(k-1)*half,top+hero,half,available-hero-4};
     }else if(n==5&&window){
-        const int row=(available-78)/2;
+        const int row=(available-(editing?78:80))/2;
         for(int k=0;k<4;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*row,half,row-4};
         l.cells[4]={mid-43,top+2*row,86,available-2*row-3};
     }else if(n==5){
@@ -106,8 +106,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.drawImage(machinedCap(Colour(0xffd4c3a3)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
         const float turn=k==0?.30f:.62f;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
-            const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.33f;
-            const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.33f;
+            const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.60f;
+            const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.60f;
             juce::Path opening;
             opening.addPieSegment(cx-fr*.80f,cy-fr*.80f,fr*1.60f,fr*1.60f,from,to,.40f);
             g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff1a140d),cy-fr*.8f,Colour(0xff0b0907),cy+fr*.8f));
@@ -120,7 +120,9 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff17120d));g.fillEllipse(cx-fr*.36f,cy-fr*.36f,fr*.72f,fr*.72f);
         g.setGradientFill(juce::ColourGradient(Colour(0xfff1e2bf),cx-fr*.16f,cy-fr*.2f,Colour(0xff7c6a48),cx+fr*.2f,cy+fr*.24f,false));
         g.fillEllipse(cx-fr*.26f,cy-fr*.26f,fr*.52f,fr*.52f);                           // brass hub
-        g.setColour(Colour(0xff0b0a08));g.fillEllipse(cx-fr*.07f,cy-fr*.07f,fr*.14f,fr*.14f);
+        g.setColour(Colour(0xff393128));g.fillEllipse(cx-fr*.17f,cy-fr*.17f,fr*.34f,fr*.34f);
+        g.setGradientFill(juce::ColourGradient(Colour(0xffb6a78e),cx-fr*.10f,cy-fr*.10f,Colour(0xff19140e),cx+fr*.12f,cy+fr*.13f,false));g.fillEllipse(cx-fr*.125f,cy-fr*.125f,fr*.25f,fr*.25f);
+        g.setColour(Colour(0xff0b0a08));g.fillEllipse(cx-fr*.045f,cy-fr*.045f,fr*.09f,fr*.09f);
     }
     // Curved glass over the window.
     {   juce::Graphics::ScopedSaveState keep(g);
@@ -133,8 +135,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.16f),win.getY(),juce::Colours::white.withAlpha(.02f),win.getY()+win.getHeight()*.38f));
         g.fillPath(glass);
     }
-    g.setColour(Colour(0xffd0b68e));g.setFont(font(9,true));
-    g.drawText("ECHO",r.removeFromBottom(19),juce::Justification::centred,false);
+    // The tape mechanism is decorative; its live controls are below the window.
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
@@ -144,7 +145,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     // finishes already matched (within ~8/255) and are left alone.
     const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.82f);
     // Nearly flat body colour; the old strong top-to-bottom ramp produced visible horizontal bands.
-    g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.04f),plate.getY(),base.darker(.05f),plate.getBottom()));
+    g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.065f),plate.getY(),base.darker(p.light?.045f:.12f),plate.getBottom()));
     g.fillRoundedRectangle(plate,5);
     {
         juce::Graphics::ScopedSaveState clip(g);
@@ -161,7 +162,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?.85f:.12f);paintPeened(g,plate,p.light?.32f:.82f);                                   // coherent fibre grain
+        paintBrushed(g,plate,p.light?.9f:.20f);paintPeened(g,plate,p.light?.24f:.34f);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
         g.setColour(juce::Colours::white.withAlpha(.39f));
         g.drawHorizontalLine(int(plate.getY())+1,plate.getX()+4,plate.getRight()-4);

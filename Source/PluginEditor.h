@@ -56,6 +56,7 @@ public:
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
     void rebuild();
+    void setEditMode(bool enabled);
     void setMeter(float gainReductionDb);
     void setOutputPeak(float peak);
     void syncSolo();
@@ -80,7 +81,7 @@ private:
 
     SkellierProcessor& proc;
     int index, type = 0;
-    bool dragOver = false, dragging = false, shownPower=true;
+    bool dragOver = false, dragging = false, shownPower=true, editing=false;
     float needle = 0.0f, shownNeedle = -1.0f;
     double lastMeterTime=0;
     float outputDb=-60.f;
@@ -163,6 +164,7 @@ public:
     std::function<void(float)> onScale;
     // Same live update used by the timer; lets the real-editor test capture measured I/O.
     void refreshLiveState(){timerCallback();}
+    void setEditMode(bool enabled);
 private:
     void parameterChanged(const juce::String&, float) override { triggerAsyncUpdate(); }
     void handleAsyncUpdate() override;
@@ -175,7 +177,8 @@ private:
     juce::TextButton prevPreset{"<"}, nextPreset{">"}, snapA{"A"}, snapB{"B"}, snapCopy{"COPY"},
         undoBtn{"UNDO"}, redoBtn{"REDO"}, clearBtn{"CLEAR"}, bypassBtn{"BYPASS"};
     juce::TextButton scaleBtn[5];
-    juce::TextButton stripsToggle{"STRIPS"};
+    juce::TextButton stripsToggle{"STRIPS"}, editToggle{"EDIT"};
+    bool editing=false;
     struct StripDrawer final : juce::Component {
         void paint(juce::Graphics& g) override {g.fillAll(Colour(0xff25221e));g.setColour(pal::amber.withAlpha(.6f));g.drawRect(getLocalBounds(),1);}
     } stripDrawer;

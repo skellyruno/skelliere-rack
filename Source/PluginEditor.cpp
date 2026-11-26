@@ -43,7 +43,7 @@ void KnobCell::resized() {
         const int size=juce::jmin(getHeight()-4,getWidth()/2+8,105);
         slider.setBounds(2,(getHeight()-size)/2,size,size);
     } else {
-        const int size=juce::jmax(1,juce::jmin(getWidth()-4,getHeight()-30,154));
+        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-28,154));
         slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-28)/2),size,size);
     }
 }
@@ -70,15 +70,15 @@ void KnobCell::paint(Graphics& g) {
         return;
     }
     const int y=juce::jmin(getHeight()-30,slider.getBottom()+1);
-    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(13.5f,true).withExtraKerningFactor(.035f));
+    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(14.f,true).withExtraKerningFactor(.045f));
     g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,15),juce::Justification::centred,1);
-    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(12.5f));
+    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(13.f));
     g.drawFittedText(text_,Rectangle<int>(2,y+15,getWidth()-4,15),juce::Justification::centred,1);
 }
 
 // =================================================================== small displays
 void LcdDisplay::paint(Graphics& g) {
-    g.setColour(pal::inkDim);g.setFont(font(10.5f).withExtraKerningFactor(.09f));
+    g.setColour(pal::inkDim);g.setFont(font(getWidth()>350?13.f:10.5f).withExtraKerningFactor(.09f));
     g.drawFittedText(text,getLocalBounds().reduced(3,0),juce::Justification::centredLeft,1);
 }
 
@@ -158,10 +158,10 @@ void SlotComponent::rebuild() {
     type = proc.slotType(index);
     cells.clear();
     const bool filled = type != Empty;
-    const bool hasArtwork = filled;
-    artButton.setVisible(hasArtwork);
+    artButton.setVisible(filled&&editing);
     appliedArtworkChoice = -1; panelCache={};
-    for (auto* c : std::initializer_list<juce::Component*>{&powerBtn, &leftBtn, &rightBtn, &removeBtn, &soloBtn}) c->setVisible(filled);
+    powerBtn.setVisible(filled);
+    for(auto* c:{&leftBtn,&rightBtn,&removeBtn,&soloBtn})c->setVisible(filled&&editing);
     if (filled) {
         const auto& mi = info(type);
         for (int j = 0; j < mi.numKnobs; ++j) {
@@ -194,7 +194,7 @@ void SlotComponent::syncArtwork() {
     static const char* names[]={"GRAPHITE","SIGNATURE","SILVER","MIDNIGHT"};
     artButton.setButtonText("FINISH");artButton.setTooltip(juce::String("Metal finish: ")+names[choice]+" (click to cycle)");
     for(auto& c:cells){
-        c->setNativeFace(true,originalLayout(type,preferredWidth()).sideReadouts);c->setLightFace(spec.light);
+        c->setNativeFace(true,originalLayout(type,preferredWidth(),editing).sideReadouts);c->setLightFace(spec.light);
         c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
         c->slider.getProperties().set("ptr",(int)Colour(0xff191510).getARGB());
         c->slider.repaint();
@@ -205,10 +205,11 @@ void SlotComponent::syncArtwork() {
 bool SlotComponent::artworkLayoutIsValid() const {
     if(type==Empty)return cells.empty();
     if(cells.size()!=static_cast<size_t>(info(type).numKnobs))return false;
-    const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(46);
+    const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(editing?46:23);
+    if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||removeBtn.isVisible()!=editing||artButton.isVisible()!=editing)return false;
     for(size_t i=0;i<cells.size();++i){
         const auto& c=*cells[i];
-        if(!body.contains(c.getBounds())||!c.getLocalBounds().contains(c.slider.getBounds())||c.getBounds().intersects(vuRect)||c.getBounds().intersects(footRect)||c.getBounds().intersects(originalLayout(type,getWidth()).detail))return false;
+        if(!body.contains(c.getBounds())||!c.getLocalBounds().contains(c.slider.getBounds())||c.getBounds().intersects(vuRect)||c.getBounds().intersects(footRect)||c.getBounds().intersects(originalLayout(type,getWidth(),editing).detail))return false;
         for(size_t j=0;j<i;++j)if(c.getBounds().intersects(cells[j]->getBounds()))return false;
     }
     return true;
@@ -254,14 +255,20 @@ void SlotComponent::setMeter(float gr) {
     }
 }
 
+void SlotComponent::setEditMode(bool enabled) {
+    if(editing==enabled)return;
+    editing=enabled;panelCache={};
+    for(auto* c:{&leftBtn,&rightBtn,&removeBtn,&soloBtn,&artButton})c->setVisible(type!=Empty&&editing);
+    resized();repaint();
+}
 void SlotComponent::resized() {
     sectionRects.clear();vuRect={};panelBounds={};
-    const int w=getWidth(),h=getHeight();footRect={10,h-43,w-20,32};
+    const int w=getWidth(),h=getHeight();footRect=editing?Rectangle<int>(10,h-43,w-20,32):Rectangle<int>(25,h-24,17,17);
     if(type==Empty)return;
-    powerBtn.setBounds(16,h-39,25,25);soloBtn.setBounds(49,h-38,27,23);
+    powerBtn.setBounds(editing?Rectangle<int>(16,h-39,25,25):Rectangle<int>(25,h-24,17,17));soloBtn.setBounds(49,h-38,27,23);
     leftBtn.setBounds(82,h-38,21,23);rightBtn.setBounds(106,h-38,21,23);
     artButton.setBounds(130,h-38,62,23);removeBtn.setBounds(w-35,h-38,20,23);
-    const auto layout=originalLayout(type,w);vuRect=layout.meter;
+    const auto layout=originalLayout(type,w,editing);vuRect=layout.meter;
     for(size_t i=0;i<cells.size();++i)cells[i]->setBounds(layout.cells[i]);
 }
 
@@ -307,12 +314,12 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         const int titleWidth=juce::jlimit(70,w-40,juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).length()*13+20);
         pg.drawHorizontalLine(75,20,float(w-titleWidth)*.5f);
         pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
-        const auto layout=originalLayout(type,w);
+        const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty())paintTapeDetail(pg,layout.detail.toFloat());
         // Side-mounted value pills provide the separation; no extra grid lines.
-        pg.setColour(ink.withAlpha(.24f));pg.drawHorizontalLine(h-52,20,w-20);
-        pg.setColour(ink.withAlpha(.68f));pg.setFont(font(8.5f,true));
-        pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-49,w-28,8,juce::Justification::centred,false);
+        if(editing){pg.setColour(ink.withAlpha(.24f));pg.drawHorizontalLine(h-52,20,w-20);
+            pg.setColour(ink.withAlpha(.68f));pg.setFont(font(8.5f,true));
+            pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-49,w-28,8,juce::Justification::centred,false);}
     }
     g.drawImage(panelCache,getLocalBounds().toFloat());
     if(type==Flanger&&!vuRect.isEmpty()){
@@ -562,13 +569,16 @@ RackUI::RackUI(SkellierProcessor& p)
         addAndMakeVisible(scaleBtn[i]);
     }
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
-    lcd.setText("SKELL AUDIO   /   ANALOG COLLECTION");
+    lcd.setText("SKELL AUDIO    /    ANALOG-STYLE PROCESSORS");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
     stripsLabel.setColour(juce::Label::textColourId, pal::inkDim);
     addChildComponent(stripDrawer);
-    addAndMakeVisible(stripsToggle);
+    addAndMakeVisible(stripsToggle);addAndMakeVisible(editToggle);
+    editToggle.setClickingTogglesState(true);editToggle.getProperties().set("plain",true);
+    editToggle.setTooltip("Show rack editing, snapshots, undo/redo, finishes and zoom controls");
+    editToggle.onClick=[this]{setEditMode(editToggle.getToggleState());};
     stripsToggle.setClickingTogglesState(true);stripsToggle.getProperties().set("plain",true);
     stripsToggle.onClick=[this]{stripDrawer.setVisible(stripsToggle.getToggleState());if(stripDrawer.isVisible())stripDrawer.toFront(false);};
     stripDrawer.addAndMakeVisible(stripsLabel);
@@ -594,7 +604,7 @@ RackUI::RackUI(SkellierProcessor& p)
     stripDrawer.toFront(false);
     for (int s = 0; s < kNumSlots; ++s) { proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.addParameterListener(SkellierProcessor::extraId(s), this); proc.apvts.addParameterListener(SkellierProcessor::onId(s), this); }
     proc.apvts.addParameterListener("bypass",this);
-    startTimerHz(30);
+    setEditMode(false);startTimerHz(30);
 }
 
 RackUI::~RackUI() {
@@ -654,13 +664,22 @@ void RackUI::timerCallback() {
     redoBtn.setEnabled(proc.canRedo());
 }
 
+void RackUI::setEditMode(bool enabled) {
+    editing=enabled;editToggle.setToggleState(enabled,juce::dontSendNotification);
+    for(auto* b:{&snapA,&snapB,&snapCopy,&undoBtn,&redoBtn,&clearBtn,&stripsToggle})b->setVisible(enabled);
+    for(auto& b:scaleBtn)b.setVisible(enabled);
+    if(!enabled){stripsToggle.setToggleState(false,juce::dontSendNotification);stripDrawer.setVisible(false);}
+    for(auto& slot:strip.slots)if(slot)slot->setEditMode(enabled);
+    resized();repaint();
+}
 void RackUI::resized() {
     prevPreset.setBounds(335,16,30,36);presetBox.setBounds(370,16,208,36);nextPreset.setBounds(583,16,30,36);
     inKnob.setBounds(644,8,127,54);meters.setBounds(777,18,306,32);outKnob.setBounds(1100,8,137,54);
-    lcd.setBounds(24,67,300,28);
+    lcd.setBounds(24,67,editing?300:680,28);
     snapA.setBounds(335,66,30,27);snapB.setBounds(368,66,30,27);snapCopy.setBounds(402,66,49,27);
     undoBtn.setBounds(466,66,51,27);redoBtn.setBounds(520,66,51,27);clearBtn.setBounds(574,66,51,27);
-    stripsToggle.setBounds(642,66,69,27);bypassBtn.setBounds(719,66,76,27);
+    stripsToggle.setBounds(642,66,69,27);bypassBtn.setBounds(editing?719:1062,66,76,27);
+    editToggle.setBounds(editing?810:1150,66,editing?81:87,27);
     for(int k=0;k<5;++k)scaleBtn[k].setBounds(1005+k*47,66,43,27);
     stripDrawer.setBounds(12,104,1236,49);
     stripsLabel.setBounds(10,9,104,30);defaultStrip.setBounds(116,9,82,30);
@@ -672,15 +691,15 @@ void RackUI::resized() {
 }
 
 void RackUI::paint(Graphics& g) {
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff2b2823),0.f,Colour(0xff151310),float(kH)));
-    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.9f);paintPeened(g,getLocalBounds().toFloat(),.32f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff24211e),0.f,Colour(0xff151310),float(kH)));
+    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.68f);paintPeened(g,getLocalBounds().toFloat(),.12f);
     g.setColour(Colour(0xff777064).withAlpha(.5f));g.drawHorizontalLine(61,20,1240);
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(25,15,24,35),pal::ink);
-    g.setColour(pal::ink);g.setFont(font(25,true).withExtraKerningFactor(.085f));
-    g.drawFittedText("SKELLIERE RACK",Rectangle<int>(63,10,258,43),juce::Justification::centredLeft,1);
+    g.setColour(pal::ink);g.setFont(font(27,false).withExtraKerningFactor(.09f));
+    g.drawFittedText("SKELLIERE RACK",Rectangle<int>(62,10,266,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
-    g.drawVerticalLine(322,13,54);g.drawVerticalLine(628,13,54);
+    g.drawVerticalLine(49,13,54);g.drawVerticalLine(332,13,54);g.drawVerticalLine(628,13,54);
     const auto frame=Rectangle<float>(262,102,986,610);
     g.setColour(Colour(0xff0d0c0a));g.fillRoundedRectangle(frame,8);
     g.setColour(Colour(0xff94846c));g.drawRoundedRectangle(frame.reduced(.8f),8,1.4f);
