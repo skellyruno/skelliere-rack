@@ -132,6 +132,7 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
     edge.addColour(.22,metal.interpolatedWith(Colour(0xffc7bbab),.15f));
     edge.addColour(.58,metal.interpolatedWith(Colour(0xff100e0c),.46f));
     g.setGradientFill(edge);g.fillRoundedRectangle(rim,radius-.5f);
+    g.setColour(Colour(0xff0b0907).withAlpha(.42f));g.drawRoundedRectangle(rim.reduced(1.9f),radius-1.5f,1.1f);
     const auto face=r.reduced(bevel);
     const float rr=juce::jmax(2.f,radius-bevel*.70f);
     g.setColour(juce::Colours::black.withAlpha(.62f));g.fillRoundedRectangle(face.expanded(.6f),rr+.5f);
@@ -175,10 +176,10 @@ inline void paintRecessedWindow(Graphics& g,juce::Rectangle<float> r,float radiu
 // Smooth metal pushbutton, separate from textured enclosures.
 inline void paintRaisedKey(Graphics& g,juce::Rectangle<float> r,Colour body,bool on,bool pressed){
     const float dy=pressed?.4f:1.8f;
-    g.setColour(juce::Colours::black.withAlpha(.75f));g.fillRoundedRectangle(r.translated(0,dy),6.f);
+    for(int i=3;i>=0;--i){g.setColour(juce::Colours::black.withAlpha(.16f+.09f*(3-i)));g.fillRoundedRectangle(r.expanded(i*.4f).translated(0,dy+i*.5f),6.f+i*.4f);}
     juce::ColourGradient rim(body.interpolatedWith(Colour(0xffd8c19f),.36f),r.getX(),r.getY(),Colour(0xff0a0907),r.getRight(),r.getBottom(),false);
     g.setGradientFill(rim);g.fillRoundedRectangle(r,5.f);
-    const auto face=r.reduced(1.6f);
+    const auto face=r.reduced(2.1f);
     const auto top=on?body.brighter(.13f):body.brighter(.09f);
     g.setGradientFill(juce::ColourGradient::vertical(pressed?body.darker(.18f):top,face.getY(),pressed?top:body.darker(.28f),face.getBottom()));
     g.fillRoundedRectangle(face,4.f);
@@ -210,16 +211,14 @@ inline const juce::Image& machinedCap(Colour colour) {
         const float grain=ring*(.085f+.018f*std::cos(2*a-lightAngle*2));
         // Narrow bright anisotropic reflection with a wide dark opposing lobe.
         // Fade the angular response in at the spindle to avoid a hard pinwheel.
-        const float directional=std::cos(2*(a-lightAngle));
-        const float specular=std::pow(juce::jmax(0.f,directional),3.f);
-        float shine=.53f+smooth(.025f,.14f,r)*(.23f*directional+.26f*specular+.16f*r*lit)+grain;
+        float shine=metal::cap(r,a,.57f).brightness+grain*.65f;
         shine-=.055f*(1.f-smooth(.0f,.13f,r));                              // shallow centre dish
         // Engraved groove at r~.80 with a lit lower lip, then the chamfer.
         const float groove=smooth(.855f,.872f,r)*(1.f-smooth(.881f,.891f,r));
         shine=shine*(1.f-groove)+.38f*groove;
         const float lip=smooth(.891f,.902f,r)*(1.f-smooth(.911f,.921f,r));
         shine=shine*(1.f-lip)+(.80f-.30f*lit)*lip;
-        const float bevel=smooth(.921f,.931f,r)*(1.f-smooth(.968f,.98f,r));
+        const float bevel=smooth(.895f,.930f,r)*(1.f-smooth(.968f,.98f,r));
         shine=shine*(1.f-bevel)+(.68f+.43f*lit)*bevel;
         const float edge=smooth(.965f,.975f,r);
         shine=shine*(1.f-edge)+(.16f+.10f*juce::jmax(0.f,lit))*edge;
@@ -287,7 +286,7 @@ inline const juce::Image& necroEngraving(){
             const float a0=src.getPixelAt(ix,iy).getFloatAlpha()*(1.f-fx)+src.getPixelAt(ix+1,iy).getFloatAlpha()*fx;
             const float a1=src.getPixelAt(ix,iy+1).getFloatAlpha()*(1.f-fx)+src.getPixelAt(ix+1,iy+1).getFloatAlpha()*fx;
             const float mark=metal::engravingWeight(rad,a0*(1.f-fy)+a1*fy);
-            pixels.setPixelColour(x,y,Colour(0xff282019).withAlpha(mark*.94f));
+            pixels.setPixelColour(x,y,Colour(0xff30271f).interpolatedWith(Colour(0xff0e0b08),mark).withAlpha(mark*.90f));
         }
         return im;
     }();
@@ -309,10 +308,10 @@ inline const juce::Image& capMount(){
     static const juce::Image cached=[]{
         constexpr int n=384;constexpr float c=192.f,rad=132.f;
         juce::Image im(juce::Image::ARGB,n,n,true);Graphics g(im);
-        for(int i=18;i>=0;--i){
-            const float rr=rad*.94f+float(i)*1.75f;
-            g.setColour(juce::Colours::black.withAlpha(i>10?.033f:.092f));
-            g.fillEllipse(c-rr+14.f,c-rr+27.f,2*rr,2*rr);
+        for(int i=20;i>=0;--i){
+            const float rr=rad*.94f+float(i)*1.85f;
+            g.setColour(juce::Colours::black.withAlpha(i>10?.026f:.075f));
+            g.fillEllipse(c-rr+18.f,c-rr+30.f,2*rr,2*rr);
         }
         g.setColour(juce::Colours::black.withAlpha(.65f));g.fillEllipse(c-rad*.98f+3.f,c-rad*.98f+10.f,rad*1.96f,rad*1.96f);
         // Sidewall sits underneath the face; its lower edge alone is visible.
@@ -320,7 +319,7 @@ inline const juce::Image& capMount(){
             Colour(0xff100e0c),c+rad,c+rad,false);
         side.addColour(.38,Colour(0xff71624f));side.addColour(.74,Colour(0xff251e17));
         g.setGradientFill(side);
-        g.fillEllipse(c-rad*.985f,c-rad*.985f+15.f,rad*1.97f,rad*1.97f);
+        g.fillEllipse(c-rad*.985f,c-rad*.985f+17.f,rad*1.97f,rad*1.97f);
         g.setColour(juce::Colours::black.withAlpha(.46f));g.drawEllipse(c-rad*.982f,c-rad*.982f+7.f,rad*1.964f,rad*1.964f,1.3f);
         // Fluting on the exposed lower sidewall, not an added outer ring.
         for(int i=0;i<46;++i){const float a=.25f+float(i)*2.64f/45.f;
@@ -354,12 +353,12 @@ inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
     g.setColour(juce::Colours::black.withAlpha(.60f));
     g.fillEllipse(cx-r-1.1f,cy-r+.65f,2*r+2.2f,2*r+2.2f);
     juce::ColourGradient head(Colour(0xffe9d7b7),cx-r*.43f,cy-r*.65f,Colour(0xff29241d),cx+r*.82f,cy+r*.85f,true);
-    head.addColour(.37,Colour(0xffbbab92));head.addColour(.75,Colour(0xff716452));
+    head.addColour(.24,Colour(0xffded0b6));head.addColour(.52,Colour(0xff9d8c75));head.addColour(.84,Colour(0xff4a4135));
     g.setGradientFill(head);g.fillEllipse(cx-r,cy-r,2*r,2*r);
     g.setColour(Colour(0xff26211a));g.drawEllipse(cx-r,cy-r,2*r,2*r,.6f);
     juce::Path rim;rim.addCentredArc(cx,cy,r-.45f,r-.45f,0.f,-1.45f,.8f,true);
     g.setColour(Colour(0xffffe8c4).withAlpha(.72f));g.strokePath(rim,juce::PathStrokeType(.65f));
-    const float arm=r*.56f,half=r*.12f;
+    const float arm=r*.58f,half=r*.15f;
     juce::Path cross;cross.startNewSubPath(-half,-arm);cross.lineTo(half,-arm);
     cross.lineTo(half,-half);cross.lineTo(arm,-half);cross.lineTo(arm,half);
     cross.lineTo(half,half);cross.lineTo(half,arm);cross.lineTo(-half,arm);
@@ -367,7 +366,8 @@ inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
     cross.lineTo(-half,-half);cross.closeSubPath();
     const auto tr=juce::AffineTransform::rotation(turn).translated(cx,cy);
     g.setColour(Colour(0xffffdcb1).withAlpha(.68f));g.fillPath(cross,tr.translated(.35f,.45f));
-    g.setColour(Colour(0xff29221a));g.fillPath(cross,tr);
+    g.setColour(Colour(0xff201b15));g.fillPath(cross,tr);
+    g.setColour(Colour(0xff080706).withAlpha(.65f));g.strokePath(cross,juce::PathStrokeType(.45f),tr);
     g.setColour(Colour(0xfffff0d8).withAlpha(.31f));g.fillEllipse(cx-r*.52f,cy-r*.60f,r*.44f,r*.25f);
 }
 
@@ -378,7 +378,7 @@ inline void paintLampGlass(Graphics& g,juce::Rectangle<float> face){
     const int w=juce::jmax(2,juce::roundToInt(face.getWidth()*2.f)),h=juce::jmax(2,juce::roundToInt(face.getHeight()*2.f));
     juce::Image lens(juce::Image::ARGB,w,h,true,juce::SoftwareImageType());
     { juce::Image::BitmapData pixels(lens,juce::Image::BitmapData::writeOnly);
-    const float fw=w*.5f,fh=h*.5f,r=juce::jmin(24.f,fw,fh);
+    const float fw=w*.5f,fh=h*.5f,r=juce::jmin(30.f,fw,fh);
     for(int y=0;y<h;++y)for(int x=0;x<w;++x){
         const float px=x+.5f-fw,py=y+.5f-fh,qx=std::abs(px)-(fw-r),qy=std::abs(py)-(fh-r);
         const float d=r-std::sqrt(std::max(0.f,qx)*std::max(0.f,qx)+std::max(0.f,qy)*std::max(0.f,qy))-std::min(0.f,std::max(qx,qy));
@@ -387,8 +387,11 @@ inline void paintLampGlass(Graphics& g,juce::Rectangle<float> face){
         const float edge=std::exp(-std::max(0.f,d)/(5.f+4.f*(1.f-v)));
         const float pool=std::exp(-1.4f*u*u-1.7f*(v-.24f)*(v-.24f));
         const float top=std::exp(-std::max(0.f,d)*.12f)*std::max(0.f,-v);
-        const float shade=metal::sat(.55f+.37f*pool-.50f*edge-.50f*top);
-        pixels.setPixelColour(x,y,Colour(0xff8b4e1c).interpolatedWith(Colour(0xffffe0ae),shade).withAlpha(metal::sat(d+.5f)));
+        const float shade=metal::sat(.53f+.43f*pool-.66f*edge-.45f*top);
+        // Curved lower return catches the warm lamp above the dark gasket.
+        const float returnLight=std::exp(-std::pow((d-5.f)/3.2f,2.f))*metal::smooth(.05f,.85f,v)*.20f;
+        const auto paper=Colour(0xff754018).interpolatedWith(Colour(0xffffe6b9),shade);
+        pixels.setPixelColour(x,y,paper.interpolatedWith(Colour(0xffffdb98),returnLight).withAlpha(metal::sat(d+.5f)));
     }
     } // commit writable bitmap before using it as a source image
     juce::Graphics::ScopedSaveState save(g);
@@ -397,7 +400,7 @@ inline void paintLampGlass(Graphics& g,juce::Rectangle<float> face){
 }
 inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool outputPeak=false, MeterLayer layer=MeterLayer::all) {
     const auto inner=r.reduced(7);
-    const auto face=inner.reduced(3.f);
+    const auto face=inner.reduced(2.4f);
     if(layer!=MeterLayer::needle){
     g.setColour(juce::Colours::black.withAlpha(.78f));g.fillRoundedRectangle(r.expanded(.7f).translated(1,3.4f),10);
     juce::ColourGradient bezel(Colour(0xff8b7960),r.getX(),r.getY(),Colour(0xff151310),r.getRight(),r.getBottom(),false);
@@ -414,13 +417,13 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     for(int i=0;i<4;++i)                                                      // bezel fasteners
         paintScrew(g,i%2?r.getRight()-6.7f:r.getX()+6.7f,i<2?r.getY()+6.7f:r.getBottom()-6.7f,3.7f,.7f*i);
     paintLampGlass(g,face);
-    g.setColour(Colour(0xff624222));g.drawRoundedRectangle(face,13,1.4f);
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff77512a),face.getY(),Colour(0xffffe5af),face.getBottom()));g.drawRoundedRectangle(face.reduced(1.2f),12.f,1.f);
+    g.setColour(Colour(0xff4b2e16));g.drawRoundedRectangle(face,15,1.15f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff51331c),face.getY(),Colour(0xffffdfa2),face.getBottom()));g.drawRoundedRectangle(face.reduced(1.4f),14.f,1.3f);
     }
 
 
     juce::Graphics::ScopedSaveState save(g);
-    {   juce::Path clipFace;clipFace.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),13.f);
+    {   juce::Path clipFace;clipFace.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),15.f);
         g.reduceClipRegion(clipFace);   }
     // The meter is much wider than it is tall. Fit the arc in both axes,
     // keeping its full scale, labels and hub inside the actual face.
@@ -486,7 +489,7 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.16f),face.getY(),juce::Colours::transparentWhite,face.getY()+face.getHeight()*.24f));
     g.fillPath(glass);
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,face.getBottom()-9.f,Colour(0xffffe3ad).withAlpha(.38f),face.getBottom()));g.fillRoundedRectangle(face.withY(face.getBottom()-9.f).withHeight(9.f),3.f);
-    g.setColour(Colour(0xffffeac1).withAlpha(.25f));g.drawRoundedRectangle(face.reduced(1.f),12.f,.65f);
+    g.setColour(Colour(0xffffeac1).withAlpha(.25f));g.drawRoundedRectangle(face.reduced(1.f),14.f,.65f);
 }
 
 class SkellierLook final : public juce::LookAndFeel_V4 {
@@ -594,7 +597,7 @@ public:
             g.fillEllipse(cx-capR*.94f,cy-capR*.94f,capR*1.88f,capR*1.88f);
         }
         juce::Path edge;edge.addCentredArc(cx,cy,capR*.955f,capR*.955f,0.f,-1.6f,.65f,true);
-        g.setColour(Colour(0xffffebcb).withAlpha(.60f));g.strokePath(edge,juce::PathStrokeType(juce::jmax(.45f,capR*.016f)));
+        g.setColour(Colour(0xffffebcb).withAlpha(.76f));g.strokePath(edge,juce::PathStrokeType(juce::jmax(.55f,capR*.022f)));
         // Original rack-style scale engraved on the FACEPLATE, not on a ring.
         const auto tick=light?Colour(0xff392f24):Colour(0xffe9ddc6);
         const int marks=utility?10:12;

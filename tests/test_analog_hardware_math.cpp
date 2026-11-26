@@ -17,6 +17,10 @@ int main(){
   ++checked;
  }
  assert(cap(.98f,-2.2f,.5f).brightness<cap(.65f,-2.2f,.5f).brightness);
+ // At the spindle, angular light must fade smoothly instead of a pinwheel.
+ for(int i=0;i<360;++i){const float a=i*3.14159265359f/180.f;
+   assert(std::abs(cap(.025f,a,.5f).brightness-cap(.025f,0.f,.5f).brightness)<.025f);
+ }
  assert(cap(.65f,-1.85f,.5f).brightness>cap(.65f,-1.85f+1.5707963f,.5f).brightness+.2f);
  std::cout<<checked<<" bounded analog metal/engraving samples passed\n";
 }

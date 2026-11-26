@@ -73,6 +73,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     // A warm cavity lamp and metal transport bed beneath the reels.
     g.setGradientFill(juce::ColourGradient(Colour(0xffd5a15e).withAlpha(.34f),win.getCentreX(),win.getY()+8.f,juce::Colours::transparentBlack,win.getCentreX(),win.getBottom(),true));g.fillRoundedRectangle(win.reduced(1.f),3.f);
     const auto bed=win.reduced(3.f).removeFromBottom(18.f);
+    g.setColour(Colour(0xffb78e57).withAlpha(.28f));g.drawVerticalLine(int(win.getCentreX()),win.getY()+4.f,bed.getY());
+    g.setColour(Colour(0xff20170f));g.fillRect(win.withY(bed.getY()-3.f).withHeight(3.f));
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff8a6337),bed.getY(),Colour(0xff2e2113),bed.getBottom()));g.fillRoundedRectangle(bed,2.f);
     g.setColour(Colour(0xffd8b17d).withAlpha(.55f));g.drawHorizontalLine(int(bed.getY()),bed.getX()+2,bed.getRight()-2);
     const float radius=std::min(win.getWidth()*.239f,win.getHeight()*.435f);
@@ -115,13 +117,13 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         const float fr=radius*.98f;
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(1.f);
-        g.drawImage(machinedCap(Colour(0xffd8c6a8)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
+        g.drawImage(machinedCap(Colour(0xffcfc1aa)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
         {juce::Graphics::ScopedSaveState save(g);
          juce::Path disc;disc.addEllipse(cx-fr*.94f,cy-fr*.94f,fr*1.88f,fr*1.88f);g.reduceClipRegion(disc);
          juce::ColourGradient reflect(Colour(0xfff6dcb4).withAlpha(.38f),cx-fr*.62f,cy-fr*.62f,Colour(0xff100d09).withAlpha(.19f),cx+fr*.82f,cy+fr*.83f,false);
          reflect.addColour(.58,juce::Colours::transparentBlack);g.setGradientFill(reflect);g.fillPath(disc);}
         // Fine machining rings on the reel flange, behind the cutouts.
-        for(int ring=0;ring<5;++ring){const float rr=fr*(.88f+ring*.018f);g.setColour(Colour(0xfff4dfb9).withAlpha(.16f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.5f);}
+        for(int ring=0;ring<3;++ring){const float rr=fr*(.91f+ring*.022f);g.setColour(Colour(0xfff4dfb9).withAlpha(.10f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.5f);}
         const float turn=k==0?.17f:.69f;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
             const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.49f;
@@ -185,7 +187,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     const auto p=originalSpec(type,1);
     // Small library symbols use a single hardware badge, not tiny versions
     // of the entire faceplate (which produced four distracting screw dots).
-    g.setGradientFill(juce::ColourGradient(p.metal.brighter(.22f),r.getX(),r.getY(),p.metal.darker(.42f),r.getRight(),r.getBottom(),false));
+    g.setGradientFill(juce::ColourGradient(p.metal.interpolatedWith(Colour(0xff3b3833),.65f),r.getX(),r.getY(),Colour(0xff211e1b),r.getRight(),r.getBottom(),false));
     g.fillRoundedRectangle(r.reduced(1.f),4.f);
     g.setColour(Colour(0xffd0bda1).withAlpha(.56f));g.drawRoundedRectangle(r.reduced(1.4f),4.f,.75f);
     g.setColour(juce::Colours::black.withAlpha(.36f));g.drawRoundedRectangle(r.reduced(2.8f),3.f,.7f);
@@ -247,7 +249,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     // Family glyphs so the library never shows the same icon for different effects.
     {
         const auto savedFrame=f;f=r.reduced(5);
-        const bool dark=!p.light;
+        const bool dark=true; // all miniature badges now use dark metal
         const auto ink=dark?Colour(0xffeee3cc):Colour(0xff2b2418);
         const float x0=f.getX()+2,x1=f.getRight()-2,w=x1-x0,my=f.getCentreY(),amp=f.getHeight()*.30f;
         auto strokePathInk=[&](const juce::Path& path,float width,float alpha=1.f){

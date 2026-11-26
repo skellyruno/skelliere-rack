@@ -107,9 +107,9 @@ void KnobCell::paint(Graphics& g) {
         return;
     }
     const int y=juce::jmin(getHeight()-30,slider.getBottom()+3);
-    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(15.5f,lightFace_).withExtraKerningFactor(.055f));
+    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(15.5f,true).withExtraKerningFactor(.055f));
     g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,15),juce::Justification::centred,1);
-    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(14.5f));
+    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffeee0c8));g.setFont(font(14.5f));
     g.drawFittedText(text_,Rectangle<int>(2,y+15,getWidth()-4,15),juce::Justification::centred,1);
 }
 
@@ -487,9 +487,9 @@ void ModuleTile::paint(Graphics& g) {
     const auto& mi=info(type);
     auto r=getLocalBounds().toFloat().reduced(.5f);
     const bool active=selected,hover=isMouseOver();
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(active?0xff51412c:hover?0xff302b25:0xff24211c),r.getY(),Colour(active?0xff251c13:0xff14120f),r.getBottom()));g.fillRect(r);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(active?0xff51412c:hover?0xff302b25:0xff1d1b18),r.getY(),Colour(active?0xff251c13:0xff14120f),r.getBottom()));g.fillRect(r);
     // Continuous recessed list, with a fine separator rather than a thick box around each row.
-    g.setColour(Colour(0xff050504));g.drawHorizontalLine(int(r.getBottom())-1,r.getX()+3,r.getRight()-3);
+    g.setColour(Colour(0xff090807));g.drawHorizontalLine(int(r.getBottom())-1,r.getX()+3,r.getRight()-3);
     if(active){g.setColour(pal::amber);g.drawRoundedRectangle(r,4,1.2f);}
     g.setColour(juce::Colours::white.withAlpha(hover?.18f:.055f));g.drawHorizontalLine(int(r.getY())+1,r.getX()+4,r.getRight()-4);
     auto sw=r.reduced(6).removeFromLeft(44);
@@ -503,7 +503,7 @@ void ModuleTile::paint(Graphics& g) {
     }
     g.setOpacity(1.f);g.drawImage(mini,sw);
     auto text=r.reduced(5).withTrimmedLeft(57);
-    g.setColour(pal::ink);g.setFont(font(17.5f,false).withExtraKerningFactor(.025f));
+    g.setColour(pal::ink);g.setFont(font(17.f,false).withExtraKerningFactor(.035f));
     g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(21).toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffd8cbb7));g.setFont(font(12.5f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
@@ -651,7 +651,7 @@ void PathStrip::paint(Graphics& g) {
     auto key=[&](const juce::String& text,int width,bool lit,bool model,bool focused=false){
         auto r=Rectangle<float>(float(x),float(h)*.5f-16.f,float(width),32.f);
         g.setColour(juce::Colours::black.withAlpha(.76f));g.fillRoundedRectangle(r.translated(0,2),6);
-        paintRaisedKey(g,r,Colour(lit?0xff302b24:0xff24211e),focused,false);
+        paintRaisedKey(g,r,Colour(lit?0xff302d28:0xff24211e),focused,false);
         if(focused){for(int halo=5;halo>=1;--halo){g.setColour(Colour(0xffeeb66e).withAlpha(.028f*float(6-halo)));g.drawRoundedRectangle(r.expanded(float(halo)),7.f,float(halo));}}
         g.setColour(focused?Colour(0xffffdfaa):lit?Colour(0xff96836a):Colour(0xff575043));g.drawRoundedRectangle(r.reduced(.7f),5,focused?1.55f:.7f);
         if(model&&lit&&!focused){g.setColour(Colour(0xffa58c66));g.fillEllipse(r.getX()+6,r.getCentreY()-1.3f,2.6f,2.6f);}

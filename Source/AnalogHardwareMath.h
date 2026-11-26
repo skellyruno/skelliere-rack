@@ -9,14 +9,14 @@ struct CapSample { float brightness,edge; };
 // and narrow occlusion at the physical edge. No separate decorative ring.
 inline CapSample cap(float r,float angle,float original){
     const float dir=std::cos(2.f*(angle+1.85f));
-    const float spec=std::pow(std::max(0.f,dir),3.5f);
+    const float spec=std::max(0.f,dir); // broad softbox reflection
     const float az=std::cos(angle+2.20f);
-    const float fade=smooth(.03f,.19f,r);
+    const float fade=smooth(0.f,.34f,r);
     const float grain=fade*(.014f*std::sin(r*810.f)+.008f*std::sin(r*1337.f));
-    float v=.39f+.25f*original+fade*(.245f*dir+.22f*spec+.09f*az)+grain;
+    float v=.44f+.25f*original+fade*(.168f*dir+.105f*spec+.085f*az)+grain;
     const float bevel=smooth(.865f,.93f,r);
-    v=v*(1.f-bevel)+bevel*(.43f+.36f*az+.16f*spec);
-    const float edge=smooth(.965f,.995f,r);
+    v=v*(1.f-bevel)+bevel*(.48f+.28f*az+.035f*spec);
+    const float edge=smooth(.958f,.995f,r);
     v=v*(1.f-edge)+edge*(.14f+.12f*std::max(0.f,az));
     return {sat(v),edge};
 }
