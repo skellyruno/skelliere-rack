@@ -346,7 +346,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintMonogram(pg,Rectangle<float>(w*.5f-11,12,22,29),ink);
         pg.setColour(ink);pg.setFont(font(14.5f,true).withExtraKerningFactor(.20f));
         pg.drawText("SKELL",18,42,w-36,17,juce::Justification::centred,false);
-        pg.setFont(juce::Font(juce::FontOptions("Georgia",28.f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
+        pg.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultSerifFontName(),28.f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
         const auto title=juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase();
         pg.setColour(p.light?Colour(0xfff8e5c5).withAlpha(.60f):juce::Colours::black.withAlpha(.65f));
         pg.drawFittedText(title,Rectangle<int>(14,61,w-28,30),juce::Justification::centred,1);

@@ -257,12 +257,14 @@ inline const juce::Image& litNecroCap(){
             const float dx=(x+.5f-centre)/centre,dy=(y+.5f-centre)/centre;
             const float rad=std::sqrt(dx*dx+dy*dy),angle=std::atan2(dy,dx);
             const auto outer=src.getPixelAt(x,y);
-            if(outer.getAlpha()==0&&rad>.52f)continue;
+            if(rad>=1.f)continue;
             const float lum=outer.getFloatRed()*.30f+outer.getFloatGreen()*.59f+outer.getFloatBlue()*.11f;
-            const float source=.57f+(lum-.57f)*metal::smooth(.43f,.59f,rad)*.65f;
+            // The source perimeter contains partial-alpha ring detail. Render the
+            // circular metal rim with continuous coverage to avoid a dotted edge.
+            const float source=.57f+(lum-.57f)*metal::smooth(.43f,.59f,rad)*(1.f-metal::smooth(.80f,.93f,rad))*.65f;
             const float v=metal::cap(rad,angle,source).brightness;
             pixels.setPixelColour(x,y,juce::Colour::fromFloatRGBA(metal::sat(v*1.09f),
-                metal::sat(v*1.025f),metal::sat(v*.91f),rad>.52f?outer.getFloatAlpha():1.f));
+                metal::sat(v*1.025f),metal::sat(v*.91f),metal::sat((.995f-rad)*centre+.5f)));
         }
         return im;
     }();
@@ -279,9 +281,12 @@ inline const juce::Image& necroEngraving(){
             const float rad=std::sqrt(dx*dx+dy*dy);
             if(rad>=.46f)continue;
             const float scale=metal::engravingScale(rad);
-            const int ix=juce::jlimit(0,im.getWidth()-1,int(centre+(x-centre)*scale));
-            const int iy=juce::jlimit(0,im.getHeight()-1,int(centre+(y-centre)*scale));
-            const float mark=metal::engravingWeight(rad,src.getPixelAt(ix,iy).getFloatAlpha());
+            const float sx=centre+(x+.5f-centre)*scale-.5f,sy=centre+(y+.5f-centre)*scale-.5f;
+            const int ix=juce::jlimit(0,im.getWidth()-2,int(std::floor(sx))),iy=juce::jlimit(0,im.getHeight()-2,int(std::floor(sy)));
+            const float fx=sx-ix,fy=sy-iy;
+            const float a0=src.getPixelAt(ix,iy).getFloatAlpha()*(1.f-fx)+src.getPixelAt(ix+1,iy).getFloatAlpha()*fx;
+            const float a1=src.getPixelAt(ix,iy+1).getFloatAlpha()*(1.f-fx)+src.getPixelAt(ix+1,iy+1).getFloatAlpha()*fx;
+            const float mark=metal::engravingWeight(rad,a0*(1.f-fy)+a1*fy);
             pixels.setPixelColour(x,y,Colour(0xff171410).withAlpha(mark*.91f));
         }
         return im;
@@ -453,18 +458,16 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
 
     const float v=juce::jlimit(0.f,20.f,outputPeak?(value+20.f)*20.f/24.f:value);
     const auto tip=pt(55.0f, v);
-    g.setColour(juce::Colours::black.withAlpha(0.22f));                       // needle shadow on the paper
-    g.drawLine(juce::Line<float>(juce::Point<float>(cx + 1.6f, cy + 1.8f), tip + juce::Point<float>(1.6f, 1.8f)), 1.3f);
-    g.setColour(pal::vuRed);
-    g.drawLine(juce::Line<float>(juce::Point<float>(cx, cy), tip), 1.65f);
-    g.setColour(Colour(0xffe4a071).withAlpha(.65f));g.drawLine(juce::Line<float>(juce::Point<float>(cx+.35f,cy),tip+juce::Point<float>(.35f,0)),.45f);
-    g.setColour(pal::vuRed);
-    {   const float dx=tip.x-cx,dy=tip.y-cy,len=std::sqrt(dx*dx+dy*dy)+1e-4f;   // short counterweight tail
-        g.drawLine(juce::Line<float>(juce::Point<float>(cx,cy),juce::Point<float>(cx-dx/len*6.f,cy-dy/len*6.f)),2.4f);   }
-    g.setColour(Colour(0xff0e0e0d)); g.fillEllipse(cx - 2.4f, cy - 2.4f, 4.8f, 4.8f);   // recessed pivot
-    g.setGradientFill(juce::ColourGradient(Colour(0xff8a867d),cx-2.2f,cy-2.6f,Colour(0xff1c1b19),cx+2.6f,cy+3.0f,false));
-    g.fillEllipse(cx - 1.7f, cy - 1.7f, 3.4f, 3.4f);
-    g.setColour(juce::Colours::white.withAlpha(.45f)); g.fillEllipse(cx - 1.2f, cy - 1.5f, 1.2f, .8f);
+    // The spindle is behind the lower meter trim. Keep the printed legend
+    // clear by clipping the visible needle at the mechanical aperture.
+    const auto pivot=juce::Point<float>(cx,cy);
+    const float cut=juce::jlimit(0.f,1.f,(cy-(legend.getY()-2.f))/juce::jmax(.01f,cy-tip.y));
+    const auto root=pivot+(tip-pivot)*cut;
+    g.setColour(juce::Colours::black.withAlpha(.22f));
+    g.drawLine(juce::Line<float>(root+juce::Point<float>(1.2f,1.2f),tip+juce::Point<float>(1.2f,1.2f)),1.3f);
+    g.setColour(pal::vuRed);g.drawLine(juce::Line<float>(root,tip),1.65f);
+    g.setColour(Colour(0xffe4a071).withAlpha(.65f));
+    g.drawLine(juce::Line<float>(root+juce::Point<float>(.35f,0),tip+juce::Point<float>(.35f,0)),.45f);
     // Curved lens reflection: a soft band whose lower edge bows downward, rather than a flat rectangle.
     juce::Path glass;
     glass.startNewSubPath(face.getX(), face.getY());
