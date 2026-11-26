@@ -3,6 +3,7 @@
 // printed legends and cream needle meters. All colours live here so the whole plugin can be re-skinned in one place.
 #include <JuceHeader.h>
 #include "Modules.h"
+#include "SkelliereKnobData.h"
 #include <map>
 
 
@@ -208,6 +209,20 @@ inline const juce::Image& knobBody(Colour cap) {
     g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
     const float r=.91f;
     g.drawImage(machinedCap(cap),juce::Rectangle<float>(c-r*u,c-r*u,2*r*u,2*r*u));
+    // Original Necromancer skull cap (same repository owner, original 256px asset).
+    // Keep the surrounding rack-specific metal collar and contact shadow; the
+    // cap itself remains stationary so the skull is upright and the pointer is clear.
+    static const auto skullCap = juce::ImageFileFormat::loadFrom(
+        SkelliereKnobData::knob_cap_big_png,
+        SkelliereKnobData::knob_cap_big_pngSize);
+    if (skullCap.isValid()) {
+        const float sr=.875f*u;
+        juce::Graphics::ScopedSaveState saved(g);
+        juce::Path clip; clip.addEllipse(c-sr,c-sr,2*sr,2*sr);
+        g.reduceClipRegion(clip);
+        g.setOpacity(1.f);
+        g.drawImage(skullCap,juce::Rectangle<float>(c-sr,c-sr,2*sr,2*sr));
+    }
     return cache.emplace(key,image).first->second;
 }
 
@@ -438,15 +453,18 @@ public:
         }
         // Pointer: inlaid dark bar with rounded ends, a pale lower edge catching the light, and a soft shadow.
         const float r=R*.91f*(1.23f/1.3f),pw=juce::jmax(1.8f,r*.06f);
-        juce::Path bar;bar.startNewSubPath(0.f,-r*.28f);bar.lineTo(0.f,-r*.94f);
+        juce::Path bar;bar.startNewSubPath(0.f,-r*.64f);bar.lineTo(0.f,-r*.94f);
         const auto place=juce::AffineTransform::rotation(ang).translated(cx,cy);
         const juce::PathStrokeType stroke(pw,juce::PathStrokeType::curved,juce::PathStrokeType::rounded);
         g.setColour(juce::Colours::black.withAlpha(.30f));
         g.strokePath(bar,stroke,place.translated(.9f,1.1f));
         g.setColour(juce::Colours::white.withAlpha(.30f));
         g.strokePath(bar,stroke,place.translated(.55f,.65f));
-        g.setColour(ptr);
-        g.strokePath(bar,stroke,place);
+        // Contrast the inlay against the silver skull cap without crossing the emblem.
+        g.setColour(juce::Colours::black.withAlpha(.85f));
+        g.strokePath(bar,juce::PathStrokeType(pw+1.4f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded),place);
+        g.setColour(ptr.getPerceivedBrightness()>.50f?ptr:Colour(0xfff3e4ca));
+        g.strokePath(bar,juce::PathStrokeType(juce::jmax(.9f,pw*.55f),juce::PathStrokeType::curved,juce::PathStrokeType::rounded),place);
         if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawEllipse(cx-R*1.1f,cy-R*1.1f,R*2.2f,R*2.2f,1.f);}
     }
 

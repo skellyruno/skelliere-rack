@@ -32,6 +32,11 @@ juce_add_plugin(SkellierRack
 
 juce_generate_juce_header(SkellierRack)
 
+# Reuse the actual Skell Necromancer large skull-cap artwork, not a mockup.
+juce_add_binary_data(SkelliereKnobArt HEADER_NAME SkelliereKnobData.h
+  NAMESPACE SkelliereKnobData SOURCES assets/knob_cap_big.png)
+target_link_libraries(SkellierRack PUBLIC SkelliereKnobArt)
+
 # Original JUCE panels; legacy asset archives are retained as reference only.
 set(SKELLIERE_FULL_ARTWORK 0)
 target_sources(SkellierRack PRIVATE

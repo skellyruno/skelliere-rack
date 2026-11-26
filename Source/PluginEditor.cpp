@@ -692,7 +692,7 @@ void RackUI::resized() {
 
 void RackUI::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff24211e),0.f,Colour(0xff151310),float(kH)));
-    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.68f);paintPeened(g,getLocalBounds().toFloat(),.12f);
+    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.92f);paintPeened(g,getLocalBounds().toFloat(),.16f);
     g.setColour(Colour(0xff777064).withAlpha(.5f));g.drawHorizontalLine(61,20,1240);
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(25,15,24,35),pal::ink);
@@ -701,7 +701,9 @@ void RackUI::paint(Graphics& g) {
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
     g.drawVerticalLine(49,13,54);g.drawVerticalLine(332,13,54);g.drawVerticalLine(628,13,54);
     const auto frame=Rectangle<float>(262,102,986,610);
-    g.setColour(Colour(0xff0d0c0a));g.fillRoundedRectangle(frame,8);
+    g.setColour(juce::Colours::black.withAlpha(.7f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,1.f),9);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff554b3c),frame.getY(),Colour(0xff0b0907),frame.getBottom()));g.fillRoundedRectangle(frame,8);
+    g.setColour(Colour(0xff0d0c0a));g.fillRoundedRectangle(frame.reduced(3.5f),5);
     g.setColour(Colour(0xff94846c));g.drawRoundedRectangle(frame.reduced(.8f),8,1.4f);
     g.setColour(Colour(0xff352d22));g.drawRoundedRectangle(frame.reduced(3),5,1.7f);
     paintScrew(g,1242,114,4.2f,.6f);paintScrew(g,1242,701,4.2f,1.5f);

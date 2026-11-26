@@ -145,7 +145,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     // finishes already matched (within ~8/255) and are left alone.
     const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.82f);
     // Nearly flat body colour; the old strong top-to-bottom ramp produced visible horizontal bands.
-    g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.065f),plate.getY(),base.darker(p.light?.045f:.12f),plate.getBottom()));
+    g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.10f),plate.getY(),base.darker(p.light?.075f:.15f),plate.getBottom()));
     g.fillRoundedRectangle(plate,5);
     {
         juce::Graphics::ScopedSaveState clip(g);
@@ -162,7 +162,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?.9f:.20f);paintPeened(g,plate,p.light?.24f:.34f);                                   // coherent fibre grain
+        paintBrushed(g,plate,p.light?1.f:.36f);paintPeened(g,plate,p.light?.25f:.36f);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
         g.setColour(juce::Colours::white.withAlpha(.39f));
         g.drawHorizontalLine(int(plate.getY())+1,plate.getX()+4,plate.getRight()-4);
@@ -173,6 +173,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
         g.drawVerticalLine(int(plate.getRight())-2,plate.getY()+4,plate.getBottom()-4);
     }
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff1dfc1).withAlpha(.68f),plate.getY(),Colour(0xff6a5b48).withAlpha(.45f),plate.getBottom()));g.drawRoundedRectangle(plate.reduced(.5f),5,1.5f);
+    g.setColour(juce::Colours::black.withAlpha(.65f));g.drawRoundedRectangle(plate.reduced(2.6f),4,1.2f);
     g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(3.2f),4,1.1f);   // engraved panel line
     g.setColour(juce::Colours::white.withAlpha(.07f));g.drawRoundedRectangle(plate.reduced(3.5f),4,.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-10:plate.getX()+10,i<2?plate.getY()+10:plate.getBottom()-10,5.f,.8f*i);
