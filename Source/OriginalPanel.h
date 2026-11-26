@@ -32,10 +32,11 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     const int half=(width-24)/2,mid=width/2;
     if(mi.hasVU||type==Flanger)l.meter={15,106,width-30,120};
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
+    if(type==Eq)l.detail.setHeight(82);
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
     // Four-window controls leave a lower breathing area like real rack gear.
     // Five-control compressors need the bottom row for makeup gain.
-    const int top=window?(n==5?(editing?248:253):242):108;
+    const int top=type==Eq?199:window?(n==5?(editing?248:253):242):108;
     const int bottom=editing?520:(window&&n==4?515:window&&n==5&&!l.meter.isEmpty()?565:548),available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
@@ -46,6 +47,9 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     }else if(n==3&&!window){
         const int hero=available/2;l.cells[0]={mid-82,top,164,hero-4};
         for(int k=1;k<3;++k)l.cells[k]={12+(k-1)*half,top+hero,half,available-hero-4};
+    }else if(type==Eq){
+        const int row=available/3;
+        for(int k=0;k<5;++k)l.cells[k]={k==4?mid-half/2:12+(k%2)*half,top+(k/2)*row,half,row-4};
     }else if(n==5&&window){
         const int row=(available-(editing?76:88))/2;
         for(int k=0;k<4;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*row,half,row-4};
@@ -92,7 +96,7 @@ inline void paintAirDetail(Graphics& g,juce::Rectangle<float> r,int type){
     paintEngravedFigure(g,{glass.getX()+glass.getWidth()*.64f,glass.getY()+9,glass.getWidth()*.19f,glass.getHeight()*.59f},Colour(0xffeae5d1).withAlpha(.80f),BonePose::floatUp);
     for(int i=0;i<7;++i){const float xx=glass.getX()+14.f+i*glass.getWidth()*.11f,yy=glass.getY()+12.f+float((i*17)%29);g.setColour(Colour(0xfff4e8cd).withAlpha(.26f));g.drawLine(xx-2,yy,xx+2,yy,.65f);g.drawLine(xx,yy-2,xx,yy+2,.65f);}
     // Fine rising curves are symbolic: the actual processing controls remain below.
-    juce::Path lift;lift.startNewSubPath(glass.getX()+15,glass.getBottom()-24);lift.cubicTo(glass.getX()+glass.getWidth()*.38f,glass.getBottom()-25,glass.getX()+glass.getWidth()*.55f,glass.getY()+31,glass.getRight()-15,glass.getY()+29);
+    juce::Path lift;lift.startNewSubPath(glass.getX()+15,glass.getBottom()-24);lift.cubicTo(glass.getX()+glass.getWidth()*.38f,glass.getBottom()-25,glass.getX()+glass.getWidth()*.55f,glass.getY()+31,glass.getX()+glass.getWidth()*.60f,glass.getY()+29);
     g.setColour(Colour(0xfff4e6c7).withAlpha(.24f));g.strokePath(lift,juce::PathStrokeType(3.1f));g.setColour(Colour(0xfff4e6c7).withAlpha(.85f));g.strokePath(lift,juce::PathStrokeType(.85f));
     if(type==SkellAirFX){g.setColour(Colour(0xffc2e9ee).withAlpha(.58f));g.strokePath(lift,juce::PathStrokeType(.8f),juce::AffineTransform::translation(0,-8.f));}
     g.setColour(Colour(0xfff4e8d0));g.setFont(font(10.f,true).withExtraKerningFactor(.17f));g.drawText(type==Air?"HIGH SHELF":"PRESENCE / BRILLIANCE",glass.withY(glass.getBottom()-19).withHeight(14),juce::Justification::centred,false);
@@ -110,15 +114,18 @@ inline void paintSpaceDetail(Graphics& g,juce::Rectangle<float> r,int type){
     if(type==Reverb){
         // Recessed arched chamber with converging floor and illuminated distant figure.
         for(int i=0;i<5;++i){float t=i/5.f;auto a=glass.reduced(9.f+w*.31f*t,5.f+h*.28f*t);juce::Path arch;arch.startNewSubPath(a.getX(),a.getBottom());arch.lineTo(a.getX(),a.getY()+a.getHeight()*.30f);arch.quadraticTo(a.getCentreX(),a.getY()-a.getHeight()*.22f,a.getRight(),a.getY()+a.getHeight()*.30f);arch.lineTo(a.getRight(),a.getBottom());g.setColour(Colour(0xffd7af83).withAlpha(.38f-t*.20f));g.strokePath(arch,juce::PathStrokeType(1.6f-t));}
-        paintEngravedFigure(g,{x+w*.42f,y+h*.17f,w*.16f,h*.51f},Colour(0xffe7c5a1).withAlpha(.81f),BonePose::stand);
         // Receding room geometry and reflections: conceptual depth, no fake meter.
-        for(int k=0;k<6;++k){float t=float(k)/6.f;auto room=glass.reduced(5.f+w*.30f*t,4.f+h*.30f*t);g.setColour(Colour(0xffccb79d).withAlpha(.32f-.036f*k));g.drawRoundedRectangle(room,2.f,1.1f);}
+        for(int k=0;k<3;++k){float t=float(k)/3.f;auto room=glass.reduced(5.f+w*.30f*t,4.f+h*.30f*t);g.setColour(Colour(0xffccb79d).withAlpha(.32f-.036f*k));g.drawRoundedRectangle(room,2.f,1.1f);}
         for(int i=0;i<4;++i){const float ax=(i%2)?x+w:x,ay=(i/2)?y+h:y;g.setColour(Colour(0xffd4b491).withAlpha(.26f));g.drawLine(ax,ay,x+w*.5f,y+h*.44f,.85f);}
-        for(int k=0;k<4;++k){const float a=10.f+k*9.f;g.setColour(Colour(0xffe4c8a3).withAlpha(.24f-.04f*k));g.drawEllipse(x+w*.5f-a,y+h*.43f-a*.46f,a*2.f,a*.92f,.9f);}
+        for(int k=0;k<2;++k){const float a=10.f+k*9.f;g.setColour(Colour(0xffe4c8a3).withAlpha(.24f-.04f*k));g.drawEllipse(x+w*.5f-a,y+h*.43f-a*.46f,a*2.f,a*.92f,.9f);}
+        // Soft lamp behind the figure separates the silhouette from the chamber linework.
+        const float cx=x+w*.5f,cy=y+h*.42f;
+        g.setGradientFill(juce::ColourGradient(Colour(0xff392b2c),cx,cy,juce::Colours::transparentBlack,cx+29.f,cy+18.f,true));g.fillEllipse(cx-36,cy-32,72,64);
+        paintEngravedFigure(g,{x+w*.42f,y+h*.17f,w*.16f,h*.51f},Colour(0xffe7c5a1).withAlpha(.91f),BonePose::stand);
     }else{
-        paintEngravedFigure(g,{x+w*.15f,y+8,w*.20f,h*.60f},Colour(0xffcfe8dc).withAlpha(.75f),BonePose::mirror);
-        paintEngravedFigure(g,{x+w*.65f,y+8,w*.20f,h*.60f},Colour(0xffb6d0ce).withAlpha(.54f),BonePose::mirror);
-        for(int band=0;band<3;++band){juce::Path wave;for(int k=0;k<=100;++k){float t=float(k)/100.f;float yy=y+h*.44f+std::sin(t*juce::MathConstants<float>::twoPi*1.4f+band*.65f)*h*.20f;float xx=x+8.f+(w-16.f)*t;if(k==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);}g.setColour(Colour(0xffb3e1df).withAlpha(.16f));g.strokePath(wave,juce::PathStrokeType(3.f));g.setColour(Colour(0xffe2e9d6).withAlpha(.8f-.18f*band));g.strokePath(wave,juce::PathStrokeType(.9f));}
+        for(int band=0;band<3;++band){juce::Path wave;for(int k=0;k<=100;++k){float t=float(k)/100.f;float yy=y+h*.44f+std::sin(t*juce::MathConstants<float>::twoPi*1.4f+band*.65f)*h*.20f;float xx=x+w*.34f+w*.32f*t;if(k==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);}g.setColour(Colour(0xffb3e1df).withAlpha(.16f));g.strokePath(wave,juce::PathStrokeType(3.f));g.setColour(Colour(0xffe2e9d6).withAlpha(.8f-.18f*band));g.strokePath(wave,juce::PathStrokeType(.9f));}
+        paintEngravedFigure(g,{x+w*.12f,y+8,w*.20f,h*.60f},Colour(0xffcfe8dc).withAlpha(.88f),BonePose::mirror);
+        paintEngravedFigure(g,{x+w*.68f,y+8,w*.20f,h*.60f},Colour(0xffb6d0ce).withAlpha(.81f),BonePose::reverse);
     }
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,y+h*.54f,Colour(0xff080b12).withAlpha(.83f),y+h));g.fillRect(glass);
     g.setColour(Colour(0xffe9dfcb));g.setFont(font(10.f,true).withExtraKerningFactor(.16f));g.drawText(type==Reverb?"REFLECTION CHAMBER":"TWIN MODULATION",glass.withY(y+h-18.f).withHeight(14),juce::Justification::centred,false);}

@@ -1,7 +1,7 @@
 #pragma once
 // Original Skell engravings. Static, decorative panel artwork; not DSP displays.
 // Included inside skl::ui, after Look.h. All coordinates are local to the artwork.
-enum class BonePose { floatUp, stand, mirror, warm };
+enum class BonePose { floatUp, stand, mirror, reverse, warm };
 inline void paintBoneFigure(Graphics& g,juce::Rectangle<float> r,Colour ink,BonePose pose){
     juce::Graphics::ScopedSaveState save(g);
     const float s=std::min(r.getWidth()/44.f,r.getHeight()/76.f);
@@ -21,6 +21,7 @@ inline void paintBoneFigure(Graphics& g,juce::Rectangle<float> r,Colour ink,Bone
     if(pose==BonePose::floatUp){ex1=6;ey1=20;hx1=2;hy1=12;ex2=38;ey2=20;hx2=42;hy2=12;}
     if(pose==BonePose::warm){ex1=7;ey1=38;hx1=18;hy1=35;ex2=37;ey2=38;hx2=26;hy2=35;}
     if(pose==BonePose::mirror){ex1=6;ey1=34;hx1=2;hy1=27;ex2=36;ey2=18;hx2=42;hy2=13;}
+    if(pose==BonePose::reverse){ex1=8;ey1=18;hx1=2;hy1=13;ex2=38;ey2=34;hx2=42;hy2=27;}
     line(11,26,ex1,ey1);line(ex1,ey1,hx1,hy1);joint(ex1,ey1);joint(hx1,hy1);
     line(33,26,ex2,ey2);line(ex2,ey2,hx2,hy2);joint(ex2,ey2);joint(hx2,hy2);
     const float ly=pose==BonePose::floatUp?61.f:63.f,rx=pose==BonePose::floatUp?31.f:28.f;
@@ -49,12 +50,20 @@ inline void paintWorkshopDetail(Graphics& g,juce::Rectangle<float> r,int type){
         // A lit vacuum-tube chamber with reflected filament and mica supports.
         const float cx=x+w*.48f,cy=y+h*.40f;
         for(int i=9;i>=0;--i){float rr=12.f+i*3.1f;g.setColour(Colour(0xffe99c43).withAlpha(.018f+.009f*(9-i)));g.fillEllipse(cx-rr,cy-rr,rr*2,rr*2);}
-        const auto tube=juce::Rectangle<float>(cx-21,y+9,42,h-34);
+        const auto tube=juce::Rectangle<float>(cx-24,y+9,48,h-34);
+        // The lit plate and socket sit physically behind the glass envelope.
+        auto socket=tube.withY(tube.getBottom()-2.f).withHeight(13.f).expanded(5.f,0.f);
+        g.setColour(juce::Colours::black.withAlpha(.70f));g.fillRoundedRectangle(socket.translated(1.f,2.f),4.f);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff9b7751),socket.getY(),Colour(0xff27190f),socket.getBottom()));g.fillRoundedRectangle(socket,3.f);
         g.setGradientFill(juce::ColourGradient(Colour(0xffecd6a6).withAlpha(.40f),tube.getX(),tube.getY(),Colour(0xff231b13).withAlpha(.08f),tube.getRight(),tube.getBottom(),false));g.fillRoundedRectangle(tube,13.f);
         g.setColour(Colour(0xffe3c18b).withAlpha(.67f));g.drawRoundedRectangle(tube,13.f,1.f);
+        const auto plate=tube.reduced(9.f,13.f);
+        g.setGradientFill(juce::ColourGradient(Colour(0xff39261a),plate.getX(),plate.getY(),Colour(0xffb6854a),plate.getRight(),plate.getBottom(),false));g.fillRoundedRectangle(plate,3.f);
+        for(int k=0;k<7;++k){const float yy=plate.getY()+4+k*(plate.getHeight()-8)/6.f;g.setColour(Colour(0xffd3a76a).withAlpha(.26f));g.drawLine(plate.getX()+2,yy,plate.getRight()-2,yy,.8f);}
         for(int i=0;i<4;++i){float xx=cx-10+i*6.5f;g.setColour(Colour(0xffe2b475).withAlpha(.8f));g.drawLine(xx,tube.getY()+13,xx,tube.getBottom()-10,1.1f);}
         juce::Path filament;filament.startNewSubPath(cx-12,cy+9);for(int k=0;k<9;++k)filament.lineTo(cx-12+k*3,cy+(k%2?1.f:9.f));g.setColour(Colour(0xffffaa43).withAlpha(.25f));g.strokePath(filament,juce::PathStrokeType(4.f));g.setColour(Colour(0xffffd59a));g.strokePath(filament,juce::PathStrokeType(1.4f));
         g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff92714c),tube.getBottom()-7,Colour(0xff21180e),tube.getBottom()+5));g.fillRoundedRectangle(tube.withY(tube.getBottom()-7).withHeight(12),2.f);
+        juce::Path shine;shine.startNewSubPath(tube.getX()+5,tube.getY()+18);shine.quadraticTo(tube.getX()+2,tube.getCentreY(),tube.getX()+6,tube.getBottom()-8);g.setColour(Colour(0xffffe6b9).withAlpha(.55f));g.strokePath(shine,juce::PathStrokeType(1.7f));
         paintEngravedFigure(g,{x+w*.72f,y+13,w*.19f,h*.60f},Colour(0xffe7c28b).withAlpha(.83f),BonePose::warm);
     }else if(type!=Eq){
         // Distinct static workshop illustrations, deliberately not live traces.
