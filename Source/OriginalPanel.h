@@ -3,7 +3,7 @@
 namespace skl::ui {
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xd9bc99,0x75463f,0x5d4132,0xc4c0ad,0x384859,0x42432f,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x663d36,0x706449,0x496464,0x45484a};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xd4b99b,0x6d3e36,0x5d4132,0xc4c0ad,0x304354,0x373d2d,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x663d36,0x706449,0x496464,0x45484a};
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -21,14 +21,17 @@ struct OriginalLayout {
     bool sideReadouts=false;
 };
 // Reference proportions: the tall 650px panels are replaced by a compact
-// hardware panel of 586px. Preserve every knob, including Bell's four real controls.
+// hardware panel of 574px. Preserve every knob, including Bell's four real controls.
 inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
-    if(mi.hasVU||type==Flanger)l.meter={15,107,width-30,126};
-    if(type==Delay||type==Slap)l.detail={16,107,width-32,126};
+    if(mi.hasVU||type==Flanger)l.meter={15,106,width-30,120};
+    if(type==Delay||type==Slap)l.detail={16,106,width-32,120};
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
-    const int top=window?241:108,bottom=editing?532:560,available=bottom-top;
+    // Four-window controls leave a lower breathing area like real rack gear.
+    // Five-control compressors need the bottom row for makeup gain.
+    const int top=window?(n==5?248:235):108;
+    const int bottom=editing?520:(window&&n==4?515:548),available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
         for(int k=0;k<n;++k)l.cells[k]={12,top+k*row,width-24,row-4};
@@ -39,9 +42,9 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
         const int hero=available/2;l.cells[0]={mid-82,top,164,hero-4};
         for(int k=1;k<3;++k)l.cells[k]={12+(k-1)*half,top+hero,half,available-hero-4};
     }else if(n==5&&window){
-        const int row=(available-(editing?84:90))/2;
+        const int row=(available-(editing?76:88))/2;
         for(int k=0;k<4;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*row,half,row-4};
-        l.cells[4]={mid-43,top+2*row,86,available-2*row-3};
+        l.cells[4]={mid-40,top+2*row,80,available-2*row-3};
     }else if(n==5){
         const int row=available/3;l.cells[0]={mid-70,top,140,row-4};
         for(int k=1;k<5;++k)l.cells[k]={12+((k-1)%2)*half,top+row+((k-1)/2)*row,half,row-4};
@@ -165,9 +168,9 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?.92f:.50f);paintPeened(g,plate,p.light?.20f:.36f);
+        paintBrushed(g,plate,p.light?.85f:.46f);paintPeened(g,plate,p.light?.22f:.48f);
         // Narrow side occlusion gives panels the thickness of real faceplates.
-        g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(.20f),plate.getRight(),plate.getCentreY(),juce::Colours::transparentBlack,plate.getRight()-12.f,plate.getCentreY(),false));g.fillRect(plate);
+        g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(.29f),plate.getRight(),plate.getCentreY(),juce::Colours::transparentBlack,plate.getRight()-10.f,plate.getCentreY(),false));g.fillRect(plate);
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,plate.getBottom()-12.f,juce::Colours::black.withAlpha(.25f),plate.getBottom()));g.fillRect(plate);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
         g.setColour(juce::Colours::white.withAlpha(.65f));
@@ -183,7 +186,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setColour(juce::Colours::black.withAlpha(.65f));g.drawRoundedRectangle(plate.reduced(2.6f),4,1.2f);
     g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(3.2f),4,1.1f);   // engraved panel line
     g.setColour(juce::Colours::white.withAlpha(.07f));g.drawRoundedRectangle(plate.reduced(3.5f),4,.8f);
-    for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-10:plate.getX()+10,i<2?plate.getY()+10:plate.getBottom()-10,5.8f,.8f*i);
+    for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-12:plate.getX()+12,i<2?plate.getY()+12:plate.getBottom()-12,7.f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     const auto p=originalSpec(type,1);
@@ -194,6 +197,15 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     g.setColour(Colour(0xffd0bda1).withAlpha(.56f));g.drawRoundedRectangle(r.reduced(1.4f),4.f,.75f);
     g.setColour(juce::Colours::black.withAlpha(.36f));g.drawRoundedRectangle(r.reduced(2.8f),3.f,.7f);
     auto f=r.reduced(6);
+    if(type==Bell){
+        // Physical equalizer control rather than a generic curve: like the
+        // reference rack library, a tiny metal knob reads at a glance.
+        const float cx=f.getCentreX(),cy=f.getCentreY(),rad=juce::jmin(f.getWidth(),f.getHeight())*.40f;
+        g.setColour(juce::Colours::black.withAlpha(.65f));g.fillEllipse(cx-rad+1,cy-rad+2,2*rad,2*rad);
+        g.drawImage(machinedCap(Colour(0xffb6a58b)),juce::Rectangle<float>(cx-rad,cy-rad,2*rad,2*rad));
+        for(int i=0;i<9;++i){const float a=juce::degreesToRadians(225.f+i*270.f/8.f);g.setColour(Colour(0xffe9d9bb));g.fillEllipse(cx+std::sin(a)*rad*1.26f-.55f,cy-std::cos(a)*rad*1.26f-.55f,1.1f,1.1f);}
+        g.setColour(Colour(0xff201914));g.drawLine(cx,cy-rad*.32f,cx+rad*.21f,cy-rad*.9f,1.2f);return;
+    }
     if(info(type).hasVU||type==Flanger){
         // A legible meter icon, not a reduced full-size scale.
         f=r.reduced(3.5f);

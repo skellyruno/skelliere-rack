@@ -16,6 +16,7 @@ public:
     void setLightFace(bool light);
     void setSprite(int id);
     void setNativeFace(bool native, bool side=false) { nativeFace_=native; sideReadout_=side; resized(); repaint(); }
+    bool controlGeometryValid() const noexcept;
     juce::Slider slider;
 private:
     juce::String label_, text_;
@@ -51,8 +52,8 @@ public:
 
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
-    static constexpr int kWidth = 248, kHeight = 586;
-    int preferredWidth() const { return 236; }
+    static constexpr int kWidth = 234, kHeight = 574;
+    int preferredWidth() const { return kWidth; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
     void rebuild();
@@ -126,6 +127,7 @@ public:
     void resized() override;
     void paint(juce::Graphics&) override;
 private:
+    static constexpr int rowHeight=49, listTop=142;
     void refresh();
     void select(int type);
     void paintHardware(juce::Graphics&);
@@ -173,6 +175,10 @@ class RackUI final : public juce::Component,
                      private juce::Timer {
 public:
     static constexpr int kW = 1260, kH = 790;
+    // Logical geometry: zoom never alters parameter state.
+    static constexpr int rackY=110, rackH=586, libraryX=8, libraryY=108, libraryW=260, libraryH=588;
+    static constexpr int visibleRackX=274, hiddenRackX=30;
+    static constexpr int rackWidth(int count){return 2*RackStrip::kPad+count*SlotComponent::kWidth+(count-1)*RackStrip::kGap;}
     explicit RackUI(SkellierProcessor&);
     ~RackUI() override;
     void paint(juce::Graphics&) override;
