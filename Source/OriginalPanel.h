@@ -75,8 +75,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     const auto bed=win.reduced(3.f).removeFromBottom(18.f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff8a6337),bed.getY(),Colour(0xff2e2113),bed.getBottom()));g.fillRoundedRectangle(bed,2.f);
     g.setColour(Colour(0xffd8b17d).withAlpha(.55f));g.drawHorizontalLine(int(bed.getY()),bed.getX()+2,bed.getRight()-2);
-    const float radius=std::min(win.getWidth()*.238f,win.getHeight()*.43f);
-    const float cy=win.getCentreY()-3.f;
+    const float radius=std::min(win.getWidth()*.235f,win.getHeight()*.42f);
+    const float cy=win.getCentreY()-5.f;
     const float cxs[2]={win.getX()+win.getWidth()*.27f,win.getX()+win.getWidth()*.73f};
     const float floorY=std::min(cy+radius*.98f,win.getBottom()-22.f);
 
@@ -114,21 +114,26 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff000000).withAlpha(.5f));g.drawEllipse(cx-radius,cy-radius,2*radius,2*radius,1.2f);
         const float fr=radius*.98f;
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-        g.drawImage(machinedCap(Colour(0xffceb38e)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
+        g.drawImage(machinedCap(Colour(0xffe3cdaa)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
         // Fine machining rings on the reel flange, behind the cutouts.
         for(int ring=0;ring<5;++ring){const float rr=fr*(.88f+ring*.018f);g.setColour(Colour(0xfff4dfb9).withAlpha(.16f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.5f);}
         const float turn=k==0?.17f:.69f;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
             const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.51f;
             const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.51f;
-            juce::Path opening;
-            opening.addPieSegment(cx-fr*.80f,cy-fr*.80f,fr*1.60f,fr*1.60f,from,to,.40f);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff372b1d),cy-fr*.8f,Colour(0xff080604),cy+fr*.8f));
+            // Rounded tapered triangular ports rather than broad pie slices.
+            auto point=[&](float a,float rr){return juce::Point<float>(cx+std::sin(a)*rr,cy-std::cos(a)*rr);};
+            const float mid=(from+to)*.5f;
+            juce::Path opening;opening.startNewSubPath(point(from,fr*.79f));
+            opening.quadraticTo(point(mid,fr*.90f),point(to,fr*.79f));
+            opening.lineTo(point(mid+.20f,fr*.36f));opening.quadraticTo(point(mid,fr*.29f),point(mid-.20f,fr*.36f));opening.closeSubPath();
+            opening=opening.createPathWithRoundedCorners(1.6f);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff392e20),cy-fr*.8f,Colour(0xff110d09),cy+fr*.8f));
             g.fillPath(opening);
             g.setColour(Colour(0xffbe9663).withAlpha(.11f));g.strokePath(opening,juce::PathStrokeType(2.1f),juce::AffineTransform::translation(.2f,1.f));
             g.setColour(Colour(0xffe9dcc0).withAlpha(.55f));                          // lit rim of the opening
             g.strokePath(opening,juce::PathStrokeType(.9f),juce::AffineTransform::translation(.5f,.7f));
-            g.setColour(Colour(0xff000000).withAlpha(.84f));g.strokePath(opening,juce::PathStrokeType(1.25f));
+            g.setColour(Colour(0xff000000).withAlpha(.84f));g.strokePath(opening,juce::PathStrokeType(.85f));
             g.setColour(Colour(0xffcdb48b).withAlpha(.22f));g.strokePath(opening,juce::PathStrokeType(.55f),juce::AffineTransform::translation(-.45f,-.35f));
         }
         juce::Path flange;flange.addCentredArc(cx,cy,fr*.96f,fr*.96f,0.f,-1.7f,.65f,true);g.setColour(Colour(0xfff9e6c6).withAlpha(.65f));g.strokePath(flange,juce::PathStrokeType(1.4f));
@@ -140,6 +145,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff393128));g.fillEllipse(cx-fr*.17f,cy-fr*.17f,fr*.34f,fr*.34f);
         g.setGradientFill(juce::ColourGradient(Colour(0xffb6a78e),cx-fr*.10f,cy-fr*.10f,Colour(0xff19140e),cx+fr*.12f,cy+fr*.13f,false));g.fillEllipse(cx-fr*.125f,cy-fr*.125f,fr*.25f,fr*.25f);
         g.setColour(Colour(0xff0b0a08));g.fillEllipse(cx-fr*.045f,cy-fr*.045f,fr*.09f,fr*.09f);
+        g.setColour(Colour(0xffffe4bc).withAlpha(.65f));g.fillEllipse(cx-fr*.095f,cy-fr*.10f,fr*.07f,fr*.05f);
     }
     // Curved glass over the window.
     {   juce::Graphics::ScopedSaveState keep(g);
@@ -151,7 +157,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         glass.closeSubPath();
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.11f),win.getY(),juce::Colours::white.withAlpha(.012f),win.getY()+win.getHeight()*.38f));
         g.fillPath(glass);
-        g.setColour(Colour(0xfff5dbad).withAlpha(.48f));g.drawRoundedRectangle(win.reduced(.9f),3.f,.9f);
+        g.setColour(Colour(0xfff5dbad).withAlpha(.30f));g.drawRoundedRectangle(win.reduced(.9f),3.f,.75f);
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,win.getBottom()-7.f,Colour(0xffe5ba76).withAlpha(.26f),win.getBottom()));g.fillRoundedRectangle(win.withY(win.getBottom()-7.f).withHeight(7.f),2.f);
     }
     // The tape mechanism is decorative; its live controls are below the window.

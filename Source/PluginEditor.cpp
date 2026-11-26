@@ -78,27 +78,27 @@ void KnobCell::paint(Graphics& g) {
     }
     if (compact_) {
         auto r = getLocalBounds().withTrimmedLeft(slider.getRight() + 6);
-        g.setColour(pal::ink); g.setFont(font(13.0f, false).withExtraKerningFactor(.085f));
+        g.setColour(pal::ink); g.setFont(font(14.0f,false).withExtraKerningFactor(.085f));
         g.drawText(label_, r.removeFromTop(getHeight() / 2 + 2), juce::Justification::bottomLeft, false);
-        g.setColour(pal::ink); g.setFont(font(12.0f));
+        g.setColour(pal::ink); g.setFont(font(13.0f));
         g.drawText(text_, r, juce::Justification::topLeft, false);
         return;
     }
     if(sideReadout_) {
         const auto readout=getLocalBounds().withTrimmedLeft(slider.getRight()+12).reduced(5,0);
         const int cy=getHeight()/2;
-        g.setColour(lightFace_?Colour(0xff292219):pal::ink);g.setFont(font(15.f,false).withExtraKerningFactor(.075f));
+        g.setColour(lightFace_?Colour(0xff292219):pal::ink);g.setFont(font(16.5f,false).withExtraKerningFactor(.075f));
         g.drawFittedText(label_,readout.withY(cy-24).withHeight(21),juce::Justification::centred,1);
         auto pill=readout.withY(cy+1).withHeight(20).toFloat().reduced(4,0);
         g.setGradientFill(juce::ColourGradient::vertical(lightFace_?Colour(0xff30291f).withAlpha(.22f):Colour(0xff090e12).withAlpha(.72f),pill.getY(),lightFace_?Colour(0xffe0c6a0).withAlpha(.15f):Colour(0xff414a52).withAlpha(.38f),pill.getBottom()));g.fillRoundedRectangle(pill,10);
         g.setColour((lightFace_?Colour(0xff504638):pal::ink).withAlpha(.72f));g.drawRoundedRectangle(pill,10,.85f);
-        g.setColour(lightFace_?Colour(0xff292219):Colour(0xffeee3cc));g.setFont(font(13.5f));
+        g.setColour(lightFace_?Colour(0xff292219):Colour(0xffeee3cc));g.setFont(font(14.5f));
         g.drawFittedText(text_,pill.reduced(4,1).toNearestInt(),juce::Justification::centred,1);
         // Only display genuine bipolar endpoints. Bell's sweep and Q are
         // not relabeled as the reference concept's three shelving bands.
         if(rangeLow.isNotEmpty()&&slider.getY()>=8&&getHeight()-slider.getBottom()>=8){
             const auto b=slider.getBounds();
-            g.setColour(lightFace_?Colour(0xff423426):Colour(0xffe0d6c3));g.setFont(font(9.5f));
+            g.setColour(lightFace_?Colour(0xff423426):Colour(0xffe0d6c3));g.setFont(font(10.5f));
             g.drawText("0",b.getX(),b.getY()-9,b.getWidth(),9,juce::Justification::centred,false);
             g.drawText(rangeLow,b.getX()-3,b.getBottom(),30,9,juce::Justification::centredLeft,false);
             g.drawText(rangeHigh,b.getRight()-27,b.getBottom(),30,9,juce::Justification::centredRight,false);
@@ -106,9 +106,9 @@ void KnobCell::paint(Graphics& g) {
         return;
     }
     const int y=juce::jmin(getHeight()-30,slider.getBottom()+3);
-    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(14.5f,lightFace_).withExtraKerningFactor(.055f));
+    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(15.5f,true).withExtraKerningFactor(.045f));
     g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,15),juce::Justification::centred,1);
-    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(13.5f));
+    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(14.5f));
     g.drawFittedText(text_,Rectangle<int>(2,y+15,getWidth()-4,15),juce::Justification::centred,1);
 }
 
@@ -232,7 +232,7 @@ void SlotComponent::syncArtwork() {
     appliedArtworkChoice=choice;nativeChoice=choice;panelCache={};
     const auto spec=originalSpec(type,choice);
     static const char* names[]={"GRAPHITE","SIGNATURE","SILVER","MIDNIGHT"};
-    artButton.setButtonText("FINISH");artButton.setTooltip(juce::String("Metal finish: ")+names[choice]+" (click to cycle)");
+    artButton.setButtonText("FINISH");artButton.setTooltip(juce::String("Metal finish: ")+names[choice]+" (appearance only; click to cycle)");
     for(auto& c:cells){
         c->setNativeFace(true,originalLayout(type,preferredWidth(),editing).sideReadouts);c->setLightFace(spec.light);
         c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
@@ -344,9 +344,9 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         paintMonogram(pg,Rectangle<float>(w*.5f-11,12,22,29),ink);
-        pg.setColour(ink);pg.setFont(font(13.5f,false).withExtraKerningFactor(.23f));
+        pg.setColour(ink);pg.setFont(font(14.5f,true).withExtraKerningFactor(.20f));
         pg.drawText("SKELL",18,42,w-36,17,juce::Justification::centred,false);
-        pg.setFont(juce::Font(juce::FontOptions("Georgia",26.f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
+        pg.setFont(juce::Font(juce::FontOptions("Georgia",28.f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
         const auto title=juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase();
         pg.setColour(p.light?Colour(0xfff8e5c5).withAlpha(.60f):juce::Colours::black.withAlpha(.65f));
         pg.drawFittedText(title,Rectangle<int>(14,61,w-28,30),juce::Justification::centred,1);
@@ -482,7 +482,7 @@ void ModuleTile::paint(Graphics& g) {
     g.setColour(Colour(0xff050504));g.drawHorizontalLine(int(r.getBottom())-1,r.getX()+3,r.getRight()-3);
     if(active){g.setColour(pal::amber);g.drawRoundedRectangle(r,4,1.2f);}
     g.setColour(juce::Colours::white.withAlpha(hover?.18f:.055f));g.drawHorizontalLine(int(r.getY())+1,r.getX()+4,r.getRight()-4);
-    auto sw=r.reduced(5).removeFromLeft(46);
+    auto sw=r.reduced(6).removeFromLeft(44);
     g.setColour(juce::Colours::black.withAlpha(.55f));g.fillRoundedRectangle(sw.expanded(1.2f).translated(0,1),4);
     // Cache icon at fixed logical dimensions (not the whole tile or its hover state).
     static std::array<juce::Image,skl::kNumRackTypes> minis;
@@ -493,9 +493,9 @@ void ModuleTile::paint(Graphics& g) {
     }
     g.drawImage(mini,sw);
     auto text=r.reduced(5).withTrimmedLeft(57);
-    g.setColour(pal::ink);g.setFont(font(17.5f,false));
+    g.setColour(pal::ink);g.setFont(font(18.f,true));
     g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(21).toNearestInt(),juce::Justification::centredLeft,1);
-    g.setColour(Colour(0xffd8cbb7));g.setFont(font(12.5f));
+    g.setColour(Colour(0xffd8cbb7));g.setFont(font(13.f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
 }
 
@@ -588,7 +588,7 @@ void LibraryPanel::paint(Graphics& g) {
 void LibraryPanel::paintHardware(Graphics& g) {
     auto r=getLocalBounds().toFloat().reduced(.5f);
     paintHardwarePlate(g,r,Colour(0xff25211e),true,10.f,3.6f);
-    g.setColour(pal::ink);g.setFont(font(16.5f,false).withExtraKerningFactor(.17f));
+    g.setColour(pal::ink);g.setFont(font(17.5f,false).withExtraKerningFactor(.15f));
     g.drawText("MODULE LIBRARY",r.withY(15).withHeight(30),juce::Justification::centred,false);
     auto list=r.reduced(16).withY(float(listTop-2)).withHeight(float(tileViewport.getHeight()+4));
     paintRecessedWindow(g,list,8.f);
@@ -629,7 +629,7 @@ void PathStrip::mouseDown(const juce::MouseEvent& e){
 }
 void PathStrip::paint(Graphics& g) {
     updateHitRects();
-    const int h=getHeight();g.setColour(pal::ink);g.setFont(font(14.5f,false).withExtraKerningFactor(.12f));
+    const int h=getHeight();g.setColour(pal::ink);g.setFont(font(15.5f,false).withExtraKerningFactor(.12f));
     g.drawText("SIGNAL PATH",36,3,157,25,juce::Justification::centredLeft,false);
     g.setColour(pal::inkDim);g.setFont(font(12,true));g.drawText(rangeText,48,31,94,23,juce::Justification::centred,false);
     g.setColour(Colour(0xff8b7d66).withAlpha(.65f));g.drawVerticalLine(199,8,h-8);
@@ -645,7 +645,7 @@ void PathStrip::paint(Graphics& g) {
         if(focused){for(int halo=5;halo>=1;--halo){g.setColour(Colour(0xffeeb66e).withAlpha(.028f*float(6-halo)));g.drawRoundedRectangle(r.expanded(float(halo)),7.f,float(halo));}}
         g.setColour(focused?Colour(0xffffdfaa):lit?Colour(0xff96836a):Colour(0xff575043));g.drawRoundedRectangle(r.reduced(.7f),5,focused?1.55f:.7f);
         if(model&&lit&&!focused){g.setColour(Colour(0xffa58c66));g.fillEllipse(r.getX()+6,r.getCentreY()-1.3f,2.6f,2.6f);}
-        g.setColour(lit?pal::ink:pal::inkDim);g.setFont(font(count>6?11.5f:15.5f,false).withExtraKerningFactor(.025f));
+        g.setColour(lit?pal::ink:pal::inkDim);g.setFont(font(count>6?11.5f:16.5f,false).withExtraKerningFactor(.025f));
         g.drawFittedText(text,r.reduced(model?9.f:3.f,1.f).toNearestInt(),juce::Justification::centred,1);x+=width;
     };
     auto arrow=[&]{g.setColour(pal::inkDim);juce::Path p;const float cy=h*.5f,cx=x+arrowWidth*.5f;
@@ -919,7 +919,7 @@ void RackUI::paintChassis(Graphics& g) {
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawHorizontalLine(62,20,1240);g.setColour(Colour(0xff777064).withAlpha(.5f));
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(21,12,27,38),pal::ink);
-    g.setColour(Colour(0xfff4e5c8));g.setFont(font(28.5f,false).withExtraKerningFactor(.09f));
+    g.setColour(Colour(0xfff4e5c8));g.setFont(font(30.f,true).withExtraKerningFactor(.08f));
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(65,11,349,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xfff4e5c8));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(65,10,349,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffc8b99c).withAlpha(.52f));
