@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     SkellierEditor editor(processor);
     const auto editorMs=ms(startEditor);
     skellcore::ui::headless::Options options;
-    options.project="Skelliere Rack / 25 Skell effects";
+    options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
     options.scenes={{"catalog_1",1260,820,0,1},{"catalog_2",1260,820,1,1},{"catalog_3",1260,820,2,1},{"catalog_4",1260,820,3,1},{"catalog_5",1260,820,4,1},{"catalog_6",1260,820,5,1},{"catalog_7",1260,820,6,1},
       {"catalog_80",1008,656,0,1},{"catalog_125",1575,1025,3,1},{"catalog_150",1890,1230,4,1},{"catalog_min",1260,820,6,1},{"catalog_max",1260,820,6,1},{"catalog_silver",1260,820,0,2},{"catalog_empty",1260,820,7,1},{"approved_studio",1260,820,8,1},{"approved_studio_150",1890,1230,8,1},{"approved_bypass",1260,820,9,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"}};

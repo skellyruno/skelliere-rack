@@ -5,7 +5,7 @@ inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
     require(p.getParameters().size()==75,"Legacy parameter ordering/count changed");
-    require(skl::kNumRackTypes==26 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25,"Catalog identities changed");
+    require(skl::kNumRackTypes==28 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
     auto ordered=[&](const juce::String& id) {
@@ -64,6 +64,18 @@ inline void processorRegression() {
     require(p.takeJetPeak(0)==0.f,"Bypassed Jet retained stale peak");
     p.removeSlot(0);fillJet();p.processBlock(jet,jetMidi);
     require(p.takeJetPeak(0)==0.f,"Removed Jet retained stale peak");
+    // Bypass All skips every module, so a stored gain reduction must not be shown.
+    p.clearRack();require(p.addModule(skl::Comp,0),"Opto not selectable");
+    set(p.onId(0),1);set("bypass",0);set(p.knobId(0,0),0.f);set(p.knobId(0,1),1.f);   // lowest threshold, highest ratio (normalized)
+    juce::AudioBuffer<float> loud(2,512);juce::MidiBuffer loudMidi;
+    for(int block=0;block<200;++block){
+        for(int c=0;c<2;++c)for(int n=0;n<512;++n)loud.setSample(c,n,.8f*std::sin(float(n)*.13f));
+        p.processBlock(loud,loudMidi);
+    }
+    require(p.gainReduction(0)>1.f,"Opto test signal produced no gain reduction");
+    set("bypass",1);
+    require(p.gainReduction(0)==0.f,"Bypass All displayed stale gain reduction");
+    set("bypass",0);
     // Per-instance artwork must survive editor recreation and session save only.
     SkellierProcessor other; p.artworkChoices[0]=3;
     require(other.artworkChoices[0]==1,"Artwork leaked between instances");

@@ -427,7 +427,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
-    infoLabel.setText("25 original Skell effects. Double-click or drag a module into the rack.",juce::dontSendNotification);
+    infoLabel.setText(juce::String(skl::kNumRackTypes-1)+" original Skell effects. Double-click or drag a module into the rack.",juce::dontSendNotification);
     addAndMakeVisible(infoLabel);
     refresh();
 }
