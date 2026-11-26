@@ -1,7 +1,7 @@
 name: Source handoff archive
 on:
   pull_request:
-    paths: ['.github/workflows/source-export.yml']
+    paths: ['Source/**', 'tools/**', 'tests/**', 'SkellCore/**', 'CMakeLists.txt', '.github/workflows/source-export.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,19 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 83a05759a2c7cff6a3caf0b0f18116d30ac1362b
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Package exact verified source
         shell: bash
         run: |
-          test "$(git rev-parse HEAD)" = "83a05759a2c7cff6a3caf0b0f18116d30ac1362b"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           mkdir -p handoff
-          git archive --format=zip --prefix=Skelliere-Rack/ HEAD -- . ':!assets/*.zip' > handoff/Skelliere-Rack-83a0575-source.zip
-          unzip -t handoff/Skelliere-Rack-83a0575-source.zip
-          sha256sum handoff/Skelliere-Rack-83a0575-source.zip > handoff/SHA256SUMS.txt
+          git archive --format=zip --prefix=Skelliere-Rack/ HEAD -- . ':!assets/*.zip' > handoff/Skelliere-Rack-source.zip
+          unzip -t handoff/Skelliere-Rack-source.zip
+          sha256sum handoff/Skelliere-Rack-source.zip > handoff/SHA256SUMS.txt
           git rev-parse HEAD > handoff/SOURCE_COMMIT.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Skelliere-83a0575-Source-Handoff
+          name: Skelliere-Source-Handoff-${{ github.event.pull_request.head.sha || github.sha }}
           path: handoff/
           if-no-files-found: error
           retention-days: 14

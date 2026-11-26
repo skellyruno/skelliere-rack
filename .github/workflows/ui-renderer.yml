@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Configure real Skelliere editor screenshot renderer
         run: cmake -S . -B build -A x64 -DSKELLIERE_BUILD_UI_RENDERER=ON
       - name: Compile actual-editor renderer
@@ -40,10 +42,10 @@ jobs:
           if (-not $exe) { throw 'SkelliereRackUIRenderer.exe missing' }
           & $exe.FullName (Join-Path (Get-Location) 'ui-screenshots')
           if ($LASTEXITCODE -ne 0) { throw "Renderer failed: $LASTEXITCODE" }
-          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 17) { throw 'Expected seventeen real-editor screenshots' }
+          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 21) { throw 'Expected twenty-one real-editor screenshots' }
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }
           $manifest = Get-Content ui-screenshots/manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.count -ne 17) { throw 'Screenshot manifest count mismatch' }
+          if ($manifest.count -ne 21) { throw 'Screenshot manifest count mismatch' }
           if (-not (Test-Path ui-screenshots/performance.csv)) { throw 'Missing UI/processor benchmark' }
       - name: Export actual editor evidence for connected review
         run: python tools/ci_editor_evidence.py ui-screenshots

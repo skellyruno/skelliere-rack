@@ -73,6 +73,9 @@ inline void processorRegression() {
         p.processBlock(loud,loudMidi);
     }
     require(p.gainReduction(0)>1.f,"Opto test signal produced no gain reduction");
+    set(p.onId(0),0);require(p.gainReduction(0)==0.f,"Disabled slot displayed stale gain reduction");
+    set(p.onId(0),1);p.soloSlot.store(1);require(p.gainReduction(0)==0.f,"Solo-muted slot displayed stale gain reduction");
+    p.soloSlot.store(-1);
     set("bypass",1);
     require(p.gainReduction(0)==0.f,"Bypass All displayed stale gain reduction");
     set("bypass",0);

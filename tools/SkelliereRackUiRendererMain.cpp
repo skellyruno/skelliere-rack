@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
     options.scenes={{"catalog_1",1260,820,0,1},{"catalog_2",1260,820,1,1},{"catalog_3",1260,820,2,1},{"catalog_4",1260,820,3,1},{"catalog_5",1260,820,4,1},{"catalog_6",1260,820,5,1},{"catalog_7",1260,820,6,1},
-      {"catalog_80",1008,656,0,1},{"catalog_125",1575,1025,3,1},{"catalog_150",1890,1230,4,1},{"catalog_min",1260,820,6,1},{"catalog_max",1260,820,6,1},{"catalog_silver",1260,820,0,2},{"catalog_empty",1260,820,7,1},{"approved_studio",1260,820,8,1},{"approved_studio_150",1890,1230,8,1},{"approved_bypass",1260,820,9,1}};
-    options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"}};
+      {"catalog_80",1008,656,0,1},{"catalog_125",1575,1025,3,1},{"catalog_150",1890,1230,4,1},{"catalog_min",1260,820,6,1},{"catalog_max",1260,820,6,1},{"catalog_silver",1260,820,0,2},{"catalog_empty",1260,820,7,1},{"approved_studio",1260,820,8,1},{"approved_studio_150",1890,1230,8,1},{"approved_bypass",1260,820,9,1},{"studio_graphite",1260,820,8,0},{"studio_midnight",1260,820,8,3},{"studio_80",1008,656,8,1},{"full_rack",1260,820,10,1}};
+    options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"}};
     int expectedWidth=1260,expectedHeight=820,expectedCount=4;bool bindings=true;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;processor.clearRack();
@@ -48,6 +48,8 @@ int main(int argc, char** argv) {
             expectedCount=4;
             if(scene.theme==9)processor.apvts.getParameter(SkellierProcessor::onId(0))->setValueNotifyingHost(0);
         }
+        if(scene.theme==10){const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger,skl::SkellAirFX,skl::SkellDeEsserFX,skl::Gate,skl::Trim};
+            for(int k=0;k<8;++k)processor.addModule(models[k],k);expectedCount=8;}
         visit(editor,[&](juce::Component& c){
             if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c))if(ui->onScale)ui->onScale(float(scene.width)/1260.f);
             if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->rebuild();slot->setArtworkChoice(scene.mode);bindings=slot->exerciseSpriteBindings()&&bindings;}
@@ -58,7 +60,8 @@ int main(int argc, char** argv) {
                 processor.apvts.getParameter(SkellierProcessor::knobId(s,k))->setValueNotifyingHost(scene.id=="catalog_max"?1.f:0.f);
         juce::AudioBuffer<float> signal(2,512);juce::MidiBuffer midi;
         for(int b=0;b<64;++b){for(int c=0;c<2;++c)for(int n=0;n<512;++n)signal.setSample(c,n,.65f*std::sin(float((b*512+n)*.057595865)));processor.processBlock(signal,midi);}
-        int idx=0;visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->setMeter(processor.gainReduction(idx));slot->setOutputPeak(processor.takeJetPeak(idx));++idx;}});
+        // Use the production timer update so I/O and GR are measured rather than painted as fake data.
+        visit(editor,[&](juce::Component& c){if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c))ui->refreshLiveState();});
     };
     options.inspect=[&]{
         juce::StringArray errors;if(!bindings)errors.add("Live parameter binding failed");

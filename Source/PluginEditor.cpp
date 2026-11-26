@@ -59,22 +59,26 @@ void KnobCell::paint(Graphics& g) {
     }
     if(sideReadout_) {
         const auto readout=getLocalBounds().withTrimmedLeft(slider.getRight()+5).reduced(2,0);
-        g.setColour(lightFace_?Colour(0xff20262b):pal::ink);g.setFont(font(12,true));
-        g.drawFittedText(label_,readout.withHeight(getHeight()/2),juce::Justification::bottomLeft,1);
-        g.setColour(lightFace_?Colour(0xff40362b):Colour(0xffddd0b9));g.setFont(font(12));
-        g.drawFittedText(text_,readout.withTrimmedTop(getHeight()/2),juce::Justification::topLeft,1);
+        const int cy=getHeight()/2;
+        g.setColour(lightFace_?Colour(0xff292219):pal::ink);g.setFont(font(14,true).withExtraKerningFactor(.035f));
+        g.drawFittedText(label_,readout.withY(cy-24).withHeight(21),juce::Justification::centred,1);
+        auto pill=readout.withY(cy+1).withHeight(22).toFloat().reduced(2,0);
+        g.setColour(lightFace_?Colour(0xff30291f).withAlpha(.12f):Colour(0xff10161b).withAlpha(.45f));g.fillRoundedRectangle(pill,10);
+        g.setColour((lightFace_?Colour(0xff504638):pal::ink).withAlpha(.55f));g.drawRoundedRectangle(pill,10,.8f);
+        g.setColour(lightFace_?Colour(0xff292219):Colour(0xffeee3cc));g.setFont(font(12.5f));
+        g.drawFittedText(text_,pill.reduced(4,1).toNearestInt(),juce::Justification::centred,1);
         return;
     }
-    const int y=juce::jmin(getHeight()-28,slider.getBottom()+2);
-    g.setColour(lightFace_?Colour(0xff29241b):Colour(0xfff4e9d4));g.setFont(font(12.5f,true));
-    g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,14),juce::Justification::centred,1);
-    g.setColour(lightFace_?Colour(0xff34423c):Colour(0xffd0d3c8));g.setFont(font(11.5f));
-    g.drawFittedText(text_,Rectangle<int>(2,y+14,getWidth()-4,14),juce::Justification::centred,1);
+    const int y=juce::jmin(getHeight()-30,slider.getBottom()+1);
+    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(13.5f,true).withExtraKerningFactor(.035f));
+    g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,15),juce::Justification::centred,1);
+    g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(12.5f));
+    g.drawFittedText(text_,Rectangle<int>(2,y+15,getWidth()-4,15),juce::Justification::centred,1);
 }
 
 // =================================================================== small displays
 void LcdDisplay::paint(Graphics& g) {
-    g.setColour(pal::inkDim);g.setFont(font(10.5f));
+    g.setColour(pal::inkDim);g.setFont(font(10.5f).withExtraKerningFactor(.09f));
     g.drawFittedText(text,getLocalBounds().reduced(3,0),juce::Justification::centredLeft,1);
 }
 
@@ -294,9 +298,9 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         paintMonogram(pg,Rectangle<float>(w*.5f-9,15,18,25),ink);
-        pg.setColour(ink);pg.setFont(font(11,true));
-        pg.drawText("S K E L L",18,43,w-36,16,juce::Justification::centred,false);
-        pg.setFont(juce::Font(juce::FontOptions("Georgia",22.f,juce::Font::bold|juce::Font::italic)));
+        pg.setColour(ink);pg.setFont(font(12,true).withExtraKerningFactor(.20f));
+        pg.drawText("SKELL",18,43,w-36,16,juce::Justification::centred,false);
+        pg.setFont(juce::Font(juce::FontOptions("Georgia",24.f,juce::Font::bold|juce::Font::italic)));
         pg.drawFittedText(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase(),
             Rectangle<int>(14,60,w-28,29),juce::Justification::centred,1);
         pg.setColour(ink.withAlpha(.38f));
@@ -305,9 +309,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w);
         if(!layout.detail.isEmpty())paintTapeDetail(pg,layout.detail.toFloat());
-        if(layout.sideReadouts)for(int k=1;k<mi.numKnobs;++k)
-            pg.drawHorizontalLine(layout.cells[k].getY()-2,25,w-25);
-        pg.setColour(ink.withAlpha(.30f));pg.drawHorizontalLine(h-46,20,w-20);
+        // Side-mounted value pills provide the separation; no extra grid lines.
+        pg.setColour(ink.withAlpha(.24f));pg.drawHorizontalLine(h-46,20,w-20);
         pg.setColour(ink.withAlpha(.68f));pg.setFont(font(8.5f,true));
         pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-57,w-28,10,juce::Justification::centred,false);
     }
@@ -374,20 +377,26 @@ ModuleTile::ModuleTile(int t, std::function<void(int)> sel, std::function<void(i
     : type(t), onSelect(std::move(sel)), onAdd(std::move(add)) {}
 
 void ModuleTile::paint(Graphics& g) {
-    const auto& mi = info(type);
-    auto r = getLocalBounds().toFloat().reduced(0.5f);
-    g.setColour(Colour(0xff1b1916)); g.fillRoundedRectangle(r, 4.0f);
-    auto sw = r.reduced(5.0f).removeFromLeft(34.0f);
-    g.setGradientFill(juce::ColourGradient::vertical(pal::plateTop, sw.getY(), pal::plateBot, sw.getBottom()));
-    g.fillRoundedRectangle(sw, 2.0f);
-    paintBrushed(g, sw, 0.9f);
-    paintOriginalMini(g,sw,type);
-    auto text = r.reduced(5.0f).withTrimmedLeft(40.0f);
-    g.setColour(pal::ink); g.setFont(font(12.0f, true));
-    g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(18.0f).toNearestInt(),juce::Justification::centredLeft,1);
-    g.setColour(pal::inkDim); g.setFont(font(10.0f));
+    const auto& mi=info(type);
+    auto r=getLocalBounds().toFloat().reduced(.7f);
+    const bool active=selected,hover=isMouseOver();
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(active?0xff3c3224:hover?0xff302b23:0xff28241e),r.getY(),Colour(active?0xff251e16:0xff151310),r.getBottom()));
+    g.fillRoundedRectangle(r,5);
+    g.setColour(active?pal::amber:Colour(0xff645b4b).withAlpha(.6f));g.drawRoundedRectangle(r,5,active?1.4f:.7f);
+    auto sw=r.reduced(6).removeFromLeft(39);
+    // Cache icon at fixed logical dimensions (not the whole tile or its hover state).
+    static std::array<juce::Image,skl::kNumRackTypes> minis;
+    auto& mini=minis[static_cast<size_t>(type)];
+    if(!mini.isValid()){
+        mini=juce::Image(juce::Image::ARGB,78,66,true);Graphics mg(mini);
+        mg.addTransform(juce::AffineTransform::scale(2.f));paintOriginalMini(mg,Rectangle<float>(0,0,39,33),type);
+    }
+    g.drawImage(mini,sw);
+    auto text=r.reduced(6).withTrimmedLeft(48);
+    g.setColour(pal::ink);g.setFont(font(14,true));
+    g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(19).toNearestInt(),juce::Justification::centredLeft,1);
+    g.setColour(pal::inkDim);g.setFont(font(11.f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
-    g.setColour(selected?pal::amber:Colour(0xff49443a));g.drawRoundedRectangle(r,4,selected?1.4f:.7f);
 }
 
 void ModuleTile::mouseDrag(const juce::MouseEvent& e) {
@@ -409,7 +418,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     }
     cats[0].setToggleState(true, juce::dontSendNotification);
     search.setTextToShowWhenEmpty("Search modules...", pal::inkDim);
-    search.setFont(font(13.0f));
+    search.setFont(font(13.5f));search.setIndents(29,6);search.getProperties().set("skellSearch",true);
     search.onTextChange = [this] { refresh(); };
     addAndMakeVisible(search);
     tileViewport.setViewedComponent(&tileContent, false);
@@ -423,7 +432,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
         tiles.add(tile);
         tileContent.addAndMakeVisible(tile);
     }
-    infoLabel.setFont(font(12.5f));
+    infoLabel.setFont(font(12.f));
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
@@ -439,7 +448,8 @@ void LibraryPanel::select(int type) {
     const juce::String hint = (type == Eq || type == Air)
         ? "\n\nChoose a Skell metal finish at the bottom of the slot. All knobs remain active."
         : "\n\nDouble-click or drag into a slot.";
-    infoLabel.setText(juce::String(displayName(type)).toUpperCase() + "\n" + mi.desc + hint, juce::dontSendNotification);
+    infoLabel.setTooltip(juce::String(mi.desc)+hint);
+    infoLabel.setText(juce::String(displayName(type))+"\n"+mi.sub+"\nDouble-click or drag to add.",juce::dontSendNotification);
 }
 
 void LibraryPanel::refresh() {
@@ -451,9 +461,9 @@ void LibraryPanel::refresh() {
         const bool show = (category < 0 || (int) mi.cat == category) &&
                           (q.isEmpty() || (juce::String(displayName(t->type)) + " " + mi.sub).toLowerCase().contains(q));
         t->setVisible(show);
-        if(show){t->setBounds(0,n*49,w,47);++n;}
+        if(show){t->setBounds(0,n*52,w,50);++n;}
     }
-    tileContent.setSize(w,n*49);
+    tileContent.setSize(w,n*52);
 }
 
 void LibraryPanel::resized() {
@@ -466,32 +476,45 @@ void LibraryPanel::resized() {
 }
 
 void LibraryPanel::paint(Graphics& g) {
-    auto r=getLocalBounds().toFloat();
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff34312b),r.getY(),Colour(0xff201e1a),r.getBottom()));
-    g.fillRoundedRectangle(r,7);paintBrushed(g,r,.45f);
-    g.setColour(Colour(0xff777063).withAlpha(.65f));g.drawRoundedRectangle(r.reduced(.8f),7,1.1f);
-    g.setColour(pal::ink);g.setFont(font(14,true));
-    g.drawText("MODULE LIBRARY",r.withHeight(36),juce::Justification::centred,false);
-    for(int k=0;k<4;++k)paintScrew(g,k%2?r.getRight()-9:r.getX()+9,k<2?r.getY()+9:r.getBottom()-9,3.7f,k*.5f);
+    auto r=getLocalBounds().toFloat().reduced(.5f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff302c26),r.getY(),Colour(0xff191714),r.getBottom()));
+    g.fillRoundedRectangle(r,7);
+    {juce::Graphics::ScopedSaveState save(g);juce::Path p;p.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),7);g.reduceClipRegion(p);paintBrushed(g,r,.43f);}
+    g.setColour(Colour(0xff837765));g.drawRoundedRectangle(r,7,1.f);
+    g.setColour(Colour(0xff090807));g.drawRoundedRectangle(r.reduced(2),6,1.2f);
+    g.setColour(pal::ink);g.setFont(font(14,true).withExtraKerningFactor(.12f));
+    g.drawText("MODULE LIBRARY",r.withHeight(39),juce::Justification::centred,false);
+    auto list=r.reduced(11).withY(119).withHeight(getHeight()-200);
+    g.setColour(Colour(0xff100e0c));g.fillRoundedRectangle(list,5);
+    g.setColour(Colour(0xff51483d));g.drawRoundedRectangle(list,5,.7f);
+    for(int k=0;k<4;++k)paintScrew(g,k%2?r.getRight()-9:r.getX()+9,k<2?r.getY()+9:r.getBottom()-9,4.3f,k*.5f);
 }
 
 void PathStrip::paint(Graphics& g) {
-    g.setColour(pal::inkDim);g.setFont(font(11,true));
-    g.drawText("SIGNAL PATH",4,0,96,getHeight(),juce::Justification::centredLeft,false);
+    const int h=getHeight();g.setColour(pal::ink);g.setFont(font(12,true).withExtraKerningFactor(.12f));
+    g.drawText("SIGNAL PATH",24,0,120,h,juce::Justification::centredLeft,false);
+    g.setColour(Colour(0xff8b7d66).withAlpha(.65f));g.drawVerticalLine(152,7,h-7);
+    const bool bypass=proc.apvts.getRawParameterValue("bypass")->load()>.5f;
+    const int solo=proc.soloSlot.load();
     int count=0;for(int s=0;s<kNumSlots;++s)if(proc.slotType(s)!=Empty)++count;
-    int x=104;const int remaining=getWidth()-104-2*36-12*(count+1);
-    const int cell=juce::jmax(38,juce::jmin(172,remaining/juce::jmax(1,count)));
-    auto key=[&](juce::String text,int width,bool lit){
-        auto r=Rectangle<int>(x,5,width,getHeight()-10);
-        g.setColour(Colour(0xff101315));g.fillRoundedRectangle(r.toFloat(),3);
-        g.setColour(lit?pal::ink:pal::inkDim);g.setFont(font(10.5f,true));
-        g.drawFittedText(text,r.reduced(4,1),juce::Justification::centred,1);x+=width;
+    constexpr int port=55,arrowWidth=20;int x=174;
+    const int remaining=getWidth()-x-18-2*port-arrowWidth*(count+1);
+    const int cell=juce::jmax(35,remaining/juce::jmax(1,count));
+    auto key=[&](const juce::String& text,int width,bool lit,bool model){
+        auto r=Rectangle<float>(float(x),4.f,float(width),float(h-8));
+        g.setColour(juce::Colours::black.withAlpha(.6f));g.fillRoundedRectangle(r.translated(0,1),5);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(lit?0xff393127:0xff26221d),r.getY(),Colour(0xff171410),r.getBottom()));g.fillRoundedRectangle(r,5);
+        g.setColour(lit?Colour(0xffc0a379):Colour(0xff575043));g.drawRoundedRectangle(r,5,lit?1.f:.75f);
+        if(model&&lit){g.setColour(Colour(0xffe8c994));g.fillEllipse(r.getX()+5,r.getCentreY()-1.8f,3.6f,3.6f);}
+        g.setColour(lit?pal::ink:pal::inkDim);g.setFont(font(count>6?10.5f:13.f));
+        g.drawFittedText(text,r.reduced(model?9.f:3.f,1.f).toNearestInt(),juce::Justification::centred,1);x+=width;
     };
-    auto arrow=[&]{g.setColour(pal::inkDim);g.drawText(">",x,0,12,getHeight(),juce::Justification::centred,false);x+=12;};
-    key("IN",36,true);
-    for(int s=0;s<kNumSlots;++s){const int t=proc.slotType(s);if(t==Empty)continue;
-        arrow();key(slotLetter(s)+" "+juce::String(displayName(t)).toUpperCase(),cell,proc.slotOn(s));}
-    arrow();key("OUT",36,true);
+    auto arrow=[&]{g.setColour(pal::inkDim);juce::Path p;const float cy=h*.5f,cx=x+arrowWidth*.5f;
+        p.startNewSubPath(cx-2.5f,cy-4);p.lineTo(cx+1.5f,cy);p.lineTo(cx-2.5f,cy+4);g.strokePath(p,juce::PathStrokeType(1.2f));x+=arrowWidth;};
+    key("IN",port,true,false);
+    for(int s=0;s<kNumSlots;++s){const int t=proc.slotType(s);if(t==Empty)continue;arrow();
+        key(juce::String(displayName(t)),cell,!bypass&&proc.slotOn(s)&&(solo<0||solo==s),true);}
+    arrow();key("OUT",port,true,false);
 }
 
 // =================================================================== RackUI
@@ -567,16 +590,17 @@ RackUI::RackUI(SkellierProcessor& p)
     addAndMakeVisible(library);
     viewport.setViewedComponent(&strip, false);
     viewport.setScrollBarsShown(false, true);
-    viewport.setScrollBarThickness(12);
+    viewport.setScrollBarThickness(8);
     addAndMakeVisible(viewport);
     addAndMakeVisible(pathStrip);
     stripDrawer.toFront(false);
     for (int s = 0; s < kNumSlots; ++s) { proc.apvts.addParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.addParameterListener(SkellierProcessor::extraId(s), this); proc.apvts.addParameterListener(SkellierProcessor::onId(s), this); }
+    proc.apvts.addParameterListener("bypass",this);
     startTimerHz(30);
 }
 
 RackUI::~RackUI() {
-    stopTimer();
+    stopTimer();proc.apvts.removeParameterListener("bypass",this);
     cancelPendingUpdate();
     for (int s = 0; s < kNumSlots; ++s) { proc.apvts.removeParameterListener(SkellierProcessor::typeId(s), this); proc.apvts.removeParameterListener(SkellierProcessor::extraId(s), this); proc.apvts.removeParameterListener(SkellierProcessor::onId(s), this); }
 }
@@ -612,13 +636,19 @@ void RackUI::handleAsyncUpdate() {
 }
 
 void RackUI::timerCallback() {
+    const int solo=proc.soloSlot.load();
+    if(solo!=shownSolo){shownSolo=solo;pathStrip.repaint();}
+    const bool bypass=proc.apvts.getRawParameterValue("bypass")->load()>.5f;
     auto toDb = [](float g) { return g > 1.0e-5f ? 20.0f * std::log10(g) : -90.0f; };
     inShown = juce::jmax(toDb(proc.takeInputPeak()), inShown - 2.0f);
     outShown = juce::jmax(toDb(proc.takeOutputPeak()), outShown - 2.0f);
     meters.setLevels(inShown, outShown);
     for (int s = 0; s < kNumSlots; ++s) {
         strip.slots[(size_t) s]->setMeter(proc.gainReduction(s));
-        if(proc.slotType(s)==Flanger)strip.slots[(size_t)s]->setOutputPeak(proc.takeJetPeak(s));
+        if(proc.slotType(s)==Flanger){
+            const float peak=proc.takeJetPeak(s);
+            strip.slots[(size_t)s]->setOutputPeak(!bypass&&proc.slotOn(s)&&(solo<0||solo==s)?peak:0.f);
+        }
         strip.slots[(size_t) s]->syncSolo();
         strip.slots[(size_t) s]->syncArtwork();
     }
@@ -640,25 +670,29 @@ void RackUI::resized() {
     stripName.setBounds(892,9,192,30);saveStripBtn.setBounds(1090,9,132,30);
     library.setBounds(12,106,246,666);
     viewport.setBounds(270,106,964,666);
-    pathStrip.setBounds(12,780,1236,32);
+    pathStrip.setBounds(25,780,1210,32);
 }
 
 void RackUI::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff2b2823),0.f,Colour(0xff151310),float(kH)));
-    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.55f);
+    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.37f);
     g.setColour(Colour(0xff777064).withAlpha(.5f));g.drawHorizontalLine(61,20,1240);
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(25,15,24,35),pal::ink);
-    g.setColour(pal::ink);g.setFont(font(25,true));
+    g.setColour(pal::ink);g.setFont(font(25,true).withExtraKerningFactor(.085f));
     g.drawFittedText("SKELLIERE RACK",Rectangle<int>(63,10,258,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
     g.drawVerticalLine(322,13,54);g.drawVerticalLine(628,13,54);
     const auto frame=Rectangle<float>(262,102,986,674);
     g.setColour(Colour(0xff0d0c0a));g.fillRoundedRectangle(frame,8);
-    g.setColour(Colour(0xff777060));g.drawRoundedRectangle(frame.reduced(.8f),8,1.2f);
-    g.setColour(Colour(0xff39342c));g.drawRoundedRectangle(frame.reduced(3),5,1.2f);
-    g.setColour(Colour(0xff26231f));g.fillRoundedRectangle(Rectangle<float>(12,779,1236,34),5);
-    g.setColour(Colour(0xff6f6658).withAlpha(.7f));g.drawRoundedRectangle(Rectangle<float>(12.5f,779.5f,1235,33),5,.8f);
+    g.setColour(Colour(0xff94846c));g.drawRoundedRectangle(frame.reduced(.8f),8,1.4f);
+    g.setColour(Colour(0xff352d22));g.drawRoundedRectangle(frame.reduced(3),5,1.7f);
+    paintScrew(g,1242,114,4.2f,.6f);paintScrew(g,1242,765,4.2f,1.5f);
+    const auto foot=Rectangle<float>(12,778,1236,36);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff343029),foot.getY(),Colour(0xff1b1814),foot.getBottom()));g.fillRoundedRectangle(foot,6);
+    g.setColour(Colour(0xff7d6f5c));g.drawRoundedRectangle(foot.reduced(.7f),6,1);
+    g.setColour(Colour(0xff080706));g.drawRoundedRectangle(foot.reduced(2),5,.8f);
+    paintScrew(g,20,796,3.6f,.8f);paintScrew(g,1240,796,3.6f,1.4f);
 }
 
 // =================================================================== editor window

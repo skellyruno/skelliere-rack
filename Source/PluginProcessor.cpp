@@ -227,7 +227,8 @@ bool SkellierProcessor::slotOn(int s) const { return onRaw[juce::jlimit(0, kNumS
 float SkellierProcessor::gainReduction(int s) const {
     // Bypass All returns from processBlock before any module runs, so each module
     // keeps its last stored reduction. Never present that stale value as live.
-    if (bypassRaw->load() > 0.5f) return 0.0f;
+    const int solo=soloSlot.load();
+    if(bypassRaw->load()>.5f||!slotOn(s)||(solo>=0&&solo!=s))return 0.f;
     const int t = slotType(s);
     if (t == Tune) return 0.0f;
     if (t <= 0 || !mods[s][t]) return 0.0f;

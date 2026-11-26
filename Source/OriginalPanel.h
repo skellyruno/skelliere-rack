@@ -11,7 +11,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
     const bool light=metal.getPerceivedBrightness()>.45f;
-    const auto cap=type%4==0?Colour(0xffc4b297):Colour(0xffd0c4af);
+    const auto cap=type%4==0?Colour(0xffc6b69e):Colour(0xffd9ccba);
     const char* series=info(type).cat==CatDynamics?"DYNAMICS":info(type).cat==CatTone?"TONE":info(type).cat==CatSpace?"MOD / SPACE":"UTILITY";
     return {metal,accent,cap,light,series};
 }
@@ -57,14 +57,14 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff3b362d),r.getY(),Colour(0xff0f0e0c),r.getBottom()));
     g.fillRoundedRectangle(r,6);                                                 // machined bezel
     g.setColour(Colour(0xff000000).withAlpha(.6f));g.drawRoundedRectangle(r.reduced(2.5f),5,1);
-    for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-5.f:r.getX()+5.f,i<2?r.getY()+5.f:r.getBottom()-5.f,2.0f,.9f*i);
+    for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-5.f:r.getX()+5.f,i<2?r.getY()+5.f:r.getBottom()-5.f,2.8f,.9f*i);
     const auto win=r.reduced(7.f,6.f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff3a2c1b),win.getY(),Colour(0xff15120e),win.getBottom()));
     g.fillRoundedRectangle(win,4);                                                // dark cavity
     g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(win,4,1.2f);
 
-    const float radius=std::min(win.getWidth()*.20f,win.getHeight()*.34f);
-    const float cy=win.getCentreY()-5.f;
+    const float radius=std::min(win.getWidth()*.235f,win.getHeight()*.38f);
+    const float cy=win.getCentreY()-4.f;
     const float cxs[2]={win.getX()+win.getWidth()*.27f,win.getX()+win.getWidth()*.73f};
     const float floorY=std::min(cy+radius*.98f,win.getBottom()-22.f);
 
@@ -138,10 +138,10 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
     g.setColour(Colour(0xff08090a));g.fillRoundedRectangle(r,3);               // recessed frame shadow
-    const auto plate=r.reduced(2);
+    const auto plate=r.reduced(2.5f);
     // Measured against the approved reference, dark finishes sat 20-50 levels too bright. Light
     // finishes already matched (within ~8/255) and are left alone.
-    const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.84f);
+    const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.76f);
     // Nearly flat body colour; the old strong top-to-bottom ramp produced visible horizontal bands.
     g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.04f),plate.getY(),base.darker(.05f),plate.getBottom()));
     g.fillRoundedRectangle(plate,5);
@@ -160,9 +160,9 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?.75f:.95f);                                   // coherent fibre grain
+        paintBrushed(g,plate,p.light?.54f:.33f);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
-        g.setColour(juce::Colours::white.withAlpha(.26f));
+        g.setColour(juce::Colours::white.withAlpha(.39f));
         g.drawHorizontalLine(int(plate.getY())+1,plate.getX()+4,plate.getRight()-4);
         g.setColour(juce::Colours::white.withAlpha(.12f));
         g.drawVerticalLine(int(plate.getX())+1,plate.getY()+4,plate.getBottom()-4);
@@ -170,8 +170,8 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
         g.drawHorizontalLine(int(plate.getBottom())-2,plate.getX()+4,plate.getRight()-4);
         g.drawVerticalLine(int(plate.getRight())-2,plate.getY()+4,plate.getBottom()-4);
     }
-    g.setColour(juce::Colours::white.withAlpha(.18f));g.drawRoundedRectangle(plate.reduced(.5f),5,1);
-    g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(2.5f),4,.8f);   // engraved panel line
+    g.setColour(juce::Colours::white.withAlpha(.31f));g.drawRoundedRectangle(plate.reduced(.5f),5,1.2f);
+    g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(3.2f),4,1.1f);   // engraved panel line
     g.setColour(juce::Colours::white.withAlpha(.07f));g.drawRoundedRectangle(plate.reduced(3.5f),4,.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-10:plate.getX()+10,i<2?plate.getY()+10:plate.getBottom()-10,5.f,.8f*i);
 }
@@ -244,7 +244,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
             for(int k=0;k<9;++k){const float x=x0+w*(.06f+k*.105f),hgt=amp*1.5f*std::pow(.72f,float(k));
                 g.setColour(ink.withAlpha(.95f-.07f*k));g.drawLine(x,my+amp*.9f,x,my+amp*.9f-hgt*(k==0?1.f:1.25f),1.8f);}
             break;}
-        case Air:{
+        case Air:case SkellAirFX:{
             for(int k=0;k<2;++k){juce::Path chev;const float cy=my+amp*(.55f-k*.9f),cx=f.getCentreX(),sp=w*.28f;
                 chev.startNewSubPath(cx-sp,cy+amp*.35f);chev.lineTo(cx,cy-amp*.35f);chev.lineTo(cx+sp,cy+amp*.35f);strokePathInk(chev,2.f,k?1.f:.55f);}
             break;}

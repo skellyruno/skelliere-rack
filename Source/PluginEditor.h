@@ -161,6 +161,8 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     std::function<void(float)> onScale;
+    // Same live update used by the timer; lets the real-editor test capture measured I/O.
+    void refreshLiveState(){timerCallback();}
 private:
     void parameterChanged(const juce::String&, float) override { triggerAsyncUpdate(); }
     void handleAsyncUpdate() override;
@@ -168,7 +170,7 @@ private:
     void say(const juce::String&);
     void rebuildStripButtons();
     SkellierProcessor& proc;
-    int curPreset = 0;
+    int curPreset = 0,shownSolo=-1;
     float inShown = -90.0f, outShown = -90.0f;
     juce::TextButton prevPreset{"<"}, nextPreset{">"}, snapA{"A"}, snapB{"B"}, snapCopy{"COPY"},
         undoBtn{"UNDO"}, redoBtn{"REDO"}, clearBtn{"CLEAR"}, bypassBtn{"BYPASS"};
