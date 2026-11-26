@@ -17,8 +17,8 @@ constexpr int offset(int first,bool library){return clampFirst(first,library)*st
 constexpr int firstFromOffset(int x,bool library){return clampFirst((x+stride(library)/2)/stride(library),library);}
 struct PathGeometry{int x,cell,port,arrow;};
 constexpr PathGeometry signalPath(int w,int n){
- const int left=207,right=18,port=57,arrow=24,available=w-left-right;
- const int cell=std::clamp((available-2*port-arrow*(n+1))/std::max(1,n),35,174);
+ const int left=207,right=18,port=57,arrow=27,available=w-left-right;
+ const int cell=std::clamp((available-2*port-arrow*(n+1))/std::max(1,n),35,150);
  const int total=2*port+arrow*(n+1)+cell*n;
  return {left+std::max(0,(available-total)/2),cell,port,arrow};
 }

@@ -31,6 +31,14 @@ int main(int argc, char** argv) {
         const auto lit=canvas.getPixelAt(95,56);
         if(lit.getRed()<190||lit.getGreen()<140||lit.getBlue()<80){std::fprintf(stderr,"Lamp lens raster is unexpectedly dim\n");return 1;}
     }
+    {
+        const auto& art=skl::ui::referenceTapeArtwork();
+        if(!art.isValid()||art.getWidth()!=250||art.getHeight()!=142){std::fprintf(stderr,"Reference tape art decode failed\n");return 1;}
+        juce::Image canvas(juce::Image::RGB,206,120,true,juce::SoftwareImageType());
+        juce::Graphics g(canvas);g.fillAll(juce::Colours::black);g.setColour(juce::Colours::black.withAlpha(.1f));
+        skl::ui::paintTapeDetail(g,canvas.getBounds().toFloat(),true);
+        if(canvas.getPixelAt(30,40).getRed()<85){std::fprintf(stderr,"Reference tape art unexpectedly dim\n");return 1;}
+    }
     if(!skl::ui::necromancerArtworkReady()||!skl::ui::litNecroCap().isValid()||skl::ui::litNecroCap().getWidth()!=256){std::fprintf(stderr,"Missing original Necromancer hero-dial artwork\n");return 1;}
     try { processorRegression(); }
     catch(const std::exception& e) { std::fprintf(stderr,"Processor regression: %s\n",e.what()); return 1; }
@@ -112,6 +120,24 @@ int main(int argc, char** argv) {
         if(count!=expectedCount)errors.add("Unexpected slot count");return errors;
     };
     const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));
+    options.configure({"approved_studio",1260,790,8,1});
+    skl::ui::SlotComponent* tape=nullptr;
+    visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c))if(slot->currentType()==skl::Delay)tape=slot;});
+    if(!tape)return 1;
+    const auto detail=skl::ui::originalLayout(skl::Delay,tape->getWidth(),false).detail;
+    output.createDirectory();
+    auto snap=[&](int frame){auto im=tape->createComponentSnapshot(detail,true,2.f);auto file=output.getChildFile("tape-motion-"+juce::String(frame)+".png");file.deleteFile();juce::FileOutputStream stream(file);juce::PNGImageFormat png;if(!stream.openedOk()||!png.writeImageToStream(im,stream))return juce::Image{};return im;};
+    auto first=snap(0);if(!first.isValid())return 1;
+    for(int i=1;i<=24;++i){tape->advanceTapeMotion(.05f,true,true);if(!snap(i).isValid())return 1;}
+    auto before=snap(25);tape->advanceTapeMotion(.1f,true,false);auto paused=snap(26);
+    tape->advanceTapeMotion(.1f,false,true);auto hidden=snap(27);
+    int changed=0,unstable=0;
+    for(int y=0;y<before.getHeight();++y)for(int x=0;x<before.getWidth();++x){
+        const auto b=before.getPixelAt(x,y);if(b!=first.getPixelAt(x,y))++changed;
+        if(b!=paused.getPixelAt(x,y)||b!=hidden.getPixelAt(x,y))++unstable;
+    }
+    if(changed<1000||unstable!=0||first.getPixelAt(3,3)!=before.getPixelAt(3,3)){std::fprintf(stderr,"Tape motion regression: %d changed, %d unstable\n",changed,unstable);return 1;}
+    std::printf("Tape motion: %d changed pixels, pause and offscreen freeze passed\n",changed);
     const auto result = skellcore::ui::headless::render(editor, output, options);
     for (const auto& error : result.errors) std::fprintf(stderr, "%s\n", error.toRawUTF8());
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);

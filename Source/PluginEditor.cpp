@@ -344,6 +344,15 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
 
 
 
+void SlotComponent::advanceTapeMotion(float seconds,bool visible,bool enabled){
+    if(type!=Delay||nativeChoice!=1||!visible||!enabled||!referenceTapeArtwork().isValid())return;
+    if(!std::isfinite(seconds)||seconds<=0.f)return;
+    const float dt=juce::jlimit(0.f,.1f,seconds);
+    // Decorative transport speed, not a physical delay-time measurement.
+    tapeLeft=std::fmod(tapeLeft+dt*1.60f,juce::MathConstants<float>::twoPi);
+    tapeRight=std::fmod(tapeRight+dt*2.15f,juce::MathConstants<float>::twoPi);
+    repaint(originalLayout(type,getWidth(),editing).detail.expanded(1));
+}
 void SlotComponent::paintNativeFace(Graphics& g) {
     const auto p=originalSpec(type,nativeChoice);const auto& mi=info(type);
     const int w=getWidth(),h=getHeight();if(w<=0||h<=0)return;
@@ -354,7 +363,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         paintMonogram(pg,Rectangle<float>(w*.5f-11,12,22,29),ink);
-        pg.setColour(ink);pg.setFont(font(14.5f,true).withExtraKerningFactor(.20f));
+        pg.setColour(ink);pg.setFont(font(14.5f,false).withExtraKerningFactor(.22f));
         pg.drawText("SKELL",18,45,w-36,17,juce::Justification::centred,false);
         pg.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultSerifFontName(),25.5f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
         const auto title=juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase();
@@ -368,7 +377,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour((p.light?juce::Colours::white:juce::Colours::black).withAlpha(.24f));
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
-        if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat());}
+        if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
         if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,type==Flanger,MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(mi.numKnobs==5&&!layout.meter.isEmpty()){
@@ -388,6 +397,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-49,w-28,8,juce::Justification::centred,false);}
     }
     g.setOpacity(1.f);g.drawImage(panelCache,getLocalBounds().toFloat());
+    if(type==Delay&&nativeChoice==1)paintReferenceTapeMotion(g,originalLayout(type,w,editing).detail.toFloat(),tapeLeft,tapeRight);
     if(type==Flanger&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);
 
@@ -603,7 +613,7 @@ void LibraryPanel::paint(Graphics& g) {
 }
 void LibraryPanel::paintHardware(Graphics& g) {
     auto r=getLocalBounds().toFloat().reduced(.5f);
-    paintHardwarePlate(g,r,Colour(0xff201c19),true,10.f,3.6f);
+    paintHardwarePlate(g,r,Colour(0xff24201d),true,11.f,4.5f);
     g.setColour(pal::ink);g.setFont(font(17.5f,false).withExtraKerningFactor(.15f));
     g.drawText("MODULE LIBRARY",r.withY(15).withHeight(30),juce::Justification::centred,false);
     auto list=r.reduced(16).withY(float(listTop-2)).withHeight(float(tileViewport.getHeight()+4));
@@ -657,7 +667,7 @@ void PathStrip::paint(Graphics& g) {
     auto key=[&](const juce::String& text,int width,bool lit,bool model,bool focused=false){
         auto r=Rectangle<float>(float(x),float(h)*.5f-16.f,float(width),32.f);
         g.setColour(juce::Colours::black.withAlpha(.76f));g.fillRoundedRectangle(r.translated(0,2),6);
-        paintRaisedKey(g,r,Colour(focused?0xff493b2c:lit?0xff302d28:0xff24211e),focused,false);
+        paintRaisedKey(g,r,Colour(focused?0xff49392a:lit?0xff292622:0xff211e1b),focused,false);
         if(focused){for(int halo=5;halo>=1;--halo){g.setColour(Colour(0xffeeb66e).withAlpha(.028f*float(6-halo)));g.drawRoundedRectangle(r.expanded(float(halo)),7.f,float(halo));}}
         g.setColour(focused?Colour(0xffffdfaa):lit?Colour(0xff96836a):Colour(0xff575043));g.drawRoundedRectangle(r.reduced(.7f),5,focused?1.55f:.7f);
         if(model&&lit&&!focused){g.setColour(Colour(0xffa58c66));g.fillEllipse(r.getX()+6,r.getCentreY()-1.3f,2.6f,2.6f);}
@@ -802,6 +812,9 @@ void RackUI::handleAsyncUpdate() {
 }
 
 void RackUI::timerCallback() {
+    const double tapeNow=juce::Time::getMillisecondCounterHiRes();
+    const float tapeDt=lastTapeTick>0.0?float((tapeNow-lastTapeTick)*.001):0.f;
+    lastTapeTick=tapeNow;
     const int solo=proc.soloSlot.load();
     if(solo!=shownSolo){shownSolo=solo;pathStrip.repaint();}
     const bool bypass=proc.apvts.getRawParameterValue("bypass")->load()>.5f;
@@ -817,6 +830,8 @@ void RackUI::timerCallback() {
         }
         strip.slots[(size_t) s]->syncSolo();
         strip.slots[(size_t) s]->syncArtwork();
+        auto& slot=*strip.slots[(size_t)s];
+        slot.advanceTapeMotion(tapeDt,isShowing()&&slot.isShowing()&&viewport.getViewArea().intersects(slot.getBounds()),!bypass&&proc.slotOn(s)&&(solo<0||solo==s));
     }
     undoBtn.setEnabled(proc.canUndo());
     redoBtn.setEnabled(proc.canRedo());
@@ -932,16 +947,20 @@ void RackUI::paint(Graphics& g) {
 }
 void RackUI::paintChassis(Graphics& g) {
     g.fillAll(Colour(0xff11100f));
-    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff151310),true,9.f,3.f);
+    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff171513),true,9.f,3.f);
     const auto header=Rectangle<float>(8,4,1244,95);
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb5a38a).withAlpha(.065f),header.getY(),juce::Colours::transparentBlack,header.getBottom()));g.fillRoundedRectangle(header,5.f);
+    // Keep the exposed chassis dark like the original reference; do not
+    // darken the more colorful module panels or attenuate the real LEDs.
+    g.setColour(Colour(0xff100f0e).withAlpha(.40f));g.fillRoundedRectangle(header,5.f);
+    {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(header.getX(),header.getY(),header.getWidth(),header.getHeight(),5.f);g.reduceClipRegion(clip);paintBrushed(g,header,.24f);}
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb5a38a).withAlpha(.04f),header.getY(),juce::Colours::transparentBlack,header.getBottom()));g.fillRoundedRectangle(header,5.f);
     // Gentle upper-left reflection across the machined header; not a second border.
-    g.setGradientFill(juce::ColourGradient(Colour(0xffd6bf9f).withAlpha(.085f),header.getX()+120.f,header.getY(),juce::Colours::transparentWhite,header.getRight(),header.getBottom(),true));g.fillRoundedRectangle(header,5.f);
+    g.setGradientFill(juce::ColourGradient(Colour(0xffd6bf9f).withAlpha(.045f),header.getX()+120.f,header.getY(),juce::Colours::transparentWhite,header.getRight(),header.getBottom(),true));g.fillRoundedRectangle(header,5.f);
     g.setColour(Colour(0xff91816b).withAlpha(.44f));g.drawHorizontalLine(61,20,1240);
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawHorizontalLine(62,20,1240);g.setColour(Colour(0xff777064).withAlpha(.5f));
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(21,12,27,38),pal::ink);
-    g.setColour(Colour(0xfff4e5c8));g.setFont(font(28.f,true).withExtraKerningFactor(.075f));
+    g.setColour(Colour(0xfff4e5c8));g.setFont(font(27.f,true).withExtraKerningFactor(.075f));
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(65,11,349,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xfff4e5c8));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(65,10,349,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffc8b99c).withAlpha(.52f));
@@ -960,7 +979,8 @@ void RackUI::paintChassis(Graphics& g) {
     if(!libraryVisible){paintScrew(g,14,117,4.2f,.9f);paintScrew(g,14,685,4.2f,1.3f);}
     const auto foot=Rectangle<float>(8,700,1244,72);
     g.setColour(juce::Colours::black.withAlpha(.72f));g.fillRoundedRectangle(foot.translated(0,2),10);
-    paintHardwarePlate(g,foot,Colour(0xff13110f),true,11.f,4.f);
+    paintHardwarePlate(g,foot,Colour(0xff10100e),true,12.f,4.5f);
+    g.setColour(Colour(0xff100f0e).withAlpha(.22f));g.fillRoundedRectangle(foot.reduced(5.f),7.f);
     paintScrew(g,25,736,6.f,.8f);paintScrew(g,1235,736,6.f,1.4f);
 }
 

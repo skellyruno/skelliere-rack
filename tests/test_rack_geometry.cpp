@@ -23,7 +23,7 @@ int main(){
  }
  for(int n=0;n<=slotCount;++n){
   auto g=signalPath(1210,n);
-  assert(g.x>=207 && g.cell>=35 && g.cell<=174);
+  assert(g.x>=207 && g.cell>=35 && g.cell<=150);
   assert(g.x+2*g.port+(n+1)*g.arrow+n*g.cell<=1210-18);
   ++checked;
  }

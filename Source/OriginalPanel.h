@@ -2,9 +2,10 @@
 #include "Look.h"
 namespace skl::ui {
 #include "AtelierArt.h"
+#include "ReferenceTapeArtwork.h"
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xdfc6a7,0x62352e,0x5d4132,0xc4c0ad,0x27333e,0x2f3424,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x51282a,0x706449,0x496464,0x45484a};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xe1c4a6,0x62352e,0x5d4132,0xc4c0ad,0x293640,0x34382a,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x59322e,0x706449,0x496464,0x45484a};
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -155,7 +156,33 @@ inline const juce::Image& reelMetal(){
         return im;
     }();return image;
 }
-inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
+// Photographed reel faces rotate; housing, rim and spindle stay fixed.
+inline void paintReferenceTapeMotion(Graphics& g,juce::Rectangle<float> r,float left,float right){
+    const auto& art=referenceTapeArtwork();if(!art.isValid())return;
+    juce::Graphics::ScopedSaveState window(g);
+    g.addTransform(juce::AffineTransform::scale(r.getWidth()/250.f,r.getHeight()/142.f).translated(r.getX(),r.getY()));
+    const float centres[]={62.8f,188.8f},angles[]={left,right};constexpr float cy=68.4f,faceRadius=51.f,hubRadius=19.f;
+    for(int i=0;i<2;++i){
+        if(std::abs(angles[i])<.0001f)continue;
+        const float cx=centres[i];
+        {juce::Graphics::ScopedSaveState face(g);juce::Path clip;clip.addEllipse(cx-faceRadius,cy-faceRadius,2*faceRadius,2*faceRadius);g.reduceClipRegion(clip);
+        g.setOpacity(1.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+        g.drawImageTransformed(art,juce::AffineTransform::rotation(angles[i],cx,cy));}
+        {juce::Graphics::ScopedSaveState hub(g);juce::Path clip;clip.addEllipse(cx-hubRadius,cy-hubRadius,2*hubRadius,2*hubRadius);g.reduceClipRegion(clip);g.setOpacity(1.f);g.drawImageAt(art,0,0);}
+    }
+}
+inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReference=true) {
+    // Only the decorative compartment is supplied artwork. Actual delay parameters
+    // remain native, interactive controls. Other finishes retain the procedural renderer.
+    const auto& art=referenceTapeArtwork();
+    if(useReference&&art.isValid()){
+        g.setColour(juce::Colours::black.withAlpha(.65f));g.fillRoundedRectangle(r.expanded(.6f).translated(0,2.5f),7.f);
+        juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),6.f);g.reduceClipRegion(clip);
+        g.setOpacity(1.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.drawImage(art,r);
+        // Retain the small original Skell mechanic on the transport plate.
+        paintEngravedFigure(g,{r.getX()+15.f,r.getBottom()-15.f,7.f,12.f},Colour(0xffd8c19e).withAlpha(.65f),BonePose::stand);
+        return;
+    }
     // Decorative tape-inspired mechanical illustration. It is not a signal meter and does not
     // show tape physics; the real Time / Feedback / Tone / Mix controls are the knobs below.
     g.setColour(juce::Colours::black.withAlpha(.68f));g.fillRoundedRectangle(r.expanded(.7f).translated(0,2.4f),7);
@@ -301,9 +328,9 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     // saturated than the previous washed-out capture. Avoid additive white
     // gradients that lift the entire blue/olive/burgundy material.
     const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead6b8),.08f)
-        :p.metal.interpolatedWith(Colour(0xff0e0d0b),.27f);
-    paintHardwarePlate(g,r.reduced(.3f),base,p.light,9.f,3.8f);
-    for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-12:r.getX()+12,i<2?r.getY()+12:r.getBottom()-12,6.2f,.8f*i);
+        :p.metal.interpolatedWith(Colour(0xff0e0d0b),.21f);
+    paintHardwarePlate(g,r.reduced(.3f),base,p.light,10.f,4.9f);
+    for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     const auto p=originalSpec(type,1);
