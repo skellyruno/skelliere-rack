@@ -420,9 +420,10 @@ public:
 
     void drawComboBox(Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox&) override {
         auto r = juce::Rectangle<float>(0, 0, (float) w, (float) h);
-        g.setColour(Colour(0xff161411)); g.fillRoundedRectangle(r,5.f);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff0d0c0a),r.getY(),Colour(0xff27231e),r.getBottom()));g.fillRoundedRectangle(r,5.f);
         g.setColour(Colour(0xff847766).withAlpha(.75f));g.drawRoundedRectangle(r.reduced(.6f),5.f,1.f);
-        g.setColour(juce::Colours::white.withAlpha(0.08f)); g.drawHorizontalLine(h - 1, 3.0f, (float) w - 3.0f);
+        g.setColour(juce::Colours::black.withAlpha(.65f));g.drawRoundedRectangle(r.reduced(2.f),4.f,.8f);
+        g.setColour(juce::Colours::white.withAlpha(0.13f)); g.drawHorizontalLine(h - 2, 4.0f, (float) w - 4.0f);
         juce::Path p;
         p.addTriangle((float) w - 18.0f, h * 0.42f, (float) w - 8.0f, h * 0.42f, (float) w - 13.0f, h * 0.62f);
         g.setColour(pal::amber); g.fillPath(p);
@@ -465,7 +466,10 @@ public:
         g.strokePath(bar,juce::PathStrokeType(pw+1.4f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded),place);
         g.setColour(ptr.getPerceivedBrightness()>.50f?ptr:Colour(0xfff3e4ca));
         g.strokePath(bar,juce::PathStrokeType(juce::jmax(.9f,pw*.55f),juce::PathStrokeType::curved,juce::PathStrokeType::rounded),place);
-        if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawEllipse(cx-R*1.1f,cy-R*1.1f,R*2.2f,R*2.2f,1.f);}
+        if(s.isMouseOverOrDragging()||s.hasKeyboardFocus(false)){
+            g.setColour(pal::amber.withAlpha(s.hasKeyboardFocus(false)?.95f:.42f));
+            g.drawEllipse(cx-R*1.05f,cy-R*1.05f,R*2.1f,R*2.1f,1.f);
+        }
     }
 
     void drawScrollbar(Graphics& g, juce::ScrollBar&, int x, int y, int w, int h, bool vertical, int thumbStart, int thumbSize, bool over, bool down) override {

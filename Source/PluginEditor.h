@@ -165,6 +165,9 @@ public:
     // Same live update used by the timer; lets the real-editor test capture measured I/O.
     void refreshLiveState(){timerCallback();}
     void setEditMode(bool enabled);
+    void setLibraryVisible(bool visible);
+    bool isLibraryVisible() const noexcept { return libraryVisible; }
+    bool libraryLayoutIsValid() const;
 private:
     void parameterChanged(const juce::String&, float) override { triggerAsyncUpdate(); }
     void handleAsyncUpdate() override;
@@ -177,8 +180,8 @@ private:
     juce::TextButton prevPreset{"<"}, nextPreset{">"}, snapA{"A"}, snapB{"B"}, snapCopy{"COPY"},
         undoBtn{"UNDO"}, redoBtn{"REDO"}, clearBtn{"CLEAR"}, bypassBtn{"BYPASS"};
     juce::TextButton scaleBtn[5];
-    juce::TextButton stripsToggle{"STRIPS"}, editToggle{"EDIT"};
-    bool editing=false;
+    juce::TextButton stripsToggle{"STRIPS"}, editToggle{"EDIT"}, libraryToggle{"HIDE LIBRARY"};
+    bool editing=false, libraryVisible=true;
     struct StripDrawer final : juce::Component {
         void paint(juce::Graphics& g) override {g.fillAll(Colour(0xff25221e));g.setColour(pal::amber.withAlpha(.6f));g.drawRect(getLocalBounds(),1);}
     } stripDrawer;

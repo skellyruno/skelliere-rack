@@ -36,11 +36,13 @@ int main(int argc, char** argv) {
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
     options.scenes={{"catalog_1",1260,790,0,1},{"catalog_2",1260,790,1,1},{"catalog_3",1260,790,2,1},{"catalog_4",1260,790,3,1},{"catalog_5",1260,790,4,1},{"catalog_6",1260,790,5,1},{"catalog_7",1260,790,6,1},
-      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1}};
-    options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"}};
-    int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true;
+      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1}};
+    options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"},{"full_rack","library_hidden"},{"library_hidden","library_hidden_edit"}};
+    int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
-        expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;processor.clearRack();
+        expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;processor.clearRack();
+        expectedLibrary=!(scene.id=="library_hidden"||scene.id=="library_hidden_edit"||scene.id=="library_hidden_80"||scene.id=="library_hidden_150");
+        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit";
         if(scene.theme<7)for(int i=0;i<4;++i){const int type=1+scene.theme*4+i;if(type<skl::kNumRackTypes){processor.addModule(type,i);++expectedCount;}}
         if(scene.theme==8||scene.theme==9){
             const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger};
@@ -51,12 +53,22 @@ int main(int argc, char** argv) {
         if(scene.theme==10){const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger,skl::SkellAirFX,skl::SkellDeEsserFX,skl::Gate,skl::Trim};
             for(int k=0;k<8;++k)processor.addModule(models[k],k);expectedCount=8;}
         visit(editor,[&](juce::Component& c){
-            if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c)){ui->setEditMode(scene.id=="studio_edit");if(ui->onScale)ui->onScale(float(scene.width)/1260.f);}
+            if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c)){
+                ui->setEditMode(edit);
+                ui->setLibraryVisible(true);
+                auto* toggle=dynamic_cast<juce::TextButton*>(ui->findChildWithID("rack.library.toggle"));
+                if(toggle&&toggle->onClick){
+                    toggle->onClick();libraryOK=!ui->isLibraryVisible()&&ui->libraryLayoutIsValid()&&libraryOK;
+                    toggle->onClick();libraryOK=ui->isLibraryVisible()&&ui->libraryLayoutIsValid()&&libraryOK;
+                    if(!expectedLibrary)toggle->onClick();
+                }else libraryOK=false;
+                if(ui->onScale)ui->onScale(float(scene.width)/1260.f);
+            }
             if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->rebuild();slot->setArtworkChoice(scene.mode);bindings=slot->exerciseSpriteBindings()&&bindings;}
             if(auto* vp=dynamic_cast<juce::Viewport*>(&c))if(dynamic_cast<skl::ui::RackStrip*>(vp->getViewedComponent()))vp->setViewPosition(0,0);
         });
         // Check all 27 models in both layouts, then restore requested screenshot mode.
-        visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->setEditMode(true);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(false);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(scene.id=="studio_edit");}});
+        visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->setEditMode(true);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(false);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(edit);}});
         if(scene.id=="catalog_min"||scene.id=="catalog_max")for(int s=0;s<expectedCount;++s)
             for(int k=0;k<skl::info(processor.slotType(s)).numKnobs;++k)
                 processor.apvts.getParameter(SkellierProcessor::knobId(s,k))->setValueNotifyingHost(scene.id=="catalog_max"?1.f:0.f);
@@ -67,6 +79,8 @@ int main(int argc, char** argv) {
     };
     options.inspect=[&]{
         juce::StringArray errors;if(!bindings)errors.add("Live parameter binding failed");
+        if(!libraryOK)errors.add("Library toggle round-trip failed");
+        visit(editor,[&](juce::Component& c){if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c))if(ui->isLibraryVisible()!=expectedLibrary||!ui->libraryLayoutIsValid())errors.add("Library layout mismatch");});
         if(editor.getWidth()!=expectedWidth||editor.getHeight()!=expectedHeight)errors.add("Editor scaling mismatch");
         int count=0;visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){if(slot->currentType()!=skl::Empty)++count;if(!slot->artworkLayoutIsValid())errors.add("Original faceplate layout invalid");}});
         if(count!=expectedCount)errors.add("Unexpected slot count");return errors;

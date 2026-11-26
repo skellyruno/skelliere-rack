@@ -388,7 +388,9 @@ void ModuleTile::paint(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(Colour(active?0xff3c3224:hover?0xff302b23:0xff28241e),r.getY(),Colour(active?0xff251e16:0xff151310),r.getBottom()));
     g.fillRoundedRectangle(r,5);
     g.setColour(active?pal::amber:Colour(0xff645b4b).withAlpha(.6f));g.drawRoundedRectangle(r,5,active?1.4f:.7f);
+    g.setColour(juce::Colours::white.withAlpha(hover?.15f:.07f));g.drawHorizontalLine(int(r.getY())+2,r.getX()+5,r.getRight()-5);
     auto sw=r.reduced(6).removeFromLeft(39);
+    g.setColour(juce::Colours::black.withAlpha(.55f));g.fillRoundedRectangle(sw.expanded(1.2f).translated(0,1),4);
     // Cache icon at fixed logical dimensions (not the whole tile or its hover state).
     static std::array<juce::Image,skl::kNumRackTypes> minis;
     auto& mini=minis[static_cast<size_t>(type)];
@@ -398,9 +400,9 @@ void ModuleTile::paint(Graphics& g) {
     }
     g.drawImage(mini,sw);
     auto text=r.reduced(6).withTrimmedLeft(48);
-    g.setColour(pal::ink);g.setFont(font(14.5f));
-    g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(19).toNearestInt(),juce::Justification::centredLeft,1);
-    g.setColour(pal::inkDim);g.setFont(font(11.f));
+    g.setColour(pal::ink);g.setFont(font(15.5f));
+    g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(20).toNearestInt(),juce::Justification::centredLeft,1);
+    g.setColour(pal::inkDim.brighter(.10f));g.setFont(font(12.f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
 }
 
@@ -487,6 +489,7 @@ void LibraryPanel::paint(Graphics& g) {
     {juce::Graphics::ScopedSaveState save(g);juce::Path p;p.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),7);g.reduceClipRegion(p);paintBrushed(g,r,.43f);}
     g.setColour(Colour(0xff837765));g.drawRoundedRectangle(r,7,1.f);
     g.setColour(Colour(0xff090807));g.drawRoundedRectangle(r.reduced(2),6,1.2f);
+    g.setColour(juce::Colours::white.withAlpha(.11f));g.drawRoundedRectangle(r.reduced(3.5f),5,.7f);
     g.setColour(pal::ink);g.setFont(font(14,true).withExtraKerningFactor(.12f));
     g.drawText("MODULE LIBRARY",r.withHeight(39),juce::Justification::centred,false);
     auto list=r.reduced(11).withY(119).withHeight(getHeight()-167);
@@ -596,6 +599,11 @@ RackUI::RackUI(SkellierProcessor& p)
     stripDrawer.addAndMakeVisible(saveStripBtn);
     rebuildStripButtons();
     addAndMakeVisible(library);
+    libraryToggle.setComponentID("rack.library.toggle");
+    libraryToggle.setWantsKeyboardFocus(true);
+    libraryToggle.setTooltip("Hide the module library to see five full rack slots");
+    libraryToggle.onClick=[this]{setLibraryVisible(!libraryVisible);};
+    addAndMakeVisible(libraryToggle);
     viewport.setViewedComponent(&strip, false);
     viewport.setScrollBarsShown(false, true);
     viewport.setScrollBarThickness(8);
@@ -672,6 +680,29 @@ void RackUI::setEditMode(bool enabled) {
     for(auto& slot:strip.slots)if(slot)slot->setEditMode(enabled);
     resized();repaint();
 }
+void RackUI::setLibraryVisible(bool visible) {
+    libraryVisible=visible;
+    library.setVisible(visible);
+    libraryToggle.setButtonText(visible?"HIDE LIBRARY":"SHOW LIBRARY");
+    libraryToggle.setTooltip(visible?"Hide the module library to see five full rack slots":
+                                     "Show the module library to browse, search and add effects");
+    resized();
+    repaint();
+}
+
+bool RackUI::libraryLayoutIsValid() const {
+    const int left=libraryVisible?270:20;
+    const int visibleSlots=libraryVisible?4:5;
+    const int required=2*RackStrip::kPad+visibleSlots*236+(visibleSlots-1)*RackStrip::kGap;
+    return library.isVisible()==libraryVisible && libraryToggle.isVisible()
+        && libraryToggle.getButtonText()==(libraryVisible?"HIDE LIBRARY":"SHOW LIBRARY")
+        && viewport.getBounds()==Rectangle<int>(left,106,1234-left,602)
+        && viewport.getWidth()>=required
+        && libraryToggle.getRight()<=scaleBtn[0].getX()
+        && !libraryToggle.getBounds().intersects(editToggle.getBounds())
+        && !libraryToggle.getBounds().intersects(bypassBtn.getBounds());
+}
+
 void RackUI::resized() {
     prevPreset.setBounds(335,16,30,36);presetBox.setBounds(370,16,208,36);nextPreset.setBounds(583,16,30,36);
     inKnob.setBounds(644,8,127,54);meters.setBounds(777,18,306,32);outKnob.setBounds(1100,8,137,54);
@@ -685,8 +716,10 @@ void RackUI::resized() {
     stripsLabel.setBounds(10,9,104,30);defaultStrip.setBounds(116,9,82,30);
     for(int k=0;k<stripButtons.size();++k)stripButtons[k]->setBounds(203+k*110,9,105,30);
     stripName.setBounds(892,9,192,30);saveStripBtn.setBounds(1090,9,132,30);
+    libraryToggle.setBounds(897,66,100,27);
     library.setBounds(12,106,246,602);
-    viewport.setBounds(270,106,964,602);
+    const int rackLeft=libraryVisible?270:20;
+    viewport.setBounds(rackLeft,106,1234-rackLeft,602);
     pathStrip.setBounds(25,718,1210,60);
 }
 
@@ -700,13 +733,15 @@ void RackUI::paint(Graphics& g) {
     g.drawFittedText("SKELLIERE RACK",Rectangle<int>(62,10,266,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
     g.drawVerticalLine(49,13,54);g.drawVerticalLine(332,13,54);g.drawVerticalLine(628,13,54);
-    const auto frame=Rectangle<float>(262,102,986,610);
+    const float railLeft=libraryVisible?262.f:12.f;
+    const auto frame=Rectangle<float>(railLeft,102,1248.f-railLeft,610);
     g.setColour(juce::Colours::black.withAlpha(.7f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,1.f),9);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff554b3c),frame.getY(),Colour(0xff0b0907),frame.getBottom()));g.fillRoundedRectangle(frame,8);
     g.setColour(Colour(0xff0d0c0a));g.fillRoundedRectangle(frame.reduced(3.5f),5);
     g.setColour(Colour(0xff94846c));g.drawRoundedRectangle(frame.reduced(.8f),8,1.4f);
     g.setColour(Colour(0xff352d22));g.drawRoundedRectangle(frame.reduced(3),5,1.7f);
     paintScrew(g,1242,114,4.2f,.6f);paintScrew(g,1242,701,4.2f,1.5f);
+    if(!libraryVisible){paintScrew(g,17,114,3.2f,.9f);paintScrew(g,17,701,3.2f,1.3f);}
     const auto foot=Rectangle<float>(12,714,1236,68);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff343029),foot.getY(),Colour(0xff1b1814),foot.getBottom()));g.fillRoundedRectangle(foot,6);
     g.setColour(Colour(0xff7d6f5c));g.drawRoundedRectangle(foot.reduced(.7f),6,1);
