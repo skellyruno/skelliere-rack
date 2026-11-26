@@ -166,8 +166,8 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
     lower.lineTo(rim.getX()+radius,rim.getBottom()-1.f);
     g.setColour(juce::Colours::black.withAlpha(.72f));g.strokePath(lower,juce::PathStrokeType(1.6f,juce::PathStrokeType::curved));
     // A narrow contact seam adds depth without moving any control or slot.
-    g.setColour(Colour(0xff070605).withAlpha(.26f));g.drawRoundedRectangle(face.expanded(.9f),rr+.7f,1.25f);
-    g.setColour(Colour(0xffffefda).withAlpha(.13f));g.drawRoundedRectangle(face,rr,.7f);
+    g.setColour(Colour(0xff070605).withAlpha(.42f));g.drawRoundedRectangle(face.expanded(.9f),rr+.7f,1.25f);
+    g.setColour(Colour(0xffffefda).withAlpha(.18f));g.drawRoundedRectangle(face,rr,.7f);
 }
 inline void paintRecessedWindow(Graphics& g,juce::Rectangle<float> r,float radius=7.f){
     g.setColour(juce::Colours::black.withAlpha(.65f));g.fillRoundedRectangle(r.translated(0,1.8f),radius+1);
@@ -190,7 +190,7 @@ inline void paintRaisedKey(Graphics& g,juce::Rectangle<float> r,Colour body,bool
     g.setGradientFill(juce::ColourGradient::vertical(pressed?body.darker(.18f):top,face.getY(),pressed?top:body.darker(.28f),face.getBottom()));
     g.fillRoundedRectangle(face,4.f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffffead0).withAlpha(on?.10f:.055f),face.getY(),juce::Colours::transparentWhite,face.getCentreY()));g.fillRoundedRectangle(face.withHeight(face.getHeight()*.48f),3.f);
-    g.setColour(Colour(0xffffead0).withAlpha(on?.40f:.22f));g.drawHorizontalLine(int(face.getY())+1,face.getX()+4,face.getRight()-4);
+    g.setColour(Colour(0xffffead0).withAlpha(on?.48f:.28f));g.drawHorizontalLine(int(face.getY())+1,face.getX()+4,face.getRight()-4);
     g.setColour(juce::Colours::black.withAlpha(.58f));g.drawHorizontalLine(int(face.getBottom())-1,face.getX()+4,face.getRight()-4);
 }
 // Original machined cap, drawn once per metal finish at high resolution. Light comes from the upper left.
@@ -513,7 +513,7 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     glass.closeSubPath();
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.16f),face.getY(),juce::Colours::transparentWhite,face.getY()+face.getHeight()*.24f));
     g.fillPath(glass);
-    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,face.getBottom()-9.f,Colour(0xffffe3ad).withAlpha(.38f),face.getBottom()));g.fillRoundedRectangle(face.withY(face.getBottom()-9.f).withHeight(9.f),3.f);
+    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,face.getBottom()-9.f,Colour(0xffffe3ad).withAlpha(.46f),face.getBottom()));g.fillRoundedRectangle(face.withY(face.getBottom()-9.f).withHeight(9.f),3.f);
     g.setColour(Colour(0xffffeac1).withAlpha(.25f));g.drawRoundedRectangle(face.reduced(1.f),14.f,.65f);
 }
 

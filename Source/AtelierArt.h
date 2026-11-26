@@ -38,6 +38,8 @@ inline void paintOpticalFinish(Graphics& g,juce::Rectangle<float> r){
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,r.getBottom()-6,Colour(0xffe1c99d).withAlpha(.25f),r.getBottom()));g.fillRect(r.withY(r.getBottom()-6).withHeight(6));
     juce::Path glint;glint.startNewSubPath(r.getX()+5,r.getY()+5);glint.quadraticTo(r.getCentreX(),r.getY()+1,r.getRight()-5,r.getY()+5);
     g.setColour(Colour(0xfff8e7c8).withAlpha(.24f));g.strokePath(glint,juce::PathStrokeType(.8f));
+    g.setGradientFill(juce::ColourGradient(Colour(0xffdce3df).withAlpha(.18f),r.getX(),r.getCentreY(),juce::Colours::transparentWhite,r.getX()+9.f,r.getCentreY(),false));g.fillRect(r.withWidth(9.f));
+    g.setGradientFill(juce::ColourGradient(Colour(0xff050608).withAlpha(.55f),r.getRight(),r.getCentreY(),juce::Colours::transparentBlack,r.getRight()-9.f,r.getCentreY(),false));g.fillRect(r.withTrimmedLeft(r.getWidth()-9.f));
     g.setColour(Colour(0xff090b0d).withAlpha(.7f));g.drawRoundedRectangle(r,5.f,1.2f);
 }
 inline void paintWorkshopDetail(Graphics& g,juce::Rectangle<float> r,int type){
@@ -57,10 +59,11 @@ inline void paintWorkshopDetail(Graphics& g,juce::Rectangle<float> r,int type){
         g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff9b7751),socket.getY(),Colour(0xff27190f),socket.getBottom()));g.fillRoundedRectangle(socket,3.f);
         g.setGradientFill(juce::ColourGradient(Colour(0xffecd6a6).withAlpha(.40f),tube.getX(),tube.getY(),Colour(0xff231b13).withAlpha(.08f),tube.getRight(),tube.getBottom(),false));g.fillRoundedRectangle(tube,13.f);
         g.setColour(Colour(0xffe3c18b).withAlpha(.67f));g.drawRoundedRectangle(tube,13.f,1.f);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffbfb8a5).withAlpha(.65f),tube.getY(),juce::Colours::transparentBlack,tube.getY()+16.f));g.fillRoundedRectangle(tube.withHeight(16.f),10.f);
         const auto plate=tube.reduced(9.f,13.f);
         g.setGradientFill(juce::ColourGradient(Colour(0xff39261a),plate.getX(),plate.getY(),Colour(0xffb6854a),plate.getRight(),plate.getBottom(),false));g.fillRoundedRectangle(plate,3.f);
         for(int k=0;k<7;++k){const float yy=plate.getY()+4+k*(plate.getHeight()-8)/6.f;g.setColour(Colour(0xffd3a76a).withAlpha(.26f));g.drawLine(plate.getX()+2,yy,plate.getRight()-2,yy,.8f);}
-        for(int i=0;i<4;++i){float xx=cx-10+i*6.5f;g.setColour(Colour(0xffe2b475).withAlpha(.8f));g.drawLine(xx,tube.getY()+13,xx,tube.getBottom()-10,1.1f);}
+        for(int i=0;i<4;++i){float xx=cx-10+i*6.5f;g.setColour(Colour(0xff37271a));g.drawLine(xx+.65f,tube.getY()+13,xx+.65f,tube.getBottom()-10,1.7f);g.setColour(Colour(0xffe2b475).withAlpha(.8f));g.drawLine(xx,tube.getY()+13,xx,tube.getBottom()-10,.9f);}
         juce::Path filament;filament.startNewSubPath(cx-12,cy+9);for(int k=0;k<9;++k)filament.lineTo(cx-12+k*3,cy+(k%2?1.f:9.f));g.setColour(Colour(0xffffaa43).withAlpha(.25f));g.strokePath(filament,juce::PathStrokeType(4.f));g.setColour(Colour(0xffffd59a));g.strokePath(filament,juce::PathStrokeType(1.4f));
         g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff92714c),tube.getBottom()-7,Colour(0xff21180e),tube.getBottom()+5));g.fillRoundedRectangle(tube.withY(tube.getBottom()-7).withHeight(12),2.f);
         juce::Path shine;shine.startNewSubPath(tube.getX()+5,tube.getY()+18);shine.quadraticTo(tube.getX()+2,tube.getCentreY(),tube.getX()+6,tube.getBottom()-8);g.setColour(Colour(0xffffe6b9).withAlpha(.55f));g.strokePath(shine,juce::PathStrokeType(1.7f));
@@ -76,6 +79,6 @@ inline void paintWorkshopDetail(Graphics& g,juce::Rectangle<float> r,int type){
         for(int i=0;i<5;++i){float yy=y+12+i*(h-36)/4.f;g.setColour(Colour(0xffa7bfc2).withAlpha(.16f));g.drawLine(x+12,yy,x+w-12,yy,.55f);}
         for(int i=0;i<4;++i){juce::Path curve;for(int k=0;k<=90;++k){float t=k/90.f;float yy=y+h*.40f-18.f*std::exp(-std::pow((t-(.18f+i*.20f))/.105f,2.f));float xx=x+9+(w-18)*t;if(k==0)curve.startNewSubPath(xx,yy);else curve.lineTo(xx,yy);}g.setColour(Colour(0xffd2e1cc).withAlpha(.27f+i*.10f));g.strokePath(curve,juce::PathStrokeType(1.f));}
     }
-    g.setColour(Colour(0xffeee0c6));g.setFont(font(9.5f,true).withExtraKerningFactor(.12f));g.drawText(heat?(type==Sat?"HARMONIC WARMTH":"SOFT PEAK SHAPING"):type==Eq?"FOUR BAND TONE":type==Phaser?"PHASE MOTION":type==Stereo?"STEREO FIELD":type==Transient?"TRANSIENT SHAPE":"PULSE MOTION",f.withY(f.getBottom()-17).withHeight(13),juce::Justification::centred,false);
+    g.setColour(Colour(0xfff3e7d1));g.setFont(font(9.5f,true).withExtraKerningFactor(.12f));g.drawText(heat?(type==Sat?"HARMONIC WARMTH":"SOFT PEAK SHAPING"):type==Eq?"FOUR BAND TONE":type==Phaser?"PHASE MOTION":type==Stereo?"STEREO FIELD":type==Transient?"TRANSIENT SHAPE":"PULSE MOTION",f.withY(f.getBottom()-17).withHeight(13),juce::Justification::centred,false);
     paintOpticalFinish(g,f);}
 }

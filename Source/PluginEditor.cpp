@@ -379,7 +379,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         // Sibilance: a small etched bone figure sits outside the centred lower control.
         if((type==DeEss||type==SkellDeEsserFX)&&!editing&&mi.numKnobs==3){
             paintEngravedFigure(pg,{20.f,438.f,30.f,53.f},ink.withAlpha(.52f),BonePose::stand);
-            for(int i=0;i<5;++i){const float xx=float(w)-45.f+i*4.f;pg.setColour(ink.withAlpha(.18f+.055f*i));pg.drawVerticalLine(int(xx),454.f-i*2.f,474.f+i*2.f);}
+            // A tactile etched grille, deliberately static, aligned with the original figure.
+            for(int row=0;row<6;++row)for(int col=0;col<4;++col){const float xx=float(w)-45.f+col*5.f,yy=449.f+row*5.f;pg.setColour(juce::Colours::black.withAlpha(.35f));pg.fillEllipse(xx,yy+.65f,2.f,2.f);pg.setColour(ink.withAlpha(.40f));pg.fillEllipse(xx,yy,1.5f,1.5f);}
         }
         // Side-mounted value pills provide the separation; no extra grid lines.
         if(editing){pg.setColour(ink.withAlpha(.24f));pg.drawHorizontalLine(h-52,20,w-20);
@@ -656,7 +657,7 @@ void PathStrip::paint(Graphics& g) {
     auto key=[&](const juce::String& text,int width,bool lit,bool model,bool focused=false){
         auto r=Rectangle<float>(float(x),float(h)*.5f-16.f,float(width),32.f);
         g.setColour(juce::Colours::black.withAlpha(.76f));g.fillRoundedRectangle(r.translated(0,2),6);
-        paintRaisedKey(g,r,Colour(focused?0xff443728:lit?0xff302d28:0xff24211e),focused,false);
+        paintRaisedKey(g,r,Colour(focused?0xff493b2c:lit?0xff302d28:0xff24211e),focused,false);
         if(focused){for(int halo=5;halo>=1;--halo){g.setColour(Colour(0xffeeb66e).withAlpha(.028f*float(6-halo)));g.drawRoundedRectangle(r.expanded(float(halo)),7.f,float(halo));}}
         g.setColour(focused?Colour(0xffffdfaa):lit?Colour(0xff96836a):Colour(0xff575043));g.drawRoundedRectangle(r.reduced(.7f),5,focused?1.55f:.7f);
         if(model&&lit&&!focused){g.setColour(Colour(0xffa58c66));g.fillEllipse(r.getX()+6,r.getCentreY()-1.3f,2.6f,2.6f);}
@@ -888,7 +889,11 @@ bool RackUI::libraryLayoutIsValid() const {
         && !nextPreset.getBounds().intersects(inKnob.getBounds())
         && !inKnob.getBounds().intersects(meters.getBounds())
         && !meters.getBounds().intersects(outKnob.getBounds())
-        && libraryToggle.getRight()<=scaleBtn[0].getX()
+        && (!editing||editToggle.getRight()<=scaleBtn[0].getX())
+        && bypassBtn.getX()-libraryToggle.getRight()>=6
+        && bypassBtn.getX()-libraryToggle.getRight()<=12
+        && editToggle.getX()-bypassBtn.getRight()>=6
+        && editToggle.getX()-bypassBtn.getRight()<=12
         && !libraryToggle.getBounds().intersects(editToggle.getBounds())
         && !libraryToggle.getBounds().intersects(bypassBtn.getBounds());
 }
@@ -899,14 +904,14 @@ void RackUI::resized() {
     lcd.setBounds(editing?24:30,67,editing?300:750,28);
     snapA.setBounds(335,66,30,27);snapB.setBounds(368,66,30,27);snapCopy.setBounds(402,66,49,27);
     undoBtn.setBounds(466,66,51,27);redoBtn.setBounds(520,66,51,27);clearBtn.setBounds(574,66,51,27);
-    stripsToggle.setBounds(642,66,69,27);bypassBtn.setBounds(editing?719:1062,66,76,27);
-    editToggle.setBounds(editing?810:1150,66,editing?81:87,27);
+    stripsToggle.setBounds(642,66,69,27);bypassBtn.setBounds(editing?827:1062,66,76,27);
+    editToggle.setBounds(editing?911:1150,66,editing?81:87,27);
     for(int k=0;k<5;++k)scaleBtn[k].setBounds(1005+k*47,66,43,27);
     stripDrawer.setBounds(8,105,1244,49);
     stripsLabel.setBounds(10,9,104,30);defaultStrip.setBounds(116,9,82,30);
     for(int k=0;k<stripButtons.size();++k)stripButtons[k]->setBounds(203+k*110,9,105,30);
     stripName.setBounds(892,9,192,30);saveStripBtn.setBounds(1090,9,132,30);
-    libraryToggle.setBounds(897,66,100,27);
+    libraryToggle.setBounds(editing?719:950,66,100,27);
     library.setBounds(libraryX,libraryY,libraryW,libraryH);
     const int rackLeft=libraryVisible?visibleRackX:hiddenRackX;
     strip.setLibraryMode(libraryVisible);
