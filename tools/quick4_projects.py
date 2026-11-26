@@ -68,6 +68,13 @@ PROJECTS = {
         "status": "locally-verified",
         "extra": [],
     },
+    "skelliere-rack": {
+        "target": "SkelliereRackUIRenderer",
+        "option": "SKELLIERE_BUILD_UI_RENDERER",
+        "core_dependency": "",
+        "status": "wired-needs-native-check",
+        "extra": [],
+    },
     "skell-choir-vst": {
         "target": "SkellyChoirQuick4",
         "option": "OMNICHOIR_BUILD_QUICK4",

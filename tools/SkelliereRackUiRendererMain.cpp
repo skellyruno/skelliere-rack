@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <chrono>
 #include <fstream>
+#include "RackCaptureArgs.h"
 #if JUCE_WINDOWS
 #include <windows.h>
 #include <psapi.h>
@@ -19,6 +20,8 @@ static void visit(juce::Component& component, const std::function<void(juce::Com
 }
 
 int main(int argc, char** argv) {
+    const auto args=rackcapture::parse(std::vector<std::string>(argv+1,argv+argc));
+    if(!args.error.empty()){std::fprintf(stderr,"%s\n",args.error.c_str());return 2;}
     juce::ScopedJuceInitialiser_GUI gui;
     if(!skl::ui::necromancerArtworkReady()){std::fprintf(stderr,"Missing original Necromancer hero-dial artwork\n");return 1;}
     try { processorRegression(); }
@@ -39,6 +42,10 @@ int main(int argc, char** argv) {
     options.scenes={{"catalog_1",1260,790,0,1},{"catalog_2",1260,790,1,1},{"catalog_3",1260,790,2,1},{"catalog_4",1260,790,3,1},{"catalog_5",1260,790,4,1},{"catalog_6",1260,790,5,1},{"catalog_7",1260,790,6,1},
       {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1},{"rack_last_slots",1260,790,10,1},{"rack_last_hidden",1260,790,10,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"},{"full_rack","library_hidden"},{"library_hidden","library_hidden_edit"},{"full_rack","rack_last_slots"},{"library_hidden","rack_last_hidden"}};
+    if(!args.full){
+        options.scenes={{"approved_studio",1260,790,8,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"studio_midnight",1260,790,8,3}};
+        options.mustDiffer={{"approved_studio","studio_edit"},{"approved_studio","studio_midnight"}};
+    }
     int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;navOK=true;processor.clearRack();
@@ -94,11 +101,22 @@ int main(int argc, char** argv) {
         int count=0;visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){if(slot->currentType()!=skl::Empty)++count;if(!slot->artworkLayoutIsValid())errors.add("Original faceplate layout invalid");}});
         if(count!=expectedCount)errors.add("Unexpected slot count");return errors;
     };
-    const auto output = argc > 1 ? juce::File(juce::String::fromUTF8(argv[1]))
-        : juce::File::getCurrentWorkingDirectory().getChildFile("ui-screenshots");
+    const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));
     const auto result = skellcore::ui::headless::render(editor, output, options);
     for (const auto& error : result.errors) std::fprintf(stderr, "%s\n", error.toRawUTF8());
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);
+    if(!args.full){
+        if(!result.passed()||result.captured!=4)return 1;
+        juce::Image sheet(juce::Image::RGB,1260,790,true);juce::Graphics g(sheet);
+        int i=0;for(const auto& scene:options.scenes){
+            const auto im=juce::ImageFileFormat::loadFrom(output.getChildFile(juce::String(scene.id)+".png"));
+            if(!im.isValid())return 1;
+            g.drawImage(im,juce::Rectangle<float>(float((i%2)*630),float((i/2)*395),630.f,395.f));++i;
+        }
+        auto file=output.getChildFile("contact-sheet.png");file.deleteFile();juce::FileOutputStream stream(file);juce::PNGImageFormat png;
+        if(!stream.openedOk()||!png.writeImageToStream(sheet,stream))return 1;
+        processor.releaseResources();return 0;
+    }
     // Same exact production editor and processor, a warmed eight-module rack.
     processor.clearRack();
     const int types[]={skl::Eq,skl::Gate,skl::Transient,skl::Bell,skl::SoftClip,skl::Phaser,skl::Flanger,skl::Slap};

@@ -128,6 +128,8 @@ public:
 private:
     void refresh();
     void select(int type);
+    void paintHardware(juce::Graphics&);
+    juce::Image hardwareCache;
     SkellierProcessor& proc;
     juce::TextButton cats[5];
     juce::TextEditor search;
@@ -146,6 +148,7 @@ public:
     void mouseDown(const juce::MouseEvent&) override;
     void resized() override;
     void setVisibleRange(int first,int last);
+    void setFocusedSlot(int slot){if(focusedSlot!=slot){focusedSlot=slot;repaint();}}
     std::function<void(int)> onNavigate;
     std::function<void(int)> onPage;
     int slotAt(juce::Point<int>) const;
@@ -155,6 +158,7 @@ private:
     std::array<juce::Rectangle<int>,skl::kNumSlots> hitRects{};
     juce::TextButton previous{"<"}, next{">"};
     juce::String rangeText{"A - D"};
+    int focusedSlot=0;
 };
 
 class StripButton final : public juce::TextButton {
@@ -185,6 +189,9 @@ public:
 private:
     void refreshRackNavigation();
     void pageRack(int direction);
+    void paintChassis(juce::Graphics&);
+    juce::Image chassisCache;
+    bool cachedLibraryVisible=true;
     void parameterChanged(const juce::String&, float) override { triggerAsyncUpdate(); }
     void handleAsyncUpdate() override;
     void timerCallback() override;

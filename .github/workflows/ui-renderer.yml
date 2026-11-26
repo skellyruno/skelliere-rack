@@ -2,9 +2,9 @@ name: Skelliere Rack / Real JUCE editor screenshot
 on:
   push:
     branches: [main]
-    paths: ['Source/**', 'assets/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', '.github/workflows/ui-renderer.yml']
+    paths: ['Source/**', 'assets/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', 'tools/RackCaptureArgs.h', 'tests/test_rack_capture_args.cpp', '.github/workflows/ui-renderer.yml']
   pull_request:
-    paths: ['Source/**', 'assets/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', '.github/workflows/ui-renderer.yml']
+    paths: ['Source/**', 'assets/**', 'CMakeLists.txt', 'tools/SkelliereRackUiRendererMain.cpp', 'tools/RackCaptureArgs.h', 'tests/test_rack_capture_args.cpp', '.github/workflows/ui-renderer.yml']
   workflow_dispatch:
 
 concurrency:
@@ -35,12 +35,27 @@ jobs:
           name: Skelliere-Local-Windows-Editor-Renderer
           path: local-renderer/
           if-no-files-found: error
+      - name: Capture four real Quick4 scenes first
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build -Recurse -File -Filter SkelliereRackUIRenderer.exe | Select-Object -First 1
+          & $exe.FullName --output (Join-Path (Get-Location) 'quick4')
+          if ($LASTEXITCODE -ne 0) { throw "Quick4 failed: $LASTEXITCODE" }
+          $manifest = Get-Content quick4/manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.count -ne 4) { throw 'Quick4 scene count mismatch' }
+          if (-not (Test-Path quick4/contact-sheet.png)) { throw 'Quick4 contact sheet missing' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skelliere-Quick4-Real-UI
+          path: quick4/*
+          if-no-files-found: error
+          retention-days: 14
       - name: Capture and validate artwork appearances
         shell: pwsh
         run: |
           $exe = Get-ChildItem build -Recurse -File -Filter SkelliereRackUIRenderer.exe | Select-Object -First 1
           if (-not $exe) { throw 'SkelliereRackUIRenderer.exe missing' }
-          & $exe.FullName (Join-Path (Get-Location) 'ui-screenshots')
+          & $exe.FullName --output (Join-Path (Get-Location) 'ui-screenshots') --full
           if ($LASTEXITCODE -ne 0) { throw "Renderer failed: $LASTEXITCODE" }
           if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 29) { throw 'Expected twenty-nine real-editor screenshots' }
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }

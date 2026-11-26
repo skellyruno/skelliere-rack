@@ -14,6 +14,12 @@ SPEC.loader.exec_module(MODULE)
 
 
 class Quick4CaptureCommandTests(unittest.TestCase):
+    def test_rack_uses_bundled_core(self):
+        item=MODULE.PROJECTS["skelliere-rack"]
+        self.assertEqual(item["target"],"SkelliereRackUIRenderer")
+        self.assertEqual(item["option"],"SKELLIERE_BUILD_UI_RENDERER")
+        self.assertEqual(item["core_dependency"],"")
+
     def test_choir_requires_popup_capture_dependencies(self):
         self.assertEqual(
             MODULE.PROJECTS["skell-choir-vst"]["runtime_bins"],

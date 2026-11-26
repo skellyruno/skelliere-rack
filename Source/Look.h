@@ -182,15 +182,33 @@ inline const juce::Image& necroCap(){
 inline bool necromancerArtworkReady(){
     return necroCap().isValid()&&necroCap().getWidth()==256&&necroCap().getHeight()==256;
 }
+// Cached warm-light grade of original cap. Geometry, alpha cutout, engraving
+// and source asset are unchanged; Silver finish selects untouched pixels.
+inline const juce::Image& litNecroCap(){
+    static const auto image=[]{
+        auto im=necroCap().createCopy();if(!im.isValid())return im;
+        juce::Image::BitmapData pixels(im,juce::Image::BitmapData::readWrite);
+        for(int y=0;y<im.getHeight();++y)for(int x=0;x<im.getWidth();++x){
+            const auto src=pixels.getPixelColour(x,y);if(src.getAlpha()==0)continue;
+            const float lum=src.getFloatRed()*.30f+src.getFloatGreen()*.59f+src.getFloatBlue()*.11f;
+            const float v=juce::jlimit(0.f,1.f,lum*1.23f-.055f);
+            pixels.setPixelColour(x,y,juce::Colour::fromFloatRGBA(
+                juce::jlimit(0.f,1.f,v*1.078f),juce::jlimit(0.f,1.f,v*1.024f),
+                juce::jlimit(0.f,1.f,v*.91f),src.getFloatAlpha()));
+        }
+        return im;
+    }();
+    return image;
+}
 // ReanimateDial::paint draws the original cap with this exact rotation:
 // rotation(angle-start-1.18f,cx,cy), where angle-start = p * 1.5 pi.
 // The actual cap is unmodified and fills the metal knob, not a separate well.
-inline void paintNecromancerCap(Graphics& g,float cx,float cy,float radius,float p){
+inline void paintNecromancerCap(Graphics& g,float cx,float cy,float radius,float p,bool silver){
     juce::Graphics::ScopedSaveState save(g);
     g.setOpacity(1.f);
     g.addTransform(juce::AffineTransform::rotation(p*juce::MathConstants<float>::pi*1.5f-1.18f,cx,cy));
     if(necroCap().isValid())
-        g.drawImage(necroCap(),juce::Rectangle<float>(cx-radius,cy-radius,2*radius,2*radius));
+        g.drawImage(silver?necroCap():litNecroCap(),juce::Rectangle<float>(cx-radius,cy-radius,2*radius,2*radius));
     else g.drawImage(machinedCap(Colour(0xffb4aea4)),juce::Rectangle<float>(cx-radius,cy-radius,2*radius,2*radius));
 }
 // Only the physical thickness and contact shadow of the metal knob itself.
@@ -201,16 +219,17 @@ inline const juce::Image& capMount(){
         constexpr int n=320;constexpr float c=160.f,rad=132.f;
         juce::Image im(juce::Image::ARGB,n,n,true);Graphics g(im);
         for(int i=0;i<12;++i){
-            const float rr=rad+float(i)*1.25f;
-            g.setColour(juce::Colours::black.withAlpha(.052f));
-            g.fillEllipse(c-rr,c-rr+9.f,2*rr,2*rr);
+            const float rr=rad+float(i)*1.45f;
+            g.setColour(juce::Colours::black.withAlpha(.064f));
+            g.fillEllipse(c-rr+3.f,c-rr+14.f,2*rr,2*rr);
         }
         // Sidewall sits underneath the face; its lower edge alone is visible.
         juce::ColourGradient side(Colour(0xff8c8070),c-rad,c-rad,
             Colour(0xff171513),c+rad,c+rad,false);
         side.addColour(.38,Colour(0xff524a40));side.addColour(.74,Colour(0xff28231e));
         g.setGradientFill(side);
-        g.fillEllipse(c-rad*.975f,c-rad*.975f+5.f,rad*1.95f,rad*1.95f);
+        g.fillEllipse(c-rad*.985f,c-rad*.985f+8.f,rad*1.97f,rad*1.97f);
+        g.setColour(juce::Colours::black.withAlpha(.46f));g.drawEllipse(c-rad*.982f,c-rad*.982f+7.f,rad*1.964f,rad*1.964f,1.3f);
         // The PNG skull is an alpha cutout. This backing is strictly inside
         // the original metal cap and makes its engraved mark legible.
         g.setColour(Colour(0xff1a1815));g.fillEllipse(c-rad*.91f,c-rad*.91f,rad*1.82f,rad*1.82f);
@@ -252,25 +271,28 @@ inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
 }
 
 // The needle meter used by the compressor, de-esser and limiter. value is gain reduction in dB (0 to 20).
-inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool outputPeak=false) {
+enum class MeterLayer { all, plate, needle };
+inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool outputPeak=false, MeterLayer layer=MeterLayer::all) {
+    const auto inner=r.reduced(6);
+    auto face=inner.reduced(3.0f);
+    if(layer!=MeterLayer::needle){
     g.setColour(juce::Colours::black.withAlpha(.62f));g.fillRoundedRectangle(r.translated(0,3),10);
     juce::ColourGradient bezel(Colour(0xff8b7960),r.getX(),r.getY(),Colour(0xff151310),r.getRight(),r.getBottom(),false);
     bezel.addColour(.24,Colour(0xff39342b));bezel.addColour(.78,Colour(0xff090807));g.setGradientFill(bezel);
     g.fillRoundedRectangle(r,9);                                              // dark machined housing
+    g.setColour(juce::Colours::black.withAlpha(.62f));g.drawRoundedRectangle(r.reduced(3.4f),7.f,1.8f);
     g.setGradientFill(juce::ColourGradient(Colour(0xffe0c8a1),r.getX(),r.getY(),Colour(0xff4c3c2b),r.getRight(),r.getBottom(),false));g.drawRoundedRectangle(r.reduced(.9f),8,1.5f);
     g.setColour(Colour(0xff000000).withAlpha(.55f));g.drawRoundedRectangle(r.reduced(2.2f),5,1.0f);
-    const auto inner=r.reduced(6);
     g.setColour(Colour(0xff0b0a09));g.fillRoundedRectangle(inner,11);          // recess
     g.setColour(juce::Colours::white.withAlpha(.10f));                       // lit lower lip of the recess
     g.drawHorizontalLine(int(inner.getBottom())-1,inner.getX()+6,inner.getRight()-6);
     for(int i=0;i<4;++i)                                                      // bezel fasteners
         paintScrew(g,i%2?r.getRight()-6.7f:r.getX()+6.7f,i<2?r.getY()+6.7f:r.getBottom()-6.7f,3.7f,.7f*i);
-    auto face=inner.reduced(3.0f);
     g.setGradientFill(juce::ColourGradient(Colour(0xffffedc6),face.getCentreX(),face.getCentreY()+face.getHeight()*.07f,Colour(0xffb87536),face.getX(),face.getBottom(),true));
-    g.fillRoundedRectangle(face,10);                                           // warm lamp-lit paper
+    g.fillRoundedRectangle(face,13);                                           // warm lamp-lit paper
     {   // soft shadow cast by the bezel along the top and sides of the face
         juce::Graphics::ScopedSaveState shade(g);
-        juce::Path facePath;facePath.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),10.f);
+        juce::Path facePath;facePath.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),13.f);
         g.reduceClipRegion(facePath);
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::black.withAlpha(.34f),face.getY(),juce::Colours::transparentBlack,face.getY()+11.f));
         g.fillRect(face);
@@ -279,23 +301,26 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
         g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(.16f),face.getRight(),face.getCentreY(),juce::Colours::transparentBlack,face.getRight()-9.f,face.getCentreY(),false));
         g.fillRect(face);
     }
-    g.setColour(Colour(0xff654323));g.drawRoundedRectangle(face,10,1.5f);
-    g.setColour(Colour(0xfff8d5a4).withAlpha(.30f));g.drawRoundedRectangle(face.reduced(1.5f),9,.65f);
+    g.setColour(Colour(0xff654323));g.drawRoundedRectangle(face,13,1.5f);
+    g.setColour(Colour(0xfff8d5a4).withAlpha(.50f));g.drawRoundedRectangle(face.reduced(1.5f),12,.8f);
+    }
+
 
     juce::Graphics::ScopedSaveState save(g);
-    {   juce::Path clipFace;clipFace.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),10.f);
+    {   juce::Path clipFace;clipFace.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),13.f);
         g.reduceClipRegion(clipFace);   }
     // The meter is much wider than it is tall. Fit the arc in both axes,
     // keeping its full scale, labels and hub inside the actual face.
     const float cx=face.getCentreX(),cy=face.getBottom()-18.f;
     const float sc = face.getWidth() / 103.0f;
     const float sy = juce::jmax(0.1f, (face.getHeight() - 30.f) / 57.f);
-    const float labelSize=juce::jlimit(9.f,11.5f,8.f*sc);
+    const float labelSize=juce::jlimit(10.f,12.5f,8.5f*sc);
     auto pt = [&](float rad, float v) {
         const float a = juce::degreesToRadians(-50.0f + v * 5.0f);
         return juce::Point<float>(cx + rad * sc * std::sin(a), cy - rad * sy * std::cos(a));
     };
     const float redStart=outputPeak?20.f*20.f/24.f:12.f;
+    if(layer!=MeterLayer::needle){
     auto tick=[&](float v,int label,bool major){
         g.setColour(v>=redStart?pal::vuRed:pal::vuInk);
         g.drawLine(juce::Line<float>(pt(57.f,v),pt(major?49.f:53.f,v)),major?1.4f:.9f);
@@ -319,6 +344,10 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     g.setColour(pal::vuInk); g.setFont(font(labelSize, true));
     auto legend=face.reduced(9.f,0.f).removeFromBottom(15.f);
     g.drawText(outputPeak?"PEAK dBFS":"GR dB",legend,juce::Justification::centredLeft,false);
+    }
+    if(layer==MeterLayer::plate)return;
+    g.setColour(pal::vuInk);g.setFont(font(labelSize,true));
+    auto legend=face.reduced(9.f,0.f).removeFromBottom(15.f);
     g.drawText(outputPeak?(value<=-59.f?juce::String("-inf"):juce::String(value,1)+" dBFS"):
         juce::String(value<.05f?0.f:-value,1)+" dB",legend,juce::Justification::centredRight,false);
 
@@ -341,8 +370,9 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     glass.lineTo(face.getRight(), face.getY() + face.getHeight() * .22f);
     glass.quadraticTo(face.getCentreX(), face.getY() + face.getHeight() * .50f, face.getX(), face.getY() + face.getHeight() * .22f);
     glass.closeSubPath();
-    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(0.17f), face.getY(), juce::Colours::white.withAlpha(0.015f), face.getY() + face.getHeight() * .46f));
+    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(0.24f), face.getY(), juce::Colours::white.withAlpha(0.018f), face.getY() + face.getHeight() * .46f));
     g.fillPath(glass);
+    g.setColour(Colour(0xffffeac1).withAlpha(.55f));g.drawRoundedRectangle(face.reduced(1.f),12.f,.85f);
 }
 
 class SkellierLook final : public juce::LookAndFeel_V4 {
@@ -370,12 +400,16 @@ public:
     }
 
     juce::Font getTextButtonFont(juce::TextButton&, int) override { return font(13.0f, true); }
-    juce::Font getComboBoxFont(juce::ComboBox&) override { return font(13.0f); }
-    juce::Font getPopupMenuFont() override { return font(13.0f); }
+    juce::Font getComboBoxFont(juce::ComboBox&) override { return font(17.0f); }
+    void positionComboBoxText(juce::ComboBox& box,juce::Label& label) override {
+        label.setBounds(6,1,juce::jmax(1,box.getWidth()-28),juce::jmax(1,box.getHeight()-2));
+        label.setFont(getComboBoxFont(box));label.setJustificationType(juce::Justification::centred);
+    }
+    juce::Font getPopupMenuFont() override { return font(15.0f); }
 
     void fillTextEditorBackground(Graphics& g,int w,int h,juce::TextEditor&) override {
         auto r=juce::Rectangle<float>(0,0,float(w),float(h)).reduced(.5f);
-        g.setColour(Colour(0xff171512));g.fillRoundedRectangle(r,5.f);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff0c0b09),r.getY(),Colour(0xff201b16),r.getBottom()));g.fillRoundedRectangle(r,5.f);
     }
     void drawTextEditorOutline(Graphics& g,int w,int h,juce::TextEditor& editor) override {
         auto r=juce::Rectangle<float>(0,0,float(w),float(h)).reduced(.6f);
@@ -395,12 +429,12 @@ public:
         if (down) std::swap(top, bot);
         if (hover && !down) { top = top.brighter(0.12f); bot = bot.brighter(0.08f); }
         g.setColour(juce::Colours::black.withAlpha(0.5f));
-        g.fillRoundedRectangle(r.translated(0.0f, 1.2f), 3.0f);
+        g.fillRoundedRectangle(r.translated(0.0f, 1.8f), 5.0f);
         g.setGradientFill(juce::ColourGradient::vertical(top, r.getY(), bot, r.getBottom()));
-        g.fillRoundedRectangle(r, 3.0f);
+        g.fillRoundedRectangle(r, 5.0f);
         g.setColour(on?Colour(0xffe9cba0):Colour(0xff93816a).withAlpha(.75f));g.drawRoundedRectangle(r,4.0f,.9f);
         g.setColour(juce::Colours::black.withAlpha(.48f));g.drawRoundedRectangle(r.reduced(2.f),3.f,.65f);
-        if (!on) { g.setColour(juce::Colours::white.withAlpha(0.16f)); g.drawHorizontalLine((int) r.getY() + 1, r.getX() + 3.0f, r.getRight() - 3.0f); }
+        if (!on) { g.setColour(juce::Colours::white.withAlpha(0.26f)); g.drawHorizontalLine((int) r.getY() + 1, r.getX() + 3.0f, r.getRight() - 3.0f); }
         if (on && b.getClickingTogglesState() && !b.getProperties().contains("plain")) {   // lit LED on latching buttons
             const float cx = r.getX() + 9.0f, cy = r.getCentreY();
             g.setColour(pal::amber.withAlpha(0.35f)); g.fillEllipse(cx - 5.0f, cy - 5.0f, 10.0f, 10.0f);
@@ -408,7 +442,7 @@ public:
         }
     }
     void drawButtonText(Graphics& g, juce::TextButton& b, bool, bool) override {
-        g.setFont(font(11.5f, true));
+        g.setFont(font(b.getHeight()>=32?14.f:12.f, b.getHeight()<32));
         g.setColour(b.getToggleState()&&!b.getProperties().contains("quiet") ? Colour(0xff20180f) : pal::ink);
         auto r = b.getLocalBounds();
         if (b.getToggleState() && b.getClickingTogglesState() && !b.getProperties().contains("plain")) r = r.withTrimmedLeft(12);
@@ -440,10 +474,12 @@ public:
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(1.f);
         g.drawImage(capMount(),juce::Rectangle<float>(cx-shadowR,cy-shadowR,2*shadowR,2*shadowR));
-        paintNecromancerCap(g,cx,cy,capR,p);
+        paintNecromancerCap(g,cx,cy,capR,p,bool(s.getProperties().getWithDefault("silverCap",false)));
+        juce::Path edge;edge.addCentredArc(cx,cy,capR*.955f,capR*.955f,0.f,-1.6f,.65f,true);
+        g.setColour(Colour(0xffffebcb).withAlpha(.46f));g.strokePath(edge,juce::PathStrokeType(juce::jmax(.55f,capR*.025f)));
         // Original rack-style scale engraved on the FACEPLATE, not on a ring.
         const auto tick=light?Colour(0xff392f24):Colour(0xffe9ddc6);
-        const int marks=utility?10:20;
+        const int marks=utility?10:15;
         for(int k=0;k<=marks;++k){
             const float a=a0+(a1-a0)*k/marks,sine=std::sin(a),cosine=-std::cos(a);
             const bool major=k%(marks/5)==0;
@@ -452,7 +488,7 @@ public:
                 g.drawLine(cx+sine*capR*1.105f,cy+cosine*capR*1.105f,
                            cx+sine*capR*1.205f,cy+cosine*capR*1.205f,juce::jmax(.8f,capR*.033f));
             }else{
-                const float rr=capR*1.16f,dot=juce::jmax(.60f,capR*.021f);
+                const float rr=capR*1.16f,dot=juce::jmax(.72f,capR*.028f);
                 g.setColour(tick.withAlpha(.74f));
                 g.fillEllipse(cx+sine*rr-dot,cy+cosine*rr-dot,2*dot,2*dot);
             }
@@ -460,9 +496,9 @@ public:
         // A narrow pointer at the metal rim: never crosses the skull, and
         // remains visible without an extra black circle or luminous arc.
         const float sn=std::sin(angle),cs=-std::cos(angle);
-        const float start=capR*.73f,end=capR*.93f;
+        const float start=capR*.52f,end=capR*.94f;
         g.setColour(Colour(0xff10100f));
-        g.drawLine(cx+sn*start,cy+cs*start,cx+sn*end,cy+cs*end,juce::jmax(1.7f,capR*.064f));
+        g.drawLine(cx+sn*start,cy+cs*start,cx+sn*end,cy+cs*end,juce::jmax(1.9f,capR*.074f));
         g.setColour(Colour(0xfff8e8c9));
         g.drawLine(cx+sn*start+.35f,cy+cs*start+.35f,cx+sn*end+.35f,cy+cs*end+.35f,juce::jmax(.75f,capR*.027f));
         if(s.isMouseOverOrDragging()||s.hasKeyboardFocus(false)){
