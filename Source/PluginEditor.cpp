@@ -447,9 +447,9 @@ void ModuleTile::paint(Graphics& g) {
     }
     g.drawImage(mini,sw);
     auto text=r.reduced(6).withTrimmedLeft(48);
-    g.setColour(pal::ink);g.setFont(font(15.5f));
+    g.setColour(pal::ink);g.setFont(font(16.f));
     g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(20).toNearestInt(),juce::Justification::centredLeft,1);
-    g.setColour(pal::inkDim.brighter(.10f));g.setFont(font(12.f));
+    g.setColour(pal::inkDim.brighter(.16f));g.setFont(font(12.5f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
 }
 
@@ -841,16 +841,18 @@ void RackUI::resized() {
 }
 
 void RackUI::paint(Graphics& g) {
-    juce::ColourGradient chassis(Colour(0xff39332a),0.f,0.f,Colour(0xff100e0b),float(kW),float(kH),false);
+    juce::ColourGradient chassis(Colour(0xff39342e),0.f,0.f,Colour(0xff100e0c),float(kW),float(kH),false);
     chassis.addColour(.32,Colour(0xff221e19));chassis.addColour(.8,Colour(0xff1a1713));g.setGradientFill(chassis);
     g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),1.f);paintPeened(g,getLocalBounds().toFloat(),.10f);
     g.setColour(Colour(0xff100e0c));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(3),7,2.f);
     g.setColour(Colour(0xff927b5b).withAlpha(.42f));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(5),6,.9f);
-    g.setColour(Colour(0xff777064).withAlpha(.5f));g.drawHorizontalLine(61,20,1240);
+    g.setColour(Colour(0xff91816b).withAlpha(.64f));g.drawHorizontalLine(61,20,1240);
+    g.setColour(juce::Colours::black.withAlpha(.75f));g.drawHorizontalLine(62,20,1240);g.setColour(Colour(0xff777064).withAlpha(.5f));
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(25,15,24,35),pal::ink);
-    g.setColour(Colour(0xfff4e5c8));g.setFont(font(29,true).withExtraKerningFactor(.065f));
-    g.drawFittedText("SKELLIERE RACK",Rectangle<int>(60,10,270,43),juce::Justification::centredLeft,1);
+    g.setColour(Colour(0xfff4e5c8));g.setFont(font(27.5f,false).withExtraKerningFactor(.085f));
+    g.setColour(juce::Colours::black.withAlpha(.75f));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(60,11,270,43),juce::Justification::centredLeft,1);
+    g.setColour(Colour(0xfff4e5c8));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(60,10,270,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
     g.drawVerticalLine(49,13,54);g.drawVerticalLine(332,13,54);g.drawVerticalLine(628,13,54);
     const float railLeft=libraryVisible?262.f:12.f;
@@ -858,7 +860,7 @@ void RackUI::paint(Graphics& g) {
     g.setColour(juce::Colours::black.withAlpha(.7f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,1.f),9);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff554b3c),frame.getY(),Colour(0xff0b0907),frame.getBottom()));g.fillRoundedRectangle(frame,8);
     g.setColour(Colour(0xff0d0c0a));g.fillRoundedRectangle(frame.reduced(3.5f),5);
-    g.setColour(Colour(0xff94846c));g.drawRoundedRectangle(frame.reduced(.8f),8,1.4f);
+    g.setGradientFill(juce::ColourGradient(Colour(0xffb5a084),frame.getX(),frame.getY(),Colour(0xff40342a),frame.getRight(),frame.getBottom(),false));g.drawRoundedRectangle(frame.reduced(.8f),8,1.6f);
     g.setColour(Colour(0xff352d22));g.drawRoundedRectangle(frame.reduced(3),5,1.7f);
     paintScrew(g,1242,114,4.2f,.6f);paintScrew(g,1242,701,4.2f,1.5f);
     if(!libraryVisible){paintScrew(g,17,114,3.2f,.9f);paintScrew(g,17,701,3.2f,1.3f);}

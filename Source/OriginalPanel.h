@@ -3,7 +3,7 @@
 namespace skl::ui {
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xd2b493,0x75463f,0x5d4132,0xc4c0ad,0x384859,0x3e412f,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x323d46,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x593531,0x706449,0x496464,0x45484a};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xd9bc99,0x75463f,0x5d4132,0xc4c0ad,0x384859,0x42432f,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x663d36,0x706449,0x496464,0x45484a};
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -139,13 +139,13 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
-    g.setColour(Colour(0xff08090a));g.fillRoundedRectangle(r,3);               // recessed frame shadow
+    g.setColour(Colour(0xff080706));g.fillRoundedRectangle(r,5);               // recessed frame shadow
     const auto plate=r.reduced(2.5f);
     // Measured against the approved reference, dark finishes sat 20-50 levels too bright. Light
     // finishes already matched (within ~8/255) and are left alone.
     const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead1ad),.14f):p.metal.withMultipliedBrightness(.78f);
     // Nearly flat body colour; the old strong top-to-bottom ramp produced visible horizontal bands.
-    juce::ColourGradient metal(base.brighter(p.light?.18f:.23f),plate.getX(),plate.getY(),base.darker(p.light?.20f:.34f),plate.getRight(),plate.getBottom(),false);
+    juce::ColourGradient metal(base.brighter(p.light?.21f:.30f),plate.getX(),plate.getY(),base.darker(p.light?.19f:.39f),plate.getRight(),plate.getBottom(),false);
     metal.addColour(.42,base);metal.addColour(.76,base.darker(.08f));g.setGradientFill(metal);
     g.fillRoundedRectangle(plate,5);
     {
@@ -163,7 +163,10 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?1.f:.75f);paintPeened(g,plate,p.light?.18f:.20f);                                   // coherent fibre grain
+        paintBrushed(g,plate,p.light?1.f:.80f);paintPeened(g,plate,p.light?.24f:.26f);
+        // Narrow side occlusion gives panels the thickness of real faceplates.
+        g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(.20f),plate.getRight(),plate.getCentreY(),juce::Colours::transparentBlack,plate.getRight()-12.f,plate.getCentreY(),false));g.fillRect(plate);
+        g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,plate.getBottom()-12.f,juce::Colours::black.withAlpha(.25f),plate.getBottom()));g.fillRect(plate);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
         g.setColour(juce::Colours::white.withAlpha(.65f));
         g.drawHorizontalLine(int(plate.getY())+1,plate.getX()+4,plate.getRight()-4);
@@ -177,15 +180,20 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setColour(juce::Colours::black.withAlpha(.65f));g.drawRoundedRectangle(plate.reduced(2.6f),4,1.2f);
     g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(3.2f),4,1.1f);   // engraved panel line
     g.setColour(juce::Colours::white.withAlpha(.07f));g.drawRoundedRectangle(plate.reduced(3.5f),4,.8f);
-    for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-10:plate.getX()+10,i<2?plate.getY()+10:plate.getBottom()-10,5.f,.8f*i);
+    for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-10:plate.getX()+10,i<2?plate.getY()+10:plate.getBottom()-10,5.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
-    const auto p=originalSpec(type,1);paintOriginalSurface(g,r,type,1);
-    g.setColour(p.accent);g.fillRect(r.reduced(5).removeFromTop(3));
+    const auto p=originalSpec(type,1);
+    // Small library symbols use a single hardware badge, not tiny versions
+    // of the entire faceplate (which produced four distracting screw dots).
+    g.setGradientFill(juce::ColourGradient(p.metal.brighter(.22f),r.getX(),r.getY(),p.metal.darker(.42f),r.getRight(),r.getBottom(),false));
+    g.fillRoundedRectangle(r.reduced(1.f),4.f);
+    g.setColour(Colour(0xffd0bda1).withAlpha(.56f));g.drawRoundedRectangle(r.reduced(1.4f),4.f,.75f);
+    g.setColour(juce::Colours::black.withAlpha(.36f));g.drawRoundedRectangle(r.reduced(2.8f),3.f,.7f);
     auto f=r.reduced(6);
     if(info(type).hasVU||type==Flanger){
         // A legible meter icon, not a reduced full-size scale.
-        f=r.reduced(4);
+        f=r.reduced(3.5f);
         g.setColour(Colour(0xff18140f));g.fillRoundedRectangle(f,3);
         f=f.reduced(2);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff2d7a3),f.getY(),Colour(0xffad8050),f.getBottom()));g.fillRoundedRectangle(f,2);
         const float cx=f.getCentreX(),cy=f.getBottom()-2,rx=f.getWidth()*.47f,ry=f.getHeight()*.76f;
