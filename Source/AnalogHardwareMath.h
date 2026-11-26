@@ -13,9 +13,9 @@ inline CapSample cap(float r,float angle,float original){
     const float az=std::cos(angle+2.20f);
     const float fade=smooth(.03f,.19f,r);
     const float grain=fade*(.014f*std::sin(r*810.f)+.008f*std::sin(r*1337.f));
-    float v=.46f+.25f*original+fade*(.19f*dir+.16f*spec+.105f*az)+grain;
+    float v=.39f+.25f*original+fade*(.245f*dir+.22f*spec+.09f*az)+grain;
     const float bevel=smooth(.865f,.93f,r);
-    v=v*(1.f-bevel)+bevel*(.48f+.30f*az+.12f*spec);
+    v=v*(1.f-bevel)+bevel*(.43f+.36f*az+.16f*spec);
     const float edge=smooth(.965f,.995f,r);
     v=v*(1.f-edge)+edge*(.14f+.12f*std::max(0.f,az));
     return {sat(v),edge};

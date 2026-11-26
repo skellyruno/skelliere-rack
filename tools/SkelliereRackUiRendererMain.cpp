@@ -23,6 +23,14 @@ int main(int argc, char** argv) {
     const auto args=rackcapture::parse(std::vector<std::string>(argv+1,argv+argc));
     if(!args.error.empty()){std::fprintf(stderr,"%s\n",args.error.c_str());return 2;}
     juce::ScopedJuceInitialiser_GUI gui;
+    {
+        juce::Image canvas(juce::Image::RGB,190,100,true,juce::SoftwareImageType());
+        juce::Graphics g(canvas);g.fillAll(juce::Colours::black);
+        g.setColour(juce::Colours::black.withAlpha(.12f));
+        skl::ui::paintLampGlass(g,canvas.getBounds().toFloat());
+        const auto lit=canvas.getPixelAt(95,56);
+        if(lit.getRed()<190||lit.getGreen()<140||lit.getBlue()<80){std::fprintf(stderr,"Lamp lens raster is unexpectedly dim\n");return 1;}
+    }
     if(!skl::ui::necromancerArtworkReady()||!skl::ui::litNecroCap().isValid()||skl::ui::litNecroCap().getWidth()!=256){std::fprintf(stderr,"Missing original Necromancer hero-dial artwork\n");return 1;}
     try { processorRegression(); }
     catch(const std::exception& e) { std::fprintf(stderr,"Processor regression: %s\n",e.what()); return 1; }

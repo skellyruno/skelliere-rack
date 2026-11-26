@@ -72,6 +72,8 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+    void mouseEnter(const juce::MouseEvent&) override { if(type==skl::Empty)repaint(); }
+    void mouseExit(const juce::MouseEvent&) override { if(type==skl::Empty)repaint(); }
     std::function<void(int)> onSelected;
     std::function<void(const juce::String&)> onNotice;
     void mouseDrag(const juce::MouseEvent&) override;
