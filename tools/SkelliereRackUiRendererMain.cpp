@@ -35,10 +35,10 @@ int main(int argc, char** argv) {
     const auto editorMs=ms(startEditor);
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
-    options.scenes={{"catalog_1",1260,820,0,1},{"catalog_2",1260,820,1,1},{"catalog_3",1260,820,2,1},{"catalog_4",1260,820,3,1},{"catalog_5",1260,820,4,1},{"catalog_6",1260,820,5,1},{"catalog_7",1260,820,6,1},
-      {"catalog_80",1008,656,0,1},{"catalog_125",1575,1025,3,1},{"catalog_150",1890,1230,4,1},{"catalog_min",1260,820,6,1},{"catalog_max",1260,820,6,1},{"catalog_silver",1260,820,0,2},{"catalog_empty",1260,820,7,1},{"approved_studio",1260,820,8,1},{"approved_studio_150",1890,1230,8,1},{"approved_bypass",1260,820,9,1},{"studio_graphite",1260,820,8,0},{"studio_midnight",1260,820,8,3},{"studio_80",1008,656,8,1},{"full_rack",1260,820,10,1}};
+    options.scenes={{"catalog_1",1260,790,0,1},{"catalog_2",1260,790,1,1},{"catalog_3",1260,790,2,1},{"catalog_4",1260,790,3,1},{"catalog_5",1260,790,4,1},{"catalog_6",1260,790,5,1},{"catalog_7",1260,790,6,1},
+      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"}};
-    int expectedWidth=1260,expectedHeight=820,expectedCount=4;bool bindings=true;
+    int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;processor.clearRack();
         if(scene.theme<7)for(int i=0;i<4;++i){const int type=1+scene.theme*4+i;if(type<skl::kNumRackTypes){processor.addModule(type,i);++expectedCount;}}

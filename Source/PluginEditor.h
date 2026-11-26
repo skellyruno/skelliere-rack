@@ -51,7 +51,7 @@ public:
 
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
-    static constexpr int kWidth = 248, kHeight = 650;
+    static constexpr int kWidth = 248, kHeight = 586;
     int preferredWidth() const { return 236; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
@@ -155,7 +155,7 @@ class RackUI final : public juce::Component,
                      private juce::AsyncUpdater,
                      private juce::Timer {
 public:
-    static constexpr int kW = 1260, kH = 820;
+    static constexpr int kW = 1260, kH = 790;
     explicit RackUI(SkellierProcessor&);
     ~RackUI() override;
     void paint(juce::Graphics&) override;

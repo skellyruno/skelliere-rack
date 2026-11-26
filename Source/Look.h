@@ -97,6 +97,24 @@ inline const juce::Image& brushedImage() {
     return img;
 }
 
+// Fine peened metal tooth, separate from horizontal brushed fibres. Cached once,
+// composed into the static 2x faceplate raster, never on the audio thread.
+inline const juce::Image& peenedMetal() {
+    static const juce::Image img=[]{
+        constexpr int n=256;juce::Image im(juce::Image::ARGB,n,n,true);
+        juce::Image::BitmapData data(im,juce::Image::BitmapData::writeOnly);
+        juce::Random rng(32671);
+        for(int y=0;y<n;++y)for(int x=0;x<n;++x){
+            const float v=(rng.nextFloat()+rng.nextFloat()-1.f);
+            data.setPixelColour(x,y,(v>=0?juce::Colours::white:juce::Colours::black).withAlpha(std::abs(v)*.19f));
+        }
+        return im;
+    }();
+    return img;
+}
+inline void paintPeened(Graphics& g,juce::Rectangle<float> r,float opacity){
+    g.setTiledImageFill(peenedMetal(),0,0,opacity);g.fillRect(r);
+}
 inline void paintBrushed(Graphics& g, juce::Rectangle<float> r, float opacity = 1.0f) {
     g.setTiledImageFill(brushedImage(), 0, 0, opacity);
     g.fillRect(r);
@@ -125,7 +143,11 @@ inline const juce::Image& machinedCap(Colour colour) {
         // Face: concentric lathe grain (value noise on radius, strength varies slowly with angle).
         const float ring=hash(int(r*300.f))*.5f+hash(int(r*95.f)+7)*.5f-.5f;
         const float grain=ring*(.05f+.025f*std::cos(2*a-lightAngle*2));
-        float shine=.67f+.24f*std::cos(2*(a-lightAngle))+.18f*r*lit+grain;
+        // Narrow bright anisotropic reflection with a wide dark opposing lobe.
+        // Fade the angular response in at the spindle to avoid a hard pinwheel.
+        const float directional=std::cos(2*(a-lightAngle));
+        const float specular=std::pow(juce::jmax(0.f,directional),3.f);
+        float shine=.54f+smooth(.025f,.18f,r)*(.24f*directional+.23f*specular+.12f*r*lit)+grain;
         shine-=.055f*(1.f-smooth(.0f,.13f,r));                              // shallow centre dish
         // Engraved groove at r~.80 with a lit lower lip, then the chamfer.
         const float groove=smooth(.855f,.872f,r)*(1.f-smooth(.881f,.891f,r));
@@ -138,9 +160,9 @@ inline const juce::Image& machinedCap(Colour colour) {
         shine=shine*(1.f-edge)+(.16f+.10f*juce::jmax(0.f,lit))*edge;
         const float alpha=juce::jlimit(0.f,1.f,(1-r)*n*.5f);
         // Dark caps have no headroom to darken, so they need highlights from a lower threshold to show their form.
-        const float pivot=darkCap?.55f:.65f;
+        const float pivot=darkCap?.55f:.62f;
         const auto tint=colour.interpolatedWith(shine>pivot?juce::Colours::white:juce::Colours::black,
-            shine>pivot?juce::jlimit(0.f,darkCap?.50f:.60f,(shine-pivot)*(darkCap?.85f:1.05f)):juce::jlimit(0.f,darkCap?.40f:.72f,(pivot-shine)*(darkCap?.50f:1.12f)));
+            shine>pivot?juce::jlimit(0.f,darkCap?.50f:.60f,(shine-pivot)*(darkCap?.85f:1.55f)):juce::jlimit(0.f,darkCap?.40f:.72f,(pivot-shine)*(darkCap?.50f:1.60f)));
         pixels.setPixelColour(x,y,tint.withAlpha(alpha));
     }
     return cache.emplace(key,image).first->second;
@@ -159,8 +181,8 @@ inline const juce::Image& knobBody(Colour cap) {
     Graphics g(image);
     for(int i=0;i<10;++i){                                   // stacked discs approximate a blurred shadow
         const float rad=1.0f+.022f*i;
-        g.setColour(juce::Colours::black.withAlpha(.034f));
-        g.fillEllipse(c-rad*u,c+.10f*u-rad*u,2*rad*u,2*rad*u);
+        g.setColour(juce::Colours::black.withAlpha(.055f));
+        g.fillEllipse(c-rad*u,c+.15f*u-rad*u,2*rad*u,2*rad*u);
     }
     g.setColour(juce::Colours::black.withAlpha(.38f));       // contact occlusion at the base
     g.fillEllipse(c-1.015f*u,c+.035f*u-1.015f*u,2.03f*u,2.03f*u);
@@ -184,7 +206,7 @@ inline const juce::Image& knobBody(Colour cap) {
     g.setColour(juce::Colours::black.withAlpha(.85f));       // seam between sidewall and cap
     g.drawEllipse(c-.918f*u,c-.918f*u,1.836f*u,1.836f*u,1.6f);
     g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-    const float r=.945f;
+    const float r=.91f;
     g.drawImage(machinedCap(cap),juce::Rectangle<float>(c-r*u,c-r*u,2*r*u,2*r*u));
     return cache.emplace(key,image).first->second;
 }
@@ -234,7 +256,7 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     for(int i=0;i<4;++i)                                                      // bezel fasteners
         paintScrew(g,i%2?r.getRight()-6.f:r.getX()+6.f,i<2?r.getY()+6.f:r.getBottom()-6.f,3.1f,.7f*i);
     auto face=inner.reduced(3.0f);
-    g.setGradientFill(juce::ColourGradient(pal::vuFaceTop,face.getCentreX(),face.getCentreY()-face.getHeight()*.10f,pal::vuFaceBot,face.getX(),face.getBottom(),true));
+    g.setGradientFill(juce::ColourGradient(Colour(0xffffedca),face.getCentreX(),face.getCentreY()-face.getHeight()*.06f,Colour(0xffb57a39),face.getX(),face.getBottom(),true));
     g.fillRoundedRectangle(face,5);                                           // warm lamp-lit paper
     {   // soft shadow cast by the bezel along the top and sides of the face
         juce::Graphics::ScopedSaveState shade(g);
@@ -254,9 +276,9 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
         g.reduceClipRegion(clipFace);   }
     // The meter is much wider than it is tall. Fit the arc in both axes,
     // keeping its full scale, labels and hub inside the actual face.
-    const float cx = face.getCentreX(), cy = face.getBottom() - 6.0f;
+    const float cx=face.getCentreX(),cy=face.getBottom()-17.f;
     const float sc = face.getWidth() / 103.0f;
-    const float sy = juce::jmax(0.1f, (face.getHeight() - 22.0f) / 57.0f);
+    const float sy = juce::jmax(0.1f, (face.getHeight() - 30.f) / 57.f);
     const float labelSize=juce::jlimit(9.f,11.5f,8.f*sc);
     auto pt = [&](float rad, float v) {
         const float a = juce::degreesToRadians(-50.0f + v * 5.0f);
@@ -284,7 +306,10 @@ inline void paintVU(Graphics& g, juce::Rectangle<float> r, float value, bool out
     red.lineTo(pt(54.f,20.f));
     g.setColour(pal::vuRed); g.strokePath(red, juce::PathStrokeType(2.0f));
     g.setColour(pal::vuInk); g.setFont(font(labelSize, true));
-    g.drawText(outputPeak?"PEAK dBFS":"GR dB",face.withTrimmedLeft(7.f).removeFromBottom(14.f),juce::Justification::centredLeft,false);
+    auto legend=face.reduced(9.f,0.f).removeFromBottom(15.f);
+    g.drawText(outputPeak?"PEAK dBFS":"GR dB",legend,juce::Justification::centredLeft,false);
+    g.drawText(outputPeak?(value<=-59.f?juce::String("-inf"):juce::String(value,1)+" dBFS"):
+        juce::String(value<.05f?0.f:-value,1)+" dB",legend,juce::Justification::centredRight,false);
 
     const float v=juce::jlimit(0.f,20.f,outputPeak?(value+20.f)*20.f/24.f:value);
     const auto tip=pt(52.0f, v);
@@ -412,7 +437,7 @@ public:
             }
         }
         // Pointer: inlaid dark bar with rounded ends, a pale lower edge catching the light, and a soft shadow.
-        const float r=R*.945f,pw=juce::jmax(1.65f,r*.054f);
+        const float r=R*.91f,pw=juce::jmax(1.65f,r*.054f);
         juce::Path bar;bar.startNewSubPath(0.f,-r*.28f);bar.lineTo(0.f,-r*.94f);
         const auto place=juce::AffineTransform::rotation(ang).translated(cx,cy);
         const juce::PathStrokeType stroke(pw,juce::PathStrokeType::curved,juce::PathStrokeType::rounded);

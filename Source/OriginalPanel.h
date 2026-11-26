@@ -20,32 +20,33 @@ struct OriginalLayout {
     juce::Rectangle<int> meter, detail;
     bool sideReadouts=false;
 };
+// Reference proportions: the tall 650px panels are replaced by a compact
+// hardware panel of 586px. Preserve every knob, including Bell's four real controls.
 inline OriginalLayout originalLayout(int type,int width) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
-    // Keep every APVTS parameter, including controls absent from the concept.
-    if(mi.hasVU||type==Flanger)l.meter={18,107,width-36,118};
-    if(type==Delay||type==Slap)l.detail={19,107,width-38,118};
-    const int top=!l.meter.isEmpty()||!l.detail.isEmpty()?241:112,bottom=589;
+    if(mi.hasVU||type==Flanger)l.meter={18,107,width-36,123};
+    if(type==Delay||type==Slap)l.detail={19,107,width-38,123};
+    const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
+    const int top=window?238:108,bottom=532,available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
-        l.sideReadouts=true;
-        const int row=std::min(122,(bottom-top)/std::max(1,n));
+        l.sideReadouts=true;const int row=available/std::max(1,n);
         for(int k=0;k<n;++k)l.cells[k]={12,top+k*row,width-24,row-4};
     }else if(n==2){
-        l.cells[0]={mid-86,top+18,172,215};
-        l.cells[1]={mid-74,top+248,148,198};
-    }else if(n==3){
-        const int hero=mi.hasVU?136:202;l.cells[0]={mid-82,top,164,hero};
-        for(int k=1;k<3;++k)l.cells[k]={12+(k-1)*half,top+hero+12,half,std::min(176,bottom-top-hero-12)};
-    }else if(n==5&&!mi.hasVU){
-        l.cells[0]={mid-70,top,140,151};
-        for(int k=1;k<5;++k)l.cells[k]={12+((k-1)%2)*half,top+157+((k-1)/2)*153,half,145};
-    }else if(n==5&&mi.hasVU){
-        // Two large rows followed by a smaller central makeup control.
-        for(int k=0;k<4;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*127,half,123};
-        l.cells[4]={mid-43,top+254,86,bottom-top-254};
+        const int row=available/2;
+        for(int k=0;k<2;++k)l.cells[k]={mid-83,top+k*row,166,row-4};
+    }else if(n==3&&!window){
+        const int hero=available/2;l.cells[0]={mid-82,top,164,hero-4};
+        for(int k=1;k<3;++k)l.cells[k]={12+(k-1)*half,top+hero,half,available-hero-4};
+    }else if(n==5&&window){
+        const int row=(available-78)/2;
+        for(int k=0;k<4;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*row,half,row-4};
+        l.cells[4]={mid-43,top+2*row,86,available-2*row-3};
+    }else if(n==5){
+        const int row=available/3;l.cells[0]={mid-70,top,140,row-4};
+        for(int k=1;k<5;++k)l.cells[k]={12+((k-1)%2)*half,top+row+((k-1)/2)*row,half,row-4};
     }else{
-        const int rows=(n+1)/2,rh=(bottom-top)/std::max(1,rows);
+        const int rows=std::max(1,(n+1)/2),rh=available/rows;
         for(int k=0;k<n;++k)l.cells[k]={n%2==1&&k==n-1?mid-half/2:12+(k%2)*half,top+(k/2)*rh,half,rh-4};
     }
     return l;
@@ -100,15 +101,15 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setGradientFill(juce::ColourGradient(Colour(0xff4a3524),cx-radius*.5f,cy-radius*.6f,Colour(0xff150f0a),cx+radius*.8f,cy+radius*.9f,false));
         g.fillEllipse(cx-radius,cy-radius,2*radius,2*radius);                         // wound tape
         g.setColour(Colour(0xff000000).withAlpha(.5f));g.drawEllipse(cx-radius,cy-radius,2*radius,2*radius,1.2f);
-        const float fr=radius*.80f;
+        const float fr=radius*.98f;
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-        g.drawImage(machinedCap(Colour(0xffb6a58b)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
+        g.drawImage(machinedCap(Colour(0xffd4c3a3)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
         const float turn=k==0?.30f:.62f;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
-            const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.20f;
-            const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.20f;
+            const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.33f;
+            const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.33f;
             juce::Path opening;
-            opening.addPieSegment(cx-fr*.82f,cy-fr*.82f,fr*1.64f,fr*1.64f,from,to,.36f);
+            opening.addPieSegment(cx-fr*.80f,cy-fr*.80f,fr*1.60f,fr*1.60f,from,to,.40f);
             g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff1a140d),cy-fr*.8f,Colour(0xff0b0907),cy+fr*.8f));
             g.fillPath(opening);
             g.setColour(Colour(0xffe9dcc0).withAlpha(.30f));                          // lit rim of the opening
@@ -141,7 +142,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     const auto plate=r.reduced(2.5f);
     // Measured against the approved reference, dark finishes sat 20-50 levels too bright. Light
     // finishes already matched (within ~8/255) and are left alone.
-    const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.76f);
+    const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.82f);
     // Nearly flat body colour; the old strong top-to-bottom ramp produced visible horizontal bands.
     g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.04f),plate.getY(),base.darker(.05f),plate.getBottom()));
     g.fillRoundedRectangle(plate,5);
@@ -160,7 +161,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?.54f:.33f);                                   // coherent fibre grain
+        paintBrushed(g,plate,p.light?.85f:.12f);paintPeened(g,plate,p.light?.32f:.82f);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
         g.setColour(juce::Colours::white.withAlpha(.39f));
         g.drawHorizontalLine(int(plate.getY())+1,plate.getX()+4,plate.getRight()-4);
@@ -170,7 +171,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
         g.drawHorizontalLine(int(plate.getBottom())-2,plate.getX()+4,plate.getRight()-4);
         g.drawVerticalLine(int(plate.getRight())-2,plate.getY()+4,plate.getBottom()-4);
     }
-    g.setColour(juce::Colours::white.withAlpha(.31f));g.drawRoundedRectangle(plate.reduced(.5f),5,1.2f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff1dfc1).withAlpha(.68f),plate.getY(),Colour(0xff6a5b48).withAlpha(.45f),plate.getBottom()));g.drawRoundedRectangle(plate.reduced(.5f),5,1.5f);
     g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(3.2f),4,1.1f);   // engraved panel line
     g.setColour(juce::Colours::white.withAlpha(.07f));g.drawRoundedRectangle(plate.reduced(3.5f),4,.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?plate.getRight()-10:plate.getX()+10,i<2?plate.getY()+10:plate.getBottom()-10,5.f,.8f*i);
