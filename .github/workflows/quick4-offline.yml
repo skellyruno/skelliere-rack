@@ -1,0 +1,55 @@
+name: Quick4 offline dependencies
+on:
+  push:
+    branches: ['infra/quick4-offline-juce-8.0.12']
+    paths: ['.github/workflows/quick4-offline.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch pinned upstream JUCE source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git JUCE
+          git -C JUCE rev-parse HEAD > export/JUCE_COMMIT.txt
+          test "$(git -C JUCE describe --tags --exact-match HEAD)" = 8.0.12
+          git -C JUCE archive --format=tar --prefix=JUCE-8.0.12/ HEAD | gzip -n > export/JUCE-8.0.12.tar.gz
+          (cd export && sha256sum JUCE-8.0.12.tar.gz JUCE_COMMIT.txt > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Quick4-JUCE-8.0.12-Source
+          path: export/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Export matching Debian 13 development packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p debian-kit
+          docker run --rm -v "$PWD/debian-kit:/out" debian:13 bash -euxc '
+            apt-get update
+            mkdir -p /out/debs/partial
+            apt-get -y --download-only -o Dir::Cache::archives=/out/debs install --no-install-recommends libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev libxrender-dev libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev pkg-config
+            rm -rf /out/debs/partial /out/debs/lock
+            cd /out
+            dpkg --print-architecture > ARCH.txt
+            cat /etc/os-release > OS.txt
+            for f in debs/*.deb; do dpkg-deb -f "$f" Package Version Architecture; done > PACKAGES.txt
+            sha256sum debs/*.deb > SHA256SUMS.txt
+          '
+          tar -czf debian13-quick4-dev.tar.gz -C debian-kit .
+          sha256sum debian13-quick4-dev.tar.gz > debian13-quick4-dev.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Quick4-Debian13-Development-Kit
+          path: |
+            debian13-quick4-dev.tar.gz
+            debian13-quick4-dev.sha256
+          retention-days: 90
+          if-no-files-found: error

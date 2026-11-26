@@ -1,6 +1,7 @@
 name: build
 on:
   push:
+    branches-ignore: ['infra/quick4-offline-juce-8.0.12']
   pull_request:
   workflow_dispatch:
 
