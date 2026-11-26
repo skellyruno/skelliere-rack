@@ -25,10 +25,10 @@ struct OriginalLayout {
 inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
-    if(mi.hasVU||type==Flanger)l.meter={18,107,width-36,123};
-    if(type==Delay||type==Slap)l.detail={19,107,width-38,123};
+    if(mi.hasVU||type==Flanger)l.meter={15,107,width-30,126};
+    if(type==Delay||type==Slap)l.detail={16,107,width-32,126};
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
-    const int top=window?238:108,bottom=editing?532:560,available=bottom-top;
+    const int top=window?241:108,bottom=editing?532:560,available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
         for(int k=0;k<n;++k)l.cells[k]={12,top+k*row,width-24,row-4};
@@ -59,7 +59,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     g.fillRoundedRectangle(r,6);                                                 // machined bezel
     g.setColour(Colour(0xff000000).withAlpha(.6f));g.drawRoundedRectangle(r.reduced(2.5f),5,1);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-5.f:r.getX()+5.f,i<2?r.getY()+5.f:r.getBottom()-5.f,2.8f,.9f*i);
-    const auto win=r.reduced(7.f,6.f);
+    const auto win=r.reduced(6.f,5.f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff3a2c1b),win.getY(),Colour(0xff15120e),win.getBottom()));
     g.fillRoundedRectangle(win,4);                                                // dark cavity
     g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(win,4,1.2f);
@@ -103,7 +103,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff000000).withAlpha(.5f));g.drawEllipse(cx-radius,cy-radius,2*radius,2*radius,1.2f);
         const float fr=radius*.98f;
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-        g.drawImage(machinedCap(Colour(0xffd4c3a3)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
+        g.drawImage(machinedCap(Colour(0xffe3caa4)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
         const float turn=k==0?.30f:.62f;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
             const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.60f;
@@ -143,9 +143,10 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     const auto plate=r.reduced(2.5f);
     // Measured against the approved reference, dark finishes sat 20-50 levels too bright. Light
     // finishes already matched (within ~8/255) and are left alone.
-    const Colour base=p.light?p.metal:p.metal.withMultipliedBrightness(.82f);
+    const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead1ad),.14f):p.metal.withMultipliedBrightness(.78f);
     // Nearly flat body colour; the old strong top-to-bottom ramp produced visible horizontal bands.
-    g.setGradientFill(juce::ColourGradient::vertical(base.brighter(.10f),plate.getY(),base.darker(p.light?.075f:.15f),plate.getBottom()));
+    juce::ColourGradient metal(base.brighter(p.light?.18f:.23f),plate.getX(),plate.getY(),base.darker(p.light?.20f:.34f),plate.getRight(),plate.getBottom(),false);
+    metal.addColour(.42,base);metal.addColour(.76,base.darker(.08f));g.setGradientFill(metal);
     g.fillRoundedRectangle(plate,5);
     {
         juce::Graphics::ScopedSaveState clip(g);
@@ -162,17 +163,17 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
             juce::Colours::black.withAlpha(p.light?.20f:.30f),mx+plate.getWidth()*.62f,my+plate.getHeight()*.62f,true);
         vignette.addColour(.55,juce::Colours::transparentBlack);
         g.setGradientFill(vignette);g.fillRect(plate);
-        paintBrushed(g,plate,p.light?1.f:.36f);paintPeened(g,plate,p.light?.25f:.36f);                                   // coherent fibre grain
+        paintBrushed(g,plate,p.light?1.f:.75f);paintPeened(g,plate,p.light?.18f:.20f);                                   // coherent fibre grain
         // Bevel: lit top and left edges, shaded bottom and right edges.
-        g.setColour(juce::Colours::white.withAlpha(.39f));
+        g.setColour(juce::Colours::white.withAlpha(.65f));
         g.drawHorizontalLine(int(plate.getY())+1,plate.getX()+4,plate.getRight()-4);
-        g.setColour(juce::Colours::white.withAlpha(.12f));
+        g.setColour(juce::Colours::white.withAlpha(.30f));
         g.drawVerticalLine(int(plate.getX())+1,plate.getY()+4,plate.getBottom()-4);
-        g.setColour(juce::Colours::black.withAlpha(.50f));
+        g.setColour(juce::Colours::black.withAlpha(.72f));
         g.drawHorizontalLine(int(plate.getBottom())-2,plate.getX()+4,plate.getRight()-4);
         g.drawVerticalLine(int(plate.getRight())-2,plate.getY()+4,plate.getBottom()-4);
     }
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff1dfc1).withAlpha(.68f),plate.getY(),Colour(0xff6a5b48).withAlpha(.45f),plate.getBottom()));g.drawRoundedRectangle(plate.reduced(.5f),5,1.5f);
+    g.setGradientFill(juce::ColourGradient(Colour(0xfff6dfb9).withAlpha(.9f),plate.getX(),plate.getY(),Colour(0xff564334).withAlpha(.88f),plate.getRight(),plate.getBottom(),false));g.drawRoundedRectangle(plate.reduced(.8f),5,2.3f);
     g.setColour(juce::Colours::black.withAlpha(.65f));g.drawRoundedRectangle(plate.reduced(2.6f),4,1.2f);
     g.setColour(juce::Colours::black.withAlpha(.40f));g.drawRoundedRectangle(plate.reduced(3.2f),4,1.1f);   // engraved panel line
     g.setColour(juce::Colours::white.withAlpha(.07f));g.drawRoundedRectangle(plate.reduced(3.5f),4,.8f);

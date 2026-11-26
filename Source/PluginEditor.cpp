@@ -40,10 +40,10 @@ void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVertic
 void KnobCell::resized() {
     if(compact_)slider.setBounds(0,0,getHeight(),getHeight());
     else if(sideReadout_){
-        const int size=juce::jmin(getHeight()-4,getWidth()/2+8,105);
+        const int size=juce::jmin(getHeight()-4,getWidth()/2+8,113);
         slider.setBounds(2,(getHeight()-size)/2,size,size);
     } else {
-        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-28,154));
+        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-28,166));
         slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-28)/2),size,size);
     }
 }
@@ -51,9 +51,9 @@ void KnobCell::resized() {
 void KnobCell::paint(Graphics& g) {
     if (compact_) {
         auto r = getLocalBounds().withTrimmedLeft(getHeight() + 4);
-        g.setColour(pal::ink); g.setFont(font(12.0f, true));
+        g.setColour(pal::ink); g.setFont(font(13.0f, true).withExtraKerningFactor(.035f));
         g.drawText(label_, r.removeFromTop(getHeight() / 2 + 2), juce::Justification::bottomLeft, false);
-        g.setColour(pal::inkDim); g.setFont(font(11.0f));
+        g.setColour(pal::ink); g.setFont(font(12.0f));
         g.drawText(text_, r, juce::Justification::topLeft, false);
         return;
     }
@@ -87,15 +87,18 @@ void LevelMeter::paint(Graphics& g) {
     auto bar = [&](Rectangle<float> a, float db, const juce::String& name) {
         g.setColour(pal::inkDim); g.setFont(font(10.5f, true));
         g.drawText(name, a.removeFromLeft(26.0f), juce::Justification::centredLeft, false);
-        g.setColour(Colour(0xff050506)); g.fillRoundedRectangle(a, 2.0f);
+        g.setColour(Colour(0xff050506)); g.fillRoundedRectangle(a, 3.0f);
+        g.setColour(Colour(0xff685b47));g.drawRoundedRectangle(a,3.f,.8f);a=a.reduced(2.f,1.f);
         const int segs = 40;
         const float lit = juce::jlimit(0.0f, 1.0f, (db + 60.0f) / 60.0f) * (float) segs;
         const float sw = a.getWidth() / (float) segs;
         for (int i = 0; i < segs; ++i) {
             const float pos = (float) i / (float) segs;
             const Colour c=pos>.9f?Colour(0xffc67838):pos>.72f?Colour(0xffd6bb68):Colour(0xff82a86b);
-            g.setColour(i < (int) lit ? c : c.withAlpha(0.12f));
-            g.fillRect(a.getX() + (float) i * sw + 0.6f, a.getY() + 1.5f, sw - 1.2f, a.getHeight() - 3.0f);
+            const bool on=i<(int)lit;
+            auto seg=Rectangle<float>(a.getX()+float(i)*sw+.6f,a.getY()+1.5f,sw-1.2f,a.getHeight()-3.f);
+            g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.25f):c.withAlpha(.13f),seg.getY(),on?c.darker(.35f):c.withAlpha(.05f),seg.getBottom()));
+            g.fillRoundedRectangle(seg,.7f);
         }
     };
     bar(r.removeFromTop(r.getHeight() * 0.5f).reduced(0.0f, 2.0f), inDb_, "IN");
@@ -305,13 +308,15 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         paintMonogram(pg,Rectangle<float>(w*.5f-9,15,18,25),ink);
-        pg.setColour(ink);pg.setFont(font(12,true).withExtraKerningFactor(.20f));
+        pg.setColour(ink);pg.setFont(font(13.5f,true).withExtraKerningFactor(.23f));
         pg.drawText("SKELL",18,43,w-36,16,juce::Justification::centred,false);
-        pg.setFont(juce::Font(juce::FontOptions("Georgia",24.f,juce::Font::bold|juce::Font::italic)));
-        pg.drawFittedText(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase(),
-            Rectangle<int>(14,60,w-28,29),juce::Justification::centred,1);
+        pg.setFont(juce::Font(juce::FontOptions("Georgia",27.f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
+        const auto title=juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase();
+        pg.setColour(p.light?Colour(0xfff8e5c5).withAlpha(.60f):juce::Colours::black.withAlpha(.65f));
+        pg.drawFittedText(title,Rectangle<int>(14,61,w-28,30),juce::Justification::centred,1);
+        pg.setColour(ink);pg.drawFittedText(title,Rectangle<int>(14,60,w-28,30),juce::Justification::centred,1);
         pg.setColour(ink.withAlpha(.38f));
-        const int titleWidth=juce::jlimit(70,w-40,juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).length()*13+20);
+        const int titleWidth=juce::jlimit(70,w-40,textWidth(pg.getCurrentFont(),title)+16);
         pg.drawHorizontalLine(75,20,float(w-titleWidth)*.5f);
         pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
@@ -527,13 +532,13 @@ void LibraryPanel::resized() {
 
 void LibraryPanel::paint(Graphics& g) {
     auto r=getLocalBounds().toFloat().reduced(.5f);
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff302c26),r.getY(),Colour(0xff191714),r.getBottom()));
+    g.setGradientFill(juce::ColourGradient(Colour(0xff393128),r.getX(),r.getY(),Colour(0xff15120e),r.getRight(),r.getBottom(),false));
     g.fillRoundedRectangle(r,7);
     {juce::Graphics::ScopedSaveState save(g);juce::Path p;p.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),7);g.reduceClipRegion(p);paintBrushed(g,r,.43f);}
     g.setColour(Colour(0xff837765));g.drawRoundedRectangle(r,7,1.f);
     g.setColour(Colour(0xff090807));g.drawRoundedRectangle(r.reduced(2),6,1.2f);
     g.setColour(juce::Colours::white.withAlpha(.11f));g.drawRoundedRectangle(r.reduced(3.5f),5,.7f);
-    g.setColour(pal::ink);g.setFont(font(14,true).withExtraKerningFactor(.12f));
+    g.setColour(pal::ink);g.setFont(font(15.5f,true).withExtraKerningFactor(.13f));
     g.drawText("MODULE LIBRARY",r.withHeight(39),juce::Justification::centred,false);
     auto list=r.reduced(11).withY(119).withHeight(float(tileViewport.getHeight()+4));
     g.setColour(Colour(0xff100e0c));g.fillRoundedRectangle(list,5);
@@ -816,7 +821,7 @@ bool RackUI::libraryLayoutIsValid() const {
 
 void RackUI::resized() {
     prevPreset.setBounds(335,16,30,36);presetBox.setBounds(370,16,208,36);nextPreset.setBounds(583,16,30,36);
-    inKnob.setBounds(644,8,127,54);meters.setBounds(777,18,306,32);outKnob.setBounds(1100,8,137,54);
+    inKnob.setBounds(640,4,133,59);meters.setBounds(776,13,304,40);outKnob.setBounds(1091,4,148,59);
     lcd.setBounds(24,67,editing?300:680,28);
     snapA.setBounds(335,66,30,27);snapB.setBounds(368,66,30,27);snapCopy.setBounds(402,66,49,27);
     undoBtn.setBounds(466,66,51,27);redoBtn.setBounds(520,66,51,27);clearBtn.setBounds(574,66,51,27);
@@ -836,13 +841,16 @@ void RackUI::resized() {
 }
 
 void RackUI::paint(Graphics& g) {
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff24211e),0.f,Colour(0xff151310),float(kH)));
-    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),.92f);paintPeened(g,getLocalBounds().toFloat(),.16f);
+    juce::ColourGradient chassis(Colour(0xff39332a),0.f,0.f,Colour(0xff100e0b),float(kW),float(kH),false);
+    chassis.addColour(.32,Colour(0xff221e19));chassis.addColour(.8,Colour(0xff1a1713));g.setGradientFill(chassis);
+    g.fillAll();paintBrushed(g,getLocalBounds().toFloat(),1.f);paintPeened(g,getLocalBounds().toFloat(),.10f);
+    g.setColour(Colour(0xff100e0c));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(3),7,2.f);
+    g.setColour(Colour(0xff927b5b).withAlpha(.42f));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(5),6,.9f);
     g.setColour(Colour(0xff777064).withAlpha(.5f));g.drawHorizontalLine(61,20,1240);
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(25,15,24,35),pal::ink);
-    g.setColour(pal::ink);g.setFont(font(27,false).withExtraKerningFactor(.09f));
-    g.drawFittedText("SKELLIERE RACK",Rectangle<int>(62,10,266,43),juce::Justification::centredLeft,1);
+    g.setColour(Colour(0xfff4e5c8));g.setFont(font(29,true).withExtraKerningFactor(.065f));
+    g.drawFittedText("SKELLIERE RACK",Rectangle<int>(60,10,270,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
     g.drawVerticalLine(49,13,54);g.drawVerticalLine(332,13,54);g.drawVerticalLine(628,13,54);
     const float railLeft=libraryVisible?262.f:12.f;
@@ -855,7 +863,9 @@ void RackUI::paint(Graphics& g) {
     paintScrew(g,1242,114,4.2f,.6f);paintScrew(g,1242,701,4.2f,1.5f);
     if(!libraryVisible){paintScrew(g,17,114,3.2f,.9f);paintScrew(g,17,701,3.2f,1.3f);}
     const auto foot=Rectangle<float>(12,714,1236,68);
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff343029),foot.getY(),Colour(0xff1b1814),foot.getBottom()));g.fillRoundedRectangle(foot,6);
+    g.setColour(juce::Colours::black.withAlpha(.6f));g.fillRoundedRectangle(foot.translated(0,2),7);
+    g.setGradientFill(juce::ColourGradient(Colour(0xff43392d),foot.getX(),foot.getY(),Colour(0xff181410),foot.getRight(),foot.getBottom(),false));g.fillRoundedRectangle(foot,6);
+    {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(foot.getX(),foot.getY(),foot.getWidth(),foot.getHeight(),6.f);g.reduceClipRegion(clip);paintBrushed(g,foot,.85f);}
     g.setColour(Colour(0xff7d6f5c));g.drawRoundedRectangle(foot.reduced(.7f),6,1);
     g.setColour(Colour(0xff080706));g.drawRoundedRectangle(foot.reduced(2),5,.8f);
     paintScrew(g,20,748,4.5f,.8f);paintScrew(g,1240,748,4.5f,1.4f);

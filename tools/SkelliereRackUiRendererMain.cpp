@@ -20,6 +20,7 @@ static void visit(juce::Component& component, const std::function<void(juce::Com
 
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI gui;
+    if(!skl::ui::necromancerArtworkReady()){std::fprintf(stderr,"Missing original Necromancer hero-dial artwork\n");return 1;}
     try { processorRegression(); }
     catch(const std::exception& e) { std::fprintf(stderr,"Processor regression: %s\n",e.what()); return 1; }
     SkellierProcessor processor;
