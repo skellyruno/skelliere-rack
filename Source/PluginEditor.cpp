@@ -368,7 +368,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour((p.light?juce::Colours::white:juce::Colours::black).withAlpha(.24f));
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
-        if(!layout.detail.isEmpty())paintTapeDetail(pg,layout.detail.toFloat());
+        if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat());}
         if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,type==Flanger,MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(mi.numKnobs==5&&!layout.meter.isEmpty()){

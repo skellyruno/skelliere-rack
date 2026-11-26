@@ -165,6 +165,8 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
     lower.quadraticTo(rim.getRight()-1.f,rim.getBottom()-1.f,rim.getRight()-radius,rim.getBottom()-1.f);
     lower.lineTo(rim.getX()+radius,rim.getBottom()-1.f);
     g.setColour(juce::Colours::black.withAlpha(.72f));g.strokePath(lower,juce::PathStrokeType(1.6f,juce::PathStrokeType::curved));
+    // A narrow contact seam adds depth without moving any control or slot.
+    g.setColour(Colour(0xff070605).withAlpha(.26f));g.drawRoundedRectangle(face.expanded(.9f),rr+.7f,1.25f);
     g.setColour(Colour(0xffffefda).withAlpha(.13f));g.drawRoundedRectangle(face,rr,.7f);
 }
 inline void paintRecessedWindow(Graphics& g,juce::Rectangle<float> r,float radius=7.f){

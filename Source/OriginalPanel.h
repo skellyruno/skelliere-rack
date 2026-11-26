@@ -7,6 +7,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
+    if(finish==1&&(type==Air||type==SkellAirFX))metal=Colour(type==Air?0xff344e60:0xff284251);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
@@ -26,7 +27,7 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
     if(mi.hasVU||type==Flanger)l.meter={15,106,width-30,120};
-    if(type==Delay||type==Slap)l.detail={16,106,width-32,120};
+    if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus)l.detail={16,106,width-32,120};
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
     // Four-window controls leave a lower breathing area like real rack gear.
     // Five-control compressors need the bottom row for makeup gain.
@@ -54,6 +55,63 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     }
     return l;
 }
+inline bool isAirPanel(int type) { return type==Air||type==SkellAirFX; }
+// Original deterministic cloud field, cached once at twice logical resolution.
+// A decorative scene, not a measurement or an indication of DSP activity.
+inline const juce::Image& airAtmosphere(){
+    static const auto image=[] {
+        constexpr int w=432,h=252;
+        juce::Image im(juce::Image::ARGB,w,h,true,juce::SoftwareImageType());
+        auto noise=[](int x,int y){unsigned v=unsigned(x)*0x9e3779b9u+unsigned(y)*0x85ebca6bu+0xA17F83u;v^=v>>16;v*=0x7feb352du;v^=v>>15;return float(v&65535u)/65535.f;};
+        auto field=[&](float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(y));float a=x-ix,b=y-iy;a=a*a*(3.f-2.f*a);b=b*b*(3.f-2.f*b);return (noise(ix,iy)*(1-a)+noise(ix+1,iy)*a)*(1-b)+(noise(ix,iy+1)*(1-a)+noise(ix+1,iy+1)*a)*b;};
+        {juce::Image::BitmapData pixels(im,juce::Image::BitmapData::writeOnly);
+        for(int y=0;y<h;++y)for(int x=0;x<w;++x){
+            const float u=float(x)/w,v=float(y)/h;
+            float n=0.f,a=.54f,f=3.f;for(int k=0;k<6;++k){n+=a*field(u*f+13.f,v*f*.86f+7.f);f*=2.03f;a*=.49f;}
+            const float cloud=metal::smooth(.37f,.68f,n+.09f*std::sin(v*5.f));
+            const float glow=std::exp(-7.f*(u-.31f)*(u-.31f)-5.f*(v-.18f)*(v-.18f));
+            const float beam=std::pow(std::max(0.f,std::cos(19.f*(u-.31f)-7.f*v)),16.f)*glow*.065f;
+            auto sky=Colour(0xff142c43).interpolatedWith(Colour(0xff6595ad),metal::sat(.42f*glow+.18f*(1-v)));
+            auto lit=Colour(0xff9cb8c6).interpolatedWith(Colour(0xfff4e9d2),glow*.80f);
+            auto colour=sky.interpolatedWith(lit,metal::sat(cloud*.88f+beam));
+            pixels.setPixelColour(x,y,colour);}}
+        return im;
+    }();return image;
+}
+inline void paintAirDetail(Graphics& g,juce::Rectangle<float> r,int type){
+    paintHardwarePlate(g,r,Colour(0xff394956),true,8.f,3.f);
+    const auto glass=r.reduced(5.f);
+    {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(glass.getX(),glass.getY(),glass.getWidth(),glass.getHeight(),5.f);g.reduceClipRegion(clip);
+    g.setOpacity(1.f);g.drawImage(airAtmosphere(),glass);
+    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,glass.getCentreY(),Colour(0xff10202e).withAlpha(.88f),glass.getBottom()));g.fillRect(glass);
+    // Fine rising curves are symbolic: the actual processing controls remain below.
+    juce::Path lift;lift.startNewSubPath(glass.getX()+15,glass.getBottom()-24);lift.cubicTo(glass.getX()+glass.getWidth()*.38f,glass.getBottom()-25,glass.getX()+glass.getWidth()*.55f,glass.getY()+31,glass.getRight()-15,glass.getY()+29);
+    g.setColour(Colour(0xfff4e6c7).withAlpha(.24f));g.strokePath(lift,juce::PathStrokeType(3.1f));g.setColour(Colour(0xfff4e6c7).withAlpha(.85f));g.strokePath(lift,juce::PathStrokeType(.85f));
+    if(type==SkellAirFX){g.setColour(Colour(0xffc2e9ee).withAlpha(.58f));g.strokePath(lift,juce::PathStrokeType(.8f),juce::AffineTransform::translation(0,-8.f));}
+    g.setColour(Colour(0xfff4e8d0));g.setFont(font(10.f,true).withExtraKerningFactor(.17f));g.drawText(type==Air?"HIGH SHELF":"PRESENCE / BRILLIANCE",glass.withY(glass.getBottom()-19).withHeight(14),juce::Justification::centred,false);
+    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::black.withAlpha(.44f),glass.getY(),juce::Colours::transparentBlack,glass.getY()+12));g.fillRect(glass.withHeight(12));}
+    g.setColour(Colour(0xff0b141b));g.drawRoundedRectangle(glass,5.f,1.2f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff7c8b8e),glass.getY(),Colour(0xffd8e5e6),glass.getBottom()));g.drawRoundedRectangle(glass.reduced(1.f),4.f,.7f);
+}
+// Decorative optical windows for space processors. All control values remain real.
+inline void paintSpaceDetail(Graphics& g,juce::Rectangle<float> r,int type){
+    paintHardwarePlate(g,r,Colour(0xff363a40),true,8.f,3.f);
+    auto glass=r.reduced(6.f);
+    {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(glass.getX(),glass.getY(),glass.getWidth(),glass.getHeight(),4.f);g.reduceClipRegion(clip);
+    const float x=glass.getX(),y=glass.getY(),w=glass.getWidth(),h=glass.getHeight();
+    g.setGradientFill(juce::ColourGradient(Colour(type==Reverb?0xff53404e:0xff264c5f),x+w*.24f,y+h*.20f,Colour(0xff10151d),x+w*.82f,y+h*.85f,true));g.fillRect(glass);
+    if(type==Reverb){
+        // Receding room geometry and reflections: conceptual depth, no fake meter.
+        for(int k=0;k<6;++k){float t=float(k)/6.f;auto room=glass.reduced(5.f+w*.30f*t,4.f+h*.30f*t);g.setColour(Colour(0xffccb79d).withAlpha(.32f-.036f*k));g.drawRoundedRectangle(room,2.f,1.1f);}
+        for(int i=0;i<4;++i){const float ax=(i%2)?x+w:x,ay=(i/2)?y+h:y;g.setColour(Colour(0xffd4b491).withAlpha(.26f));g.drawLine(ax,ay,x+w*.5f,y+h*.44f,.85f);}
+        for(int k=0;k<4;++k){const float a=10.f+k*9.f;g.setColour(Colour(0xffe4c8a3).withAlpha(.24f-.04f*k));g.drawEllipse(x+w*.5f-a,y+h*.43f-a*.46f,a*2.f,a*.92f,.9f);}
+    }else{
+        for(int band=0;band<3;++band){juce::Path wave;for(int k=0;k<=100;++k){float t=float(k)/100.f;float yy=y+h*.44f+std::sin(t*juce::MathConstants<float>::twoPi*1.4f+band*.65f)*h*.20f;float xx=x+8.f+(w-16.f)*t;if(k==0)wave.startNewSubPath(xx,yy);else wave.lineTo(xx,yy);}g.setColour(Colour(0xffb3e1df).withAlpha(.16f));g.strokePath(wave,juce::PathStrokeType(3.f));g.setColour(Colour(0xffe2e9d6).withAlpha(.8f-.18f*band));g.strokePath(wave,juce::PathStrokeType(.9f));}
+    }
+    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,y+h*.54f,Colour(0xff080b12).withAlpha(.83f),y+h));g.fillRect(glass);
+    g.setColour(Colour(0xffe9dfcb));g.setFont(font(10.f,true).withExtraKerningFactor(.16f));g.drawText(type==Reverb?"REFLECTION CHAMBER":"TWIN MODULATION",glass.withY(y+h-18.f).withHeight(14),juce::Justification::centred,false);}
+    g.setColour(Colour(0xff0a0d12));g.drawRoundedRectangle(glass,4.f,1.1f);g.setColour(Colour(0xffbcb5a5).withAlpha(.36f));g.drawRoundedRectangle(glass.reduced(1.f),3.f,.7f);
+}
 inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     // Decorative tape-inspired mechanical illustration. It is not a signal meter and does not
     // show tape physics; the real Time / Feedback / Tone / Mix controls are the knobs below.
@@ -64,7 +122,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     g.setColour(Colour(0xff000000).withAlpha(.6f));g.drawRoundedRectangle(r.reduced(2.5f),5,1);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-5.f:r.getX()+5.f,i<2?r.getY()+5.f:r.getBottom()-5.f,2.8f,.9f*i);
     const auto win=r.reduced(6.f,5.f);
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff57432b),win.getY(),Colour(0xff15120e),win.getBottom()));
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff30251b),win.getY(),Colour(0xff0b0907),win.getBottom()));
     g.fillRoundedRectangle(win,4);                                                // dark cavity
     // Actual enclosure lip casts a narrow shadow into the tape window.
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::black.withAlpha(.65f),win.getY(),juce::Colours::transparentBlack,win.getY()+10.f));g.fillRect(win.withHeight(10.f));
@@ -81,9 +139,9 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     recess.lineTo(bed.getRight()-32.f,bed.getY()+4.f);recess.lineTo(bed.getRight()-22.f,bed.getBottom());recess.closeSubPath();
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff16110b),bed.getY(),Colour(0xff48341f),bed.getBottom()));g.fillPath(recess);
     g.setColour(Colour(0xffc9a477).withAlpha(.48f));g.strokePath(recess,juce::PathStrokeType(.8f));
-    const float radius=std::min(win.getWidth()*.239f,win.getHeight()*.435f);
+    const float radius=std::min(win.getWidth()*.226f,win.getHeight()*.435f);
     const float cy=win.getCentreY()-5.f;
-    const float cxs[2]={win.getX()+win.getWidth()*.27f,win.getX()+win.getWidth()*.73f};
+    const float cxs[2]={win.getX()+win.getWidth()*.255f,win.getX()+win.getWidth()*.745f};
     const float floorY=std::min(cy+radius*.98f,win.getBottom()-22.f);
 
     // Tape path: off each reel pack, round a guide post, across the head block.
@@ -114,7 +172,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
     // Reels: tape pack, machined flange with three curved openings, hub and spindle.
     for(int k=0;k<2;++k){
         const float cx=cxs[k];
-        g.setColour(juce::Colours::black.withAlpha(.55f));g.fillEllipse(cx-radius-2,cy-radius+1.5f,2*radius+4,2*radius+4);
+        for(int i=6;i>=0;--i){g.setColour(juce::Colours::black.withAlpha(.09f+float(6-i)*.045f));g.fillEllipse(cx-radius-i*.55f+1.5f,cy-radius-i*.55f+4.f,2*radius+i*1.1f,2*radius+i*1.1f);}
         g.setGradientFill(juce::ColourGradient(Colour(0xff4a3524),cx-radius*.5f,cy-radius*.6f,Colour(0xff150f0a),cx+radius*.8f,cy+radius*.9f,false));
         g.fillEllipse(cx-radius,cy-radius,2*radius,2*radius);                         // wound tape
         g.setColour(Colour(0xff000000).withAlpha(.5f));g.drawEllipse(cx-radius,cy-radius,2*radius,2*radius,1.2f);
@@ -124,7 +182,11 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         // Flat reel flange with shared turned-metal light, not a grooved knob.
         g.setGradientFill(juce::ColourGradient(Colour(0xfff0d7ac),cx-fr*.70f,cy-fr*.68f,Colour(0xff655445),cx+fr*.76f,cy+fr*.80f,false));
         g.fillEllipse(cx-fr,cy-fr,2*fr,2*fr);
-        g.setOpacity(1.f);g.drawImage(litNecroCap(),juce::Rectangle<float>(cx-fr*.975f,cy-fr*.975f,fr*1.95f,fr*1.95f));
+        // Independent reel metal: flatter and broader than the knob cap.
+        const auto flangeFace=juce::Rectangle<float>(cx-fr*.975f,cy-fr*.975f,fr*1.95f,fr*1.95f);
+        juce::ColourGradient brushed(Colour(0xffeadcc4),flangeFace.getX(),flangeFace.getY(),Colour(0xff857562),flangeFace.getRight(),flangeFace.getBottom(),false);
+        brushed.addColour(.34,Colour(0xffbaa98e));brushed.addColour(.65,Colour(0xffd5c6aa));g.setGradientFill(brushed);g.fillEllipse(flangeFace);
+        {juce::Graphics::ScopedSaveState save(g);juce::Path cp;cp.addEllipse(flangeFace);g.reduceClipRegion(cp);paintBrushed(g,flangeFace,.66f);}
         {juce::Graphics::ScopedSaveState save(g);
          juce::Path disc;disc.addEllipse(cx-fr*.94f,cy-fr*.94f,fr*1.88f,fr*1.88f);g.reduceClipRegion(disc);
          juce::ColourGradient reflect(Colour(0xfff6dcb4).withAlpha(.38f),cx-fr*.62f,cy-fr*.62f,Colour(0xff100d09).withAlpha(.19f),cx+fr*.82f,cy+fr*.83f,false);
@@ -138,19 +200,19 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
             // Rounded tapered triangular ports rather than broad pie slices.
             auto point=[&](float a,float rr){return juce::Point<float>(cx+std::sin(a)*rr,cy-std::cos(a)*rr);};
             const float mid=(from+to)*.5f;
-            juce::Path opening;opening.startNewSubPath(point(from,fr*.81f));
-            opening.quadraticTo(point(mid,fr*.91f),point(to,fr*.81f));
-            opening.lineTo(point(mid+.26f,fr*.39f));opening.quadraticTo(point(mid,fr*.35f),point(mid-.26f,fr*.39f));opening.closeSubPath();
+            juce::Path opening;opening.startNewSubPath(point(from,fr*.84f));
+            opening.quadraticTo(point(mid,fr*.93f),point(to,fr*.84f));
+            opening.lineTo(point(mid+.26f,fr*.38f));opening.quadraticTo(point(mid,fr*.35f),point(mid-.26f,fr*.38f));opening.closeSubPath();
             opening=opening.createPathWithRoundedCorners(1.6f);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff392e20),cy-fr*.8f,Colour(0xff110d09),cy+fr*.8f));
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff31271d),cy-fr*.8f,Colour(0xff080706),cy+fr*.8f));
             g.fillPath(opening);
             {juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion(opening);
              // Windings visible through each recessed port.
              for(int band=0;band<8;++band){const float rr=fr*(.40f+band*.053f);g.setColour(Colour(0xffc4a77b).withAlpha(.10f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.55f);}}
             g.setColour(Colour(0xff080604).withAlpha(.72f));g.strokePath(opening,juce::PathStrokeType(1.7f),juce::AffineTransform::translation(.1f,-.45f));
             g.setColour(Colour(0xffe9dcc0).withAlpha(.50f));                          // lit rim of the opening
-            g.strokePath(opening,juce::PathStrokeType(.9f),juce::AffineTransform::translation(.5f,.7f));
-            g.setColour(Colour(0xff000000).withAlpha(.84f));g.strokePath(opening,juce::PathStrokeType(.85f));
+            g.strokePath(opening,juce::PathStrokeType(1.3f),juce::AffineTransform::translation(.3f,1.f));
+            g.setColour(Colour(0xff000000).withAlpha(.80f));g.strokePath(opening,juce::PathStrokeType(.65f));
             g.setColour(Colour(0xffcdb48b).withAlpha(.22f));g.strokePath(opening,juce::PathStrokeType(.55f),juce::AffineTransform::translation(-.45f,-.35f));
         }
         juce::Path flange;flange.addCentredArc(cx,cy,fr*.96f,fr*.96f,0.f,-1.7f,.65f,true);g.setColour(Colour(0xfff9e6c6).withAlpha(.65f));g.strokePath(flange,juce::PathStrokeType(.85f));
@@ -162,7 +224,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff211b14));g.fillEllipse(cx-fr*.17f,cy-fr*.17f,fr*.34f,fr*.34f);
         g.setColour(Colour(0xfff4e3c6).withAlpha(.55f));g.drawEllipse(cx-fr*.254f,cy-fr*.254f,fr*.508f,fr*.508f,.7f);
         g.setGradientFill(juce::ColourGradient(Colour(0xffb6a78e),cx-fr*.10f,cy-fr*.10f,Colour(0xff19140e),cx+fr*.12f,cy+fr*.13f,false));g.fillEllipse(cx-fr*.125f,cy-fr*.125f,fr*.25f,fr*.25f);
-        g.setColour(Colour(0xff0b0a08));g.fillEllipse(cx-fr*.045f,cy-fr*.045f,fr*.09f,fr*.09f);
+        g.setColour(Colour(0xff0b0a08));g.fillEllipse(cx-fr*.065f,cy-fr*.065f,fr*.13f,fr*.13f);
         g.setColour(Colour(0xffffe4bc).withAlpha(.65f));g.fillEllipse(cx-fr*.095f,cy-fr*.10f,fr*.07f,fr*.05f);
     }
     // Curved glass over the window.
@@ -175,7 +237,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         glass.closeSubPath();
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.11f),win.getY(),juce::Colours::white.withAlpha(.012f),win.getY()+win.getHeight()*.38f));
         g.fillPath(glass);
-        g.setColour(Colour(0xfff5dbad).withAlpha(.30f));g.drawRoundedRectangle(win.reduced(.9f),3.f,.75f);
+        g.setColour(Colour(0xfff5dbad).withAlpha(.22f));g.drawRoundedRectangle(win.reduced(.9f),3.f,.65f);
+        g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::black.withAlpha(.55f),win.getY(),juce::Colours::transparentBlack,win.getY()+10.f));g.fillRect(win.withHeight(10.f));
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,win.getBottom()-7.f,Colour(0xffe5ba76).withAlpha(.26f),win.getBottom()));g.fillRoundedRectangle(win.withY(win.getBottom()-7.f).withHeight(7.f),2.f);
     }
     // The tape mechanism is decorative; its live controls are below the window.
@@ -188,6 +251,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead6b8),.08f)
         :p.metal.interpolatedWith(Colour(0xff0e0d0b),.27f);
     paintHardwarePlate(g,r.reduced(.3f),base,p.light,9.f,3.8f);
+    if(isAirPanel(type)&&finish==1){juce::Graphics::ScopedSaveState save(g);auto top=r.reduced(5.f).withHeight(96.f);juce::Path clip;clip.addRoundedRectangle(top.getX(),top.getY(),top.getWidth(),top.getHeight(),4.f);g.reduceClipRegion(clip);g.setOpacity(.16f);g.drawImage(airAtmosphere(),top);g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,top.getY()+22.f,base,top.getBottom()));g.fillRect(top);}
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-12:r.getX()+12,i<2?r.getY()+12:r.getBottom()-12,6.2f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
@@ -199,6 +263,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
     g.setColour(Colour(0xffd0bda1).withAlpha(.56f));g.drawRoundedRectangle(r.reduced(1.4f),4.f,.75f);
     g.setColour(juce::Colours::black.withAlpha(.36f));g.drawRoundedRectangle(r.reduced(2.8f),3.f,.7f);
     auto f=r.reduced(6);
+    if(isAirPanel(type)){juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(f.getX(),f.getY(),f.getWidth(),f.getHeight(),2.f);g.reduceClipRegion(clip);g.setOpacity(1.f);g.drawImage(airAtmosphere(),f);g.setColour(Colour(0xfff2e9d0));g.drawLine(f.getX()+2,f.getBottom()-3,f.getRight()-2,f.getY()+3,.9f);return;}
     if(type==Bell){
         // Physical equalizer control rather than a generic curve: like the
         // reference rack library, a tiny metal knob reads at a glance.
