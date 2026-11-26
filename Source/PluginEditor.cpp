@@ -75,15 +75,15 @@ void KnobCell::paint(Graphics& g) {
         const int cy=getHeight()/2;
         g.setColour(lightFace_?Colour(0xff292219):pal::ink);g.setFont(font(15.f,false).withExtraKerningFactor(.075f));
         g.drawFittedText(label_,readout.withY(cy-24).withHeight(21),juce::Justification::centred,1);
-        auto pill=readout.withY(cy+1).withHeight(22).toFloat().reduced(2,0);
+        auto pill=readout.withY(cy+1).withHeight(20).toFloat().reduced(4,0);
         g.setGradientFill(juce::ColourGradient::vertical(lightFace_?Colour(0xff30291f).withAlpha(.22f):Colour(0xff090e12).withAlpha(.72f),pill.getY(),lightFace_?Colour(0xffe0c6a0).withAlpha(.15f):Colour(0xff414a52).withAlpha(.38f),pill.getBottom()));g.fillRoundedRectangle(pill,10);
-        g.setColour((lightFace_?Colour(0xff504638):pal::ink).withAlpha(.55f));g.drawRoundedRectangle(pill,10,.8f);
+        g.setColour((lightFace_?Colour(0xff504638):pal::ink).withAlpha(.72f));g.drawRoundedRectangle(pill,10,.85f);
         g.setColour(lightFace_?Colour(0xff292219):Colour(0xffeee3cc));g.setFont(font(13.5f));
         g.drawFittedText(text_,pill.reduced(4,1).toNearestInt(),juce::Justification::centred,1);
         return;
     }
     const int y=juce::jmin(getHeight()-30,slider.getBottom()+3);
-    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(14.f,lightFace_).withExtraKerningFactor(.085f));
+    g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(14.f,lightFace_).withExtraKerningFactor(.065f));
     g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,15),juce::Justification::centred,1);
     g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffe0d4bd));g.setFont(font(13.f));
     g.drawFittedText(text_,Rectangle<int>(2,y+15,getWidth()-4,15),juce::Justification::centred,1);
@@ -289,9 +289,7 @@ void SlotComponent::resized() {
 }
 
 void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff1b1d20),0.0f,Colour(0xff111214),b.getHeight()));
-    g.fillRect(b);
-    paintBrushed(g,b,0.35f);
+    paintHardwarePlate(g,b,Colour(0xff252729),true,9.f,3.4f);
     auto inner=b.reduced(13.0f,18.0f);
     g.setColour(Colour(0xff07080a).withAlpha(.42f));
     g.fillRoundedRectangle(inner,4.0f);
@@ -303,7 +301,7 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
     g.setColour(dragOver?pal::amber:Colour(0xff71767c).withAlpha(.45f));
     g.drawLine(cx-11.0f,cy,cx+11.0f,cy,1.5f);
     g.drawLine(cx,cy-11.0f,cx,cy+11.0f,1.5f);
-    g.setFont(font(10.0f,true));
+    g.setFont(font(12.f,false).withExtraKerningFactor(.08f));
     g.drawText(dragOver?"DROP MODULE HERE":"CLICK TO ADD EFFECT",
                Rectangle<float>(10.0f,cy+23.0f,b.getWidth()-20.0f,18.0f),
                juce::Justification::centred,false);
@@ -435,7 +433,7 @@ RackStrip::RackStrip(SkellierProcessor& p) {
 void RackStrip::resized() {
     int x=kPad;
     for(auto& slot:slots) if(slot) {
-        const int w=slot->preferredWidth();
+        const int w=rackgeo::width(libraryMode);
         slot->setBounds(x,2,w,SlotComponent::kHeight);
         x+=w+kGap;
     }
@@ -456,8 +454,8 @@ void ModuleTile::paint(Graphics& g) {
     // Continuous recessed list, with a fine separator rather than a thick box around each row.
     g.setColour(Colour(0xff050504));g.drawHorizontalLine(int(r.getBottom())-1,r.getX()+3,r.getRight()-3);
     if(active){g.setColour(pal::amber);g.drawRoundedRectangle(r,4,1.2f);}
-    g.setColour(juce::Colours::white.withAlpha(hover?.15f:.07f));g.drawHorizontalLine(int(r.getY())+2,r.getX()+5,r.getRight()-5);
-    auto sw=r.reduced(6).removeFromLeft(44);
+    g.setColour(juce::Colours::white.withAlpha(hover?.18f:.055f));g.drawHorizontalLine(int(r.getY())+1,r.getX()+4,r.getRight()-4);
+    auto sw=r.reduced(5).removeFromLeft(46);
     g.setColour(juce::Colours::black.withAlpha(.55f));g.fillRoundedRectangle(sw.expanded(1.2f).translated(0,1),4);
     // Cache icon at fixed logical dimensions (not the whole tile or its hover state).
     static std::array<juce::Image,skl::kNumRackTypes> minis;
@@ -467,8 +465,8 @@ void ModuleTile::paint(Graphics& g) {
         mg.addTransform(juce::AffineTransform::scale(2.f));paintOriginalMini(mg,Rectangle<float>(0,0,42,35),type);
     }
     g.drawImage(mini,sw);
-    auto text=r.reduced(6).withTrimmedLeft(55);
-    g.setColour(pal::ink);g.setFont(font(16.5f,true));
+    auto text=r.reduced(5).withTrimmedLeft(57);
+    g.setColour(pal::ink);g.setFont(font(17.f,false));
     g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(21).toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffd8cbb7));g.setFont(font(12.5f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
@@ -498,7 +496,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     addAndMakeVisible(search);
     tileViewport.setViewedComponent(&tileContent, false);
     tileViewport.setScrollBarsShown(true, false);
-    tileViewport.setScrollBarThickness(10);
+    tileViewport.setScrollBarThickness(6);
     addAndMakeVisible(tileViewport);
     std::vector<int> order{Comp,Bell,Delay,Flanger,Eq,DeEss,Sat,Air};
     for(int t=Eq;t<kNumRackTypes;++t)if(std::find(order.begin(),order.end(),t)==order.end())order.push_back(t);
@@ -530,7 +528,7 @@ void LibraryPanel::select(int type) {
 void LibraryPanel::refresh() {
     const auto q = search.getText().trim().toLowerCase();
     int n = 0;
-    const int w=juce::jmax(80,tileViewport.getWidth()-10);
+    const int w=juce::jmax(80,tileViewport.getWidth()-6);
     for (auto* t : tiles) {
         const auto& mi = info(t->type);
         const bool show = (category < 0 || (int) mi.cat == category) &&
@@ -562,7 +560,7 @@ void LibraryPanel::paint(Graphics& g) {
 }
 void LibraryPanel::paintHardware(Graphics& g) {
     auto r=getLocalBounds().toFloat().reduced(.5f);
-    paintHardwarePlate(g,r,Colour(0xff33302c),true,10.f,3.6f);
+    paintHardwarePlate(g,r,Colour(0xff282520),true,10.f,3.6f);
     g.setColour(pal::ink);g.setFont(font(16.f,false).withExtraKerningFactor(.15f));
     g.drawText("MODULE LIBRARY",r.withY(15).withHeight(30),juce::Justification::centred,false);
     auto list=r.reduced(16).withY(float(listTop-2)).withHeight(float(tileViewport.getHeight()+4));
@@ -588,8 +586,8 @@ void PathStrip::setVisibleRange(int first,int last){
 void PathStrip::updateHitRects(){
     hitRects.fill(juce::Rectangle<int>());
     int count=0;for(int i=0;i<kNumSlots;++i)if(proc.slotType(i)!=Empty)++count;
-    constexpr int port=55,arrow=20;int x=218+port+arrow;
-    const int cell=juce::jmax(35,(getWidth()-218-18-2*port-arrow*(count+1))/juce::jmax(1,count));
+    const auto geo=rackgeo::signalPath(getWidth(),count);
+    const int arrow=geo.arrow,cell=geo.cell;int x=geo.x+geo.port+arrow;
     for(int i=0;i<kNumSlots;++i)if(proc.slotType(i)!=Empty){
         hitRects[static_cast<size_t>(i)]={x,getHeight()/2-16,cell,32};x+=cell+arrow;
     }
@@ -605,22 +603,21 @@ void PathStrip::mouseDown(const juce::MouseEvent& e){
 void PathStrip::paint(Graphics& g) {
     updateHitRects();
     const int h=getHeight();g.setColour(pal::ink);g.setFont(font(14.5f,false).withExtraKerningFactor(.12f));
-    g.drawText("SIGNAL PATH",20,3,165,25,juce::Justification::centredLeft,false);
+    g.drawText("SIGNAL PATH",36,3,157,25,juce::Justification::centredLeft,false);
     g.setColour(pal::inkDim);g.setFont(font(12,true));g.drawText(rangeText,48,31,94,23,juce::Justification::centred,false);
     g.setColour(Colour(0xff8b7d66).withAlpha(.65f));g.drawVerticalLine(199,8,h-8);
     const bool bypass=proc.apvts.getRawParameterValue("bypass")->load()>.5f;
     const int solo=proc.soloSlot.load();
     int count=0;for(int s=0;s<kNumSlots;++s)if(proc.slotType(s)!=Empty)++count;
-    constexpr int port=55,arrowWidth=20;int x=218;
-    const int remaining=getWidth()-x-18-2*port-arrowWidth*(count+1);
-    const int cell=juce::jmax(35,remaining/juce::jmax(1,count));
+    const auto geo=rackgeo::signalPath(getWidth(),count);
+    const int port=geo.port,arrowWidth=geo.arrow,cell=geo.cell;int x=geo.x;
     auto key=[&](const juce::String& text,int width,bool lit,bool model,bool focused=false){
         auto r=Rectangle<float>(float(x),float(h)*.5f-16.f,float(width),32.f);
         g.setColour(juce::Colours::black.withAlpha(.76f));g.fillRoundedRectangle(r.translated(0,2),6);
-        paintHardwarePlate(g,r,Colour(lit?0xff35312c:0xff24211e),false,6.f,1.8f);
+        paintRaisedKey(g,r,Colour(lit?0xff302b24:0xff24211e),focused,false);
         if(focused){for(int halo=3;halo>=1;--halo){g.setColour(Colour(0xffeeb66e).withAlpha(.07f*float(4-halo)));g.drawRoundedRectangle(r.expanded(float(halo)),7.f,float(halo));}}
-        g.setColour(focused?Colour(0xffffd798):lit?Colour(0xffa99171):Colour(0xff575043));g.drawRoundedRectangle(r,5,focused?1.7f:lit?1.f:.75f);
-        if(model&&lit){g.setColour(Colour(0xffe8c994));g.fillEllipse(r.getX()+5,r.getCentreY()-1.8f,3.6f,3.6f);}
+        g.setColour(focused?Colour(0xffffd798):lit?Colour(0xff96836a):Colour(0xff575043));g.drawRoundedRectangle(r.reduced(.7f),5,focused?1.4f:.7f);
+        if(model&&lit&&!focused){g.setColour(Colour(0xffa58c66));g.fillEllipse(r.getX()+6,r.getCentreY()-1.3f,2.6f,2.6f);}
         g.setColour(lit?pal::ink:pal::inkDim);g.setFont(font(count>6?11.5f:15.5f,false).withExtraKerningFactor(.025f));
         g.drawFittedText(text,r.reduced(model?9.f:3.f,1.f).toNearestInt(),juce::Justification::centred,1);x+=width;
     };
@@ -794,12 +791,8 @@ void RackUI::setEditMode(bool enabled) {
 void RackUI::revealSlot(int slot){
     if(slot<0||slot>=kNumSlots)return;
     pathStrip.setFocusedSlot(slot);
-    const auto bounds=strip.slots[static_cast<size_t>(slot)]->getBounds();
-    int x=viewport.getViewPositionX();
-    const int width=viewport.getViewArea().getWidth();
-    if(bounds.getX()<x)x=bounds.getX()-RackStrip::kPad;
-    else if(bounds.getRight()>x+width)x=bounds.getRight()+RackStrip::kPad-width;
-    viewport.setViewPosition(juce::jmax(0,x),0);
+    const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
+    viewport.setViewPosition(rackgeo::offset(rackgeo::firstForSlot(first,slot,libraryVisible),libraryVisible),0);
     refreshRackNavigation();
 }
 bool RackUI::slotIsFullyVisible(int slot) const{
@@ -813,35 +806,40 @@ void RackUI::refreshRackNavigation(){
     pathStrip.setVisibleRange(first,last);
 }
 void RackUI::pageRack(int direction){
-    const auto area=viewport.getViewArea();
-    int first=0,last=0;
-    for(int i=0;i<kNumSlots;++i){
-        const auto bounds=strip.slots[static_cast<size_t>(i)]->getBounds();
-        if(bounds.getX()<area.getX())first=i+1;
-        if(bounds.getRight()<=area.getRight())last=i;
-    }
-    revealSlot(juce::jlimit(0,kNumSlots-1,direction<0?first-1:last+1));
+    const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
+    viewport.setViewPosition(rackgeo::offset(first+direction*rackgeo::count(libraryVisible),libraryVisible),0);
+    refreshRackNavigation();
 }
 void RackUI::setLibraryVisible(bool visible) {
+    const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
     libraryVisible=visible;
     library.setVisible(visible);
     libraryToggle.setButtonText(visible?"HIDE LIBRARY":"SHOW LIBRARY");
     libraryToggle.setTooltip(visible?"Hide the module library to see five full rack slots":
                                      "Show the module library to browse, search and add effects");
     resized();
-    repaint();
+    viewport.setViewPosition(rackgeo::offset(first,libraryVisible),0);
+    refreshRackNavigation();repaint();
 }
-
+bool RackUI::fittedRackIsValid() const {
+    const auto area=viewport.getViewArea();
+    const auto w=rackgeo::width(libraryVisible);
+    if(viewport.getRight()!=rackgeo::end(libraryVisible)||area.getWidth()!=rackgeo::viewWidth(libraryVisible))return false;
+    for(int i=0;i<kNumSlots;++i){
+        const auto b=strip.slots[static_cast<size_t>(i)]->getBounds();
+        if(b.getX()!=rackgeo::pad+i*(w+rackgeo::gap)||b.getWidth()!=w)return false;
+    }
+    return (1252-(viewport.getRight()-rackgeo::pad))==14;
+}
 bool RackUI::libraryLayoutIsValid() const {
     const int left=libraryVisible?visibleRackX:hiddenRackX;
-    const int visibleSlots=libraryVisible?4:5;
-    const int required=rackWidth(visibleSlots);
+    const int required=rackgeo::viewWidth(libraryVisible);
     return library.isVisible()==libraryVisible && libraryToggle.isVisible()
         && libraryToggle.getButtonText()==(libraryVisible?"HIDE LIBRARY":"SHOW LIBRARY")
         && viewport.getBounds()==Rectangle<int>(left,rackY,required,rackH)
         && library.getBounds()==Rectangle<int>(libraryX,libraryY,libraryW,libraryH)
         && (!libraryVisible||library.getRight()<viewport.getX())
-        && viewport.getWidth()==required
+        && viewport.getWidth()==required && fittedRackIsValid()
         && viewport.getHeight()>=SlotComponent::kHeight+4+viewport.getScrollBarThickness()
         && !prevPreset.getBounds().intersects(presetBox.getBounds())
         && !presetBox.getBounds().intersects(nextPreset.getBounds())
@@ -854,8 +852,8 @@ bool RackUI::libraryLayoutIsValid() const {
 }
 
 void RackUI::resized() {
-    prevPreset.setBounds(450,15,38,36);presetBox.setBounds(489,15,190,36);nextPreset.setBounds(686,15,38,36);
-    inKnob.setBounds(780,4,115,59);meters.setBounds(900,16,174,34);outKnob.setBounds(1093,4,148,59);
+    prevPreset.setBounds(446,15,39,36);presetBox.setBounds(487,15,195,36);nextPreset.setBounds(686,15,39,36);
+    inKnob.setBounds(780,4,115,59);meters.setBounds(898,13,187,39);outKnob.setBounds(1093,4,148,59);
     lcd.setBounds(editing?24:30,67,editing?300:750,28);
     snapA.setBounds(335,66,30,27);snapB.setBounds(368,66,30,27);snapCopy.setBounds(402,66,49,27);
     undoBtn.setBounds(466,66,51,27);redoBtn.setBounds(520,66,51,27);clearBtn.setBounds(574,66,51,27);
@@ -869,7 +867,8 @@ void RackUI::resized() {
     libraryToggle.setBounds(897,66,100,27);
     library.setBounds(libraryX,libraryY,libraryW,libraryH);
     const int rackLeft=libraryVisible?visibleRackX:hiddenRackX;
-    viewport.setBounds(rackLeft,rackY,rackWidth(libraryVisible?4:5),rackH);
+    strip.setLibraryMode(libraryVisible);
+    viewport.setBounds(rackLeft,rackY,rackgeo::viewWidth(libraryVisible),rackH);
     pathStrip.setBounds(25,704,1210,62);
     refreshRackNavigation();
 }
@@ -886,14 +885,14 @@ void RackUI::paint(Graphics& g) {
 }
 void RackUI::paintChassis(Graphics& g) {
     g.fillAll(Colour(0xff11100f));
-    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff37332e),true,9.f,3.f);
+    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff25221f),true,9.f,3.f);
     const auto header=Rectangle<float>(8,4,1244,95);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb5a38a).withAlpha(.10f),header.getY(),juce::Colours::transparentBlack,header.getBottom()));g.fillRoundedRectangle(header,5.f);
     g.setColour(Colour(0xff91816b).withAlpha(.64f));g.drawHorizontalLine(61,20,1240);
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawHorizontalLine(62,20,1240);g.setColour(Colour(0xff777064).withAlpha(.5f));
     g.drawHorizontalLine(100,12,1248);
     paintMonogram(g,Rectangle<float>(21,12,27,38),pal::ink);
-    g.setColour(Colour(0xfff4e5c8));g.setFont(font(28.f,true).withExtraKerningFactor(.105f));
+    g.setColour(Colour(0xfff4e5c8));g.setFont(font(28.f,false).withExtraKerningFactor(.09f));
     g.setColour(juce::Colours::black.withAlpha(.75f));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(65,11,349,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xfff4e5c8));g.drawFittedText("SKELLIERE RACK",Rectangle<int>(65,10,349,43),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffa0927b).withAlpha(.45f));
@@ -901,18 +900,18 @@ void RackUI::paintChassis(Graphics& g) {
     const float railLeft=libraryVisible?269.f:8.f;
     const auto frame=Rectangle<float>(railLeft,103,1252.f-railLeft,595);
     g.setColour(juce::Colours::black.withAlpha(.9f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,2.f),11);
-    paintHardwarePlate(g,frame,Colour(0xff34302a),true,11.f,4.f);
+    paintHardwarePlate(g,frame,Colour(0xff25211d),true,11.f,4.f);
     g.setColour(Colour(0xff070605));g.fillRoundedRectangle(frame.reduced(3.5f),6);
     // A machined upper and lower lip, not a flat gold outline.
     auto rail=frame.reduced(5.f).withHeight(5.f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff685b49),rail.getY(),Colour(0xff0a0806),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
     rail=rail.withY(frame.getBottom()-6.f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff090807),rail.getY(),Colour(0xff6b5b47),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
     g.setColour(Colour(0xff0e0c0a));g.drawRoundedRectangle(frame.reduced(4),7,1.7f);
-    paintScrew(g,1242,117,6.f,.6f);paintScrew(g,1242,685,6.f,1.5f);
-    if(!libraryVisible){paintScrew(g,18,117,5.7f,.9f);paintScrew(g,18,685,5.7f,1.3f);}
+    paintScrew(g,1245,117,4.5f,.6f);paintScrew(g,1245,685,4.5f,1.5f);
+    if(!libraryVisible){paintScrew(g,14,117,4.2f,.9f);paintScrew(g,14,685,4.2f,1.3f);}
     const auto foot=Rectangle<float>(8,700,1244,72);
     g.setColour(juce::Colours::black.withAlpha(.72f));g.fillRoundedRectangle(foot.translated(0,2),10);
-    paintHardwarePlate(g,foot,Colour(0xff36312b),true,11.f,3.4f);
+    paintHardwarePlate(g,foot,Colour(0xff29251f),true,11.f,3.4f);
     paintScrew(g,25,736,6.f,.8f);paintScrew(g,1235,736,6.f,1.4f);
 }
 

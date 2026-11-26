@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "Look.h"
 #include "OriginalPanel.h"
+#include "RackGeometry.h"
 
 namespace skl::ui {
 
@@ -52,8 +53,8 @@ public:
 
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
-    static constexpr int kWidth = 234, kHeight = 574;
-    int preferredWidth() const { return kWidth; }
+    static constexpr int kWidth = rackgeo::width(true), kHeight = 574;
+    int preferredWidth() const { return getWidth()>0?getWidth():kWidth; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
     void rebuild();
@@ -103,8 +104,10 @@ private:
 class RackStrip final : public juce::Component {
 public:
     explicit RackStrip(SkellierProcessor&);
-    static constexpr int kGap = 4, kPad = 4;
+    static constexpr int kGap = rackgeo::gap, kPad = rackgeo::pad;
+    void setLibraryMode(bool visible){if(libraryMode!=visible){libraryMode=visible;resized();}}
     void resized() override;
+    bool libraryMode=true;
     std::array<std::unique_ptr<SlotComponent>, skl::kNumSlots> slots;
 };
 
@@ -177,8 +180,8 @@ public:
     static constexpr int kW = 1260, kH = 790;
     // Logical geometry: zoom never alters parameter state.
     static constexpr int rackY=110, rackH=586, libraryX=8, libraryY=108, libraryW=260, libraryH=588;
-    static constexpr int visibleRackX=274, hiddenRackX=30;
-    static constexpr int rackWidth(int count){return 2*RackStrip::kPad+count*SlotComponent::kWidth+(count-1)*RackStrip::kGap;}
+    static constexpr int visibleRackX=rackgeo::left(true), hiddenRackX=rackgeo::left(false);
+    bool fittedRackIsValid() const;
     explicit RackUI(SkellierProcessor&);
     ~RackUI() override;
     void paint(juce::Graphics&) override;

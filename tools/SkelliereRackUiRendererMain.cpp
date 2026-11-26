@@ -77,8 +77,10 @@ int main(int argc, char** argv) {
             if(auto* vp=dynamic_cast<juce::Viewport*>(&c))if(dynamic_cast<skl::ui::RackStrip*>(vp->getViewedComponent()))vp->setViewPosition(0,0);
         });
         visit(editor,[&](juce::Component& c){if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c)){
-            ui->revealSlot(7);navOK=ui->slotIsFullyVisible(7)&&navOK;
-            ui->revealSlot(0);navOK=ui->slotIsFullyVisible(0)&&navOK;
+            // Visit every slot, not only the ends. Each navigation step must preserve
+            // the exact whole-module fit and keep its target fully visible.
+            for(int i=0;i<skl::kNumSlots;++i){ui->revealSlot(i);navOK=ui->slotIsFullyVisible(i)&&ui->fittedRackIsValid()&&navOK;}
+            for(int i=skl::kNumSlots-1;i>=0;--i){ui->revealSlot(i);navOK=ui->slotIsFullyVisible(i)&&ui->fittedRackIsValid()&&navOK;}
             if(expectedLast)ui->revealSlot(7);
         }});
         // Check all 27 models in both layouts, then restore requested screenshot mode.
