@@ -503,7 +503,7 @@ void ModuleTile::paint(Graphics& g) {
     }
     g.setOpacity(1.f);g.drawImage(mini,sw);
     auto text=r.reduced(5).withTrimmedLeft(57);
-    g.setColour(pal::ink);g.setFont(font(17.f,false).withExtraKerningFactor(.035f));
+    g.setColour(pal::ink);g.setFont(font(17.f,true).withExtraKerningFactor(.012f));
     g.drawFittedText(juce::String(displayName(type)),text.removeFromTop(21).toNearestInt(),juce::Justification::centredLeft,1);
     g.setColour(Colour(0xffd8cbb7));g.setFont(font(12.5f));
     g.drawFittedText(mi.sub,text.toNearestInt(),juce::Justification::centredLeft,1);
@@ -597,7 +597,7 @@ void LibraryPanel::paint(Graphics& g) {
 }
 void LibraryPanel::paintHardware(Graphics& g) {
     auto r=getLocalBounds().toFloat().reduced(.5f);
-    paintHardwarePlate(g,r,Colour(0xff25211e),true,10.f,3.6f);
+    paintHardwarePlate(g,r,Colour(0xff201c19),true,10.f,3.6f);
     g.setColour(pal::ink);g.setFont(font(17.5f,false).withExtraKerningFactor(.15f));
     g.drawText("MODULE LIBRARY",r.withY(15).withHeight(30),juce::Justification::centred,false);
     auto list=r.reduced(16).withY(float(listTop-2)).withHeight(float(tileViewport.getHeight()+4));
@@ -922,7 +922,7 @@ void RackUI::paint(Graphics& g) {
 }
 void RackUI::paintChassis(Graphics& g) {
     g.fillAll(Colour(0xff11100f));
-    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff1e1b19),true,9.f,3.f);
+    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff151310),true,9.f,3.f);
     const auto header=Rectangle<float>(8,4,1244,95);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb5a38a).withAlpha(.065f),header.getY(),juce::Colours::transparentBlack,header.getBottom()));g.fillRoundedRectangle(header,5.f);
     g.setColour(Colour(0xff91816b).withAlpha(.44f));g.drawHorizontalLine(61,20,1240);
@@ -937,7 +937,7 @@ void RackUI::paintChassis(Graphics& g) {
     const float railLeft=libraryVisible?269.f:8.f;
     const auto frame=Rectangle<float>(railLeft,103,1252.f-railLeft,595);
     g.setColour(juce::Colours::black.withAlpha(.9f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,2.f),11);
-    paintHardwarePlate(g,frame,Colour(0xff25211d),true,11.f,4.f);
+    paintHardwarePlate(g,frame,Colour(0xff25211d),true,11.f,4.5f);
     g.setColour(Colour(0xff070605));g.fillRoundedRectangle(frame.reduced(3.5f),6);
     // A machined upper and lower lip, not a flat gold outline.
     auto rail=frame.reduced(5.f).withHeight(5.f);
@@ -948,7 +948,7 @@ void RackUI::paintChassis(Graphics& g) {
     if(!libraryVisible){paintScrew(g,14,117,4.2f,.9f);paintScrew(g,14,685,4.2f,1.3f);}
     const auto foot=Rectangle<float>(8,700,1244,72);
     g.setColour(juce::Colours::black.withAlpha(.72f));g.fillRoundedRectangle(foot.translated(0,2),10);
-    paintHardwarePlate(g,foot,Colour(0xff201e1b),true,11.f,3.4f);
+    paintHardwarePlate(g,foot,Colour(0xff13110f),true,11.f,4.f);
     paintScrew(g,25,736,6.f,.8f);paintScrew(g,1235,736,6.f,1.4f);
 }
 

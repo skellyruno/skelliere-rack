@@ -22,5 +22,10 @@ int main(){
    assert(std::abs(cap(.025f,a,.5f).brightness-cap(.025f,0.f,.5f).brightness)<.025f);
  }
  assert(cap(.65f,-1.85f,.5f).brightness>cap(.65f,-1.85f+1.5707963f,.5f).brightness+.2f);
+ for(int i=1;i<99;++i)for(int j=0;j<360;++j){
+   const float r=i*.01f,a=j*3.14159265359f/180.f;
+   assert(std::abs(cap(r,a,.5f).brightness-cap(r,a+6.28318530718f,.5f).brightness)<.0001f);
+   assert(std::abs(cap(r,a,.5f).brightness-cap(r,a+.0174533f,.5f).brightness)<.04f);
+ }
  std::cout<<checked<<" bounded analog metal/engraving samples passed\n";
 }

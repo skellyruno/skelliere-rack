@@ -3,7 +3,7 @@
 namespace skl::ui {
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xdfc6a7,0x62352e,0x5d4132,0xc4c0ad,0x293541,0x303423,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x542d2b,0x706449,0x496464,0x45484a};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xdfc6a7,0x62352e,0x5d4132,0xc4c0ad,0x27333e,0x2f3424,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x51282a,0x706449,0x496464,0x45484a};
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -72,11 +72,15 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
 
     // A warm cavity lamp and metal transport bed beneath the reels.
     g.setGradientFill(juce::ColourGradient(Colour(0xffd5a15e).withAlpha(.34f),win.getCentreX(),win.getY()+8.f,juce::Colours::transparentBlack,win.getCentreX(),win.getBottom(),true));g.fillRoundedRectangle(win.reduced(1.f),3.f);
-    const auto bed=win.reduced(3.f).removeFromBottom(18.f);
+    const auto bed=win.reduced(3.f).removeFromBottom(20.f);
     g.setColour(Colour(0xffb78e57).withAlpha(.28f));g.drawVerticalLine(int(win.getCentreX()),win.getY()+4.f,bed.getY());
     g.setColour(Colour(0xff20170f));g.fillRect(win.withY(bed.getY()-3.f).withHeight(3.f));
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff8a6337),bed.getY(),Colour(0xff2e2113),bed.getBottom()));g.fillRoundedRectangle(bed,2.f);
     g.setColour(Colour(0xffd8b17d).withAlpha(.55f));g.drawHorizontalLine(int(bed.getY()),bed.getX()+2,bed.getRight()-2);
+    juce::Path recess;recess.startNewSubPath(bed.getX()+22.f,bed.getBottom());recess.lineTo(bed.getX()+32.f,bed.getY()+4.f);
+    recess.lineTo(bed.getRight()-32.f,bed.getY()+4.f);recess.lineTo(bed.getRight()-22.f,bed.getBottom());recess.closeSubPath();
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff16110b),bed.getY(),Colour(0xff48341f),bed.getBottom()));g.fillPath(recess);
+    g.setColour(Colour(0xffc9a477).withAlpha(.48f));g.strokePath(recess,juce::PathStrokeType(.8f));
     const float radius=std::min(win.getWidth()*.239f,win.getHeight()*.435f);
     const float cy=win.getCentreY()-5.f;
     const float cxs[2]={win.getX()+win.getWidth()*.27f,win.getX()+win.getWidth()*.73f};
@@ -117,17 +121,20 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         const float fr=radius*.98f;
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(1.f);
-        g.drawImage(machinedCap(Colour(0xffcfc1aa)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
+        // Flat reel flange with shared turned-metal light, not a grooved knob.
+        g.setGradientFill(juce::ColourGradient(Colour(0xfff0d7ac),cx-fr*.70f,cy-fr*.68f,Colour(0xff655445),cx+fr*.76f,cy+fr*.80f,false));
+        g.fillEllipse(cx-fr,cy-fr,2*fr,2*fr);
+        g.setOpacity(1.f);g.drawImage(litNecroCap(),juce::Rectangle<float>(cx-fr*.975f,cy-fr*.975f,fr*1.95f,fr*1.95f));
         {juce::Graphics::ScopedSaveState save(g);
          juce::Path disc;disc.addEllipse(cx-fr*.94f,cy-fr*.94f,fr*1.88f,fr*1.88f);g.reduceClipRegion(disc);
          juce::ColourGradient reflect(Colour(0xfff6dcb4).withAlpha(.38f),cx-fr*.62f,cy-fr*.62f,Colour(0xff100d09).withAlpha(.19f),cx+fr*.82f,cy+fr*.83f,false);
          reflect.addColour(.58,juce::Colours::transparentBlack);g.setGradientFill(reflect);g.fillPath(disc);}
         // Fine machining rings on the reel flange, behind the cutouts.
         for(int ring=0;ring<3;++ring){const float rr=fr*(.91f+ring*.022f);g.setColour(Colour(0xfff4dfb9).withAlpha(.10f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.5f);}
-        const float turn=k==0?.17f:.69f;                                                // reels deliberately out of phase
+        const float turn=k==0?-.98f:.28f;                                                // reels deliberately out of phase
         for(int spoke=0;spoke<3;++spoke){
-            const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.49f;
-            const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.49f;
+            const float from=turn+spoke*juce::MathConstants<float>::twoPi/3+.53f;
+            const float to=turn+(spoke+1)*juce::MathConstants<float>::twoPi/3-.53f;
             // Rounded tapered triangular ports rather than broad pie slices.
             auto point=[&](float a,float rr){return juce::Point<float>(cx+std::sin(a)*rr,cy-std::cos(a)*rr);};
             const float mid=(from+to)*.5f;
@@ -140,8 +147,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
             {juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion(opening);
              // Windings visible through each recessed port.
              for(int band=0;band<8;++band){const float rr=fr*(.40f+band*.053f);g.setColour(Colour(0xffc4a77b).withAlpha(.10f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.55f);}}
-            g.setColour(Colour(0xffbe9663).withAlpha(.11f));g.strokePath(opening,juce::PathStrokeType(2.1f),juce::AffineTransform::translation(.2f,1.f));
-            g.setColour(Colour(0xffe9dcc0).withAlpha(.36f));                          // lit rim of the opening
+            g.setColour(Colour(0xff080604).withAlpha(.72f));g.strokePath(opening,juce::PathStrokeType(1.7f),juce::AffineTransform::translation(.1f,-.45f));
+            g.setColour(Colour(0xffe9dcc0).withAlpha(.50f));                          // lit rim of the opening
             g.strokePath(opening,juce::PathStrokeType(.9f),juce::AffineTransform::translation(.5f,.7f));
             g.setColour(Colour(0xff000000).withAlpha(.84f));g.strokePath(opening,juce::PathStrokeType(.85f));
             g.setColour(Colour(0xffcdb48b).withAlpha(.22f));g.strokePath(opening,juce::PathStrokeType(.55f),juce::AffineTransform::translation(-.45f,-.35f));
@@ -179,7 +186,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     // saturated than the previous washed-out capture. Avoid additive white
     // gradients that lift the entire blue/olive/burgundy material.
     const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead6b8),.08f)
-        :p.metal.interpolatedWith(Colour(0xff0e0d0b),.25f);
+        :p.metal.interpolatedWith(Colour(0xff0e0d0b),.27f);
     paintHardwarePlate(g,r.reduced(.3f),base,p.light,9.f,3.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-12:r.getX()+12,i<2?r.getY()+12:r.getBottom()-12,6.2f,.8f*i);
 }
