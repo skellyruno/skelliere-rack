@@ -3,7 +3,7 @@
 namespace skl::ui {
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xdbc09f,0x62352e,0x5d4132,0xc4c0ad,0x2f3c46,0x343a27,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x663d36,0x706449,0x496464,0x45484a};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xdfc6a7,0x62352e,0x5d4132,0xc4c0ad,0x293541,0x303423,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x542d2b,0x706449,0x496464,0x45484a};
     static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -114,7 +114,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         g.setColour(Colour(0xff000000).withAlpha(.5f));g.drawEllipse(cx-radius,cy-radius,2*radius,2*radius,1.2f);
         const float fr=radius*.98f;
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-        g.drawImage(machinedCap(Colour(0xffdfc5a0)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
+        g.drawImage(machinedCap(Colour(0xffceb38e)),juce::Rectangle<float>(cx-fr,cy-fr,2*fr,2*fr));
         // Fine machining rings on the reel flange, behind the cutouts.
         for(int ring=0;ring<5;++ring){const float rr=fr*(.88f+ring*.018f);g.setColour(Colour(0xfff4dfb9).withAlpha(.16f));g.drawEllipse(cx-rr,cy-rr,2*rr,2*rr,.5f);}
         const float turn=k==0?.17f:.69f;                                                // reels deliberately out of phase
@@ -128,7 +128,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
             g.setColour(Colour(0xffbe9663).withAlpha(.11f));g.strokePath(opening,juce::PathStrokeType(2.1f),juce::AffineTransform::translation(.2f,1.f));
             g.setColour(Colour(0xffe9dcc0).withAlpha(.55f));                          // lit rim of the opening
             g.strokePath(opening,juce::PathStrokeType(.9f),juce::AffineTransform::translation(.5f,.7f));
-            g.setColour(Colour(0xff000000).withAlpha(.7f));g.strokePath(opening,juce::PathStrokeType(.8f));
+            g.setColour(Colour(0xff000000).withAlpha(.84f));g.strokePath(opening,juce::PathStrokeType(1.25f));
             g.setColour(Colour(0xffcdb48b).withAlpha(.22f));g.strokePath(opening,juce::PathStrokeType(.55f),juce::AffineTransform::translation(-.45f,-.35f));
         }
         juce::Path flange;flange.addCentredArc(cx,cy,fr*.96f,fr*.96f,0.f,-1.7f,.65f,true);g.setColour(Colour(0xfff9e6c6).withAlpha(.65f));g.strokePath(flange,juce::PathStrokeType(1.4f));
@@ -151,7 +151,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r) {
         glass.closeSubPath();
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.11f),win.getY(),juce::Colours::white.withAlpha(.012f),win.getY()+win.getHeight()*.38f));
         g.fillPath(glass);
-        g.setColour(Colour(0xfff5dbad).withAlpha(.36f));g.drawRoundedRectangle(win.reduced(.9f),3.f,.9f);
+        g.setColour(Colour(0xfff5dbad).withAlpha(.48f));g.drawRoundedRectangle(win.reduced(.9f),3.f,.9f);
+        g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentWhite,win.getBottom()-7.f,Colour(0xffe5ba76).withAlpha(.26f),win.getBottom()));g.fillRoundedRectangle(win.withY(win.getBottom()-7.f).withHeight(7.f),2.f);
     }
     // The tape mechanism is decorative; its live controls are below the window.
 }
@@ -160,7 +161,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     // The reference's dark anodised panels are substantially darker and more
     // saturated than the previous washed-out capture. Avoid additive white
     // gradients that lift the entire blue/olive/burgundy material.
-    const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead1ad),.12f)
+    const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead6b8),.08f)
         :p.metal.interpolatedWith(Colour(0xff0e0d0b),.25f);
     paintHardwarePlate(g,r.reduced(.3f),base,p.light,9.f,3.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-12:r.getX()+12,i<2?r.getY()+12:r.getBottom()-12,7.f,.8f*i);
@@ -183,12 +184,35 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
         for(int i=0;i<9;++i){const float a=juce::degreesToRadians(225.f+i*270.f/8.f);g.setColour(Colour(0xffe9d9bb));g.fillEllipse(cx+std::sin(a)*rad*1.26f-.55f,cy-std::cos(a)*rad*1.26f-.55f,1.1f,1.1f);}
         g.setColour(Colour(0xff201914));g.drawLine(cx,cy-rad*.32f,cx+rad*.21f,cy-rad*.9f,1.2f);return;
     }
+    if(type==DeEss||type==SkellDeEsserFX){
+        // A fine grille of attenuation dots is easier to identify than yet another meter.
+        const auto field=r.reduced(5.f);
+        for(int row=0;row<5;++row)for(int col=0;col<7;++col){
+            const float x=field.getX()+(col+.5f)*field.getWidth()/7.f;
+            const float y=field.getY()+(row+.5f)*field.getHeight()/5.f;
+            const float a=.42f+.48f*(1.f-std::abs(row-2)/2.f)*(1.f-std::abs(col-3)/3.f);
+            g.setColour(Colour(0xffead7b4).withAlpha(a));g.fillEllipse(x-.62f,y-.62f,1.24f,1.24f);
+        }return;
+    }
+    if(type==Sat){
+        // A vacuum-tube-inspired badge, hand drawn and not a borrowed image.
+        const auto tube=r.withSizeKeepingCentre(r.getWidth()*.29f,r.getHeight()*.74f);
+        g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff3d4a0),tube.getY(),Colour(0xff68401d),tube.getBottom()));
+        g.drawRoundedRectangle(tube,5.f,1.2f);
+        auto inner=tube.reduced(2.6f,4.f);g.setColour(Colour(0xffcf9552));
+        for(int k=0;k<3;++k)g.drawVerticalLine(int(inner.getX()+k*inner.getWidth()/2.f),inner.getY(),inner.getBottom());
+        g.setColour(Colour(0xfff0c789));g.drawHorizontalLine(int(tube.getBottom()-5),tube.getX()+2,tube.getRight()-2);
+        g.fillRoundedRectangle(tube.withY(tube.getBottom()-2.f).withHeight(3.f),1.f);return;
+    }
     if(info(type).hasVU||type==Flanger){
         // A legible meter icon, not a reduced full-size scale.
         f=r.reduced(3.5f);
         g.setColour(Colour(0xff18140f));g.fillRoundedRectangle(f,3);
         f=f.reduced(2);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff2d7a3),f.getY(),Colour(0xffad8050),f.getBottom()));g.fillRoundedRectangle(f,2);
         const float cx=f.getCentreX(),cy=f.getBottom()-2,rx=f.getWidth()*.47f,ry=f.getHeight()*.76f;
+        juce::Path arc;
+        for(int k=0;k<=20;++k){const float a=juce::degreesToRadians(-55.f+k*110.f/20.f);const float x=cx+rx*std::sin(a),y=cy-ry*std::cos(a);if(k==0)arc.startNewSubPath(x,y);else arc.lineTo(x,y);}
+        g.setColour(Colour(0xff57402b));g.strokePath(arc,juce::PathStrokeType(.65f));
         for(int k=0;k<=6;++k){const float a=juce::degreesToRadians(-55.f+k*110.f/6);
             g.setColour(Colour(0xff413225));g.drawLine(cx+rx*.85f*std::sin(a),cy-ry*.85f*std::cos(a),cx+rx*std::sin(a),cy-ry*std::cos(a),.7f);}
         g.setColour(Colour(0xff9b3224));g.drawLine(cx,cy,cx-rx*.32f,cy-ry*.93f,1);return;
@@ -198,7 +222,9 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
         const float radius=std::min(f.getWidth()*.22f,f.getHeight()*.33f);
         for(int k=0;k<2;++k){const float cx=f.getX()+f.getWidth()*(k?.74f:.26f),cy=f.getCentreY();
             g.drawImage(machinedCap(Colour(0xffb6a58b)),juce::Rectangle<float>(cx-radius,cy-radius,2*radius,2*radius));
-            g.setColour(Colour(0xff352c21));g.fillEllipse(cx-radius*.32f,cy-radius*.32f,radius*.64f,radius*.64f);}
+            for(int spoke=0;spoke<3;++spoke){juce::Path cut;const float a=k*.55f+spoke*juce::MathConstants<float>::twoPi/3.f;cut.addPieSegment(cx-radius*.8f,cy-radius*.8f,radius*1.6f,radius*1.6f,a+.5f,a+1.59f,.38f);g.setColour(Colour(0xff211b13));g.fillPath(cut);}
+            g.setColour(Colour(0xff352c21));g.fillEllipse(cx-radius*.32f,cy-radius*.32f,radius*.64f,radius*.64f);
+            g.setColour(Colour(0xffd2bd99));g.fillEllipse(cx-radius*.12f,cy-radius*.12f,radius*.24f,radius*.24f);}
         return;
     }
     // Family glyphs so the library never shows the same icon for different effects.

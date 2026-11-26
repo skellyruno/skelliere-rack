@@ -18,9 +18,10 @@ public:
     void setSprite(int id);
     void setNativeFace(bool native, bool side=false) { nativeFace_=native; sideReadout_=side; resized(); repaint(); }
     bool controlGeometryValid() const noexcept;
+    void setBipolarLegend(float low,float high){if(low<0.f&&high>0.f){rangeLow=juce::String(low,0);rangeHigh="+"+juce::String(high,0);}}
     juce::Slider slider;
 private:
-    juce::String label_, text_;
+    juce::String label_, text_, rangeLow, rangeHigh;
     Fmt fmt_;
     bool compact_, lightFace_ = false, nativeFace_ = false, sideReadout_ = false;
     juce::SliderParameterAttachment attachment;

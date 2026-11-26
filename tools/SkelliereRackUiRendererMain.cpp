@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
     const auto args=rackcapture::parse(std::vector<std::string>(argv+1,argv+argc));
     if(!args.error.empty()){std::fprintf(stderr,"%s\n",args.error.c_str());return 2;}
     juce::ScopedJuceInitialiser_GUI gui;
-    if(!skl::ui::necromancerArtworkReady()){std::fprintf(stderr,"Missing original Necromancer hero-dial artwork\n");return 1;}
+    if(!skl::ui::necromancerArtworkReady()||!skl::ui::litNecroCap().isValid()||skl::ui::litNecroCap().getWidth()!=256){std::fprintf(stderr,"Missing original Necromancer hero-dial artwork\n");return 1;}
     try { processorRegression(); }
     catch(const std::exception& e) { std::fprintf(stderr,"Processor regression: %s\n",e.what()); return 1; }
     SkellierProcessor processor;
