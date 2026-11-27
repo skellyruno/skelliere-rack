@@ -5,8 +5,9 @@ namespace skl::ui {
 #include "ReferenceTapeArtwork.h"
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xe1c4a6,0x62352e,0x5d4132,0xc4c0ad,0x293640,0x34382a,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x59322e,0x706449,0x496464,0x45484a};
-    static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xe1c4a6,0x62352e,0x5d4132,0xc4c0ad,0x293640,0x34382a,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x59322e,0x706449,0x496464,0x45484a,0x3c4144,0x992c20,0x8a232a};
+    static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4,0xf2b367,0xf6c06a,0xe4c27e};
+    static_assert(std::size(metals)==kNumRackTypes && std::size(accents)==kNumRackTypes,"Panel palette must cover catalog");
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
     if(finish==1&&(type==Air||type==SkellAirFX))metal=Colour(type==Air?0xff344e60:0xff284251);
@@ -31,7 +32,7 @@ struct OriginalLayout {
 inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
-    if(mi.hasVU||type==Flanger)l.meter={15,106,width-30,120};
+    if(mi.hasVU||hasOutputPeak(type))l.meter={15,106,width-30,120};
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -402,7 +403,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
         g.setColour(Colour(0xfff0c789));g.drawHorizontalLine(int(tube.getBottom()-5),tube.getX()+2,tube.getRight()-2);
         g.fillRoundedRectangle(tube.withY(tube.getBottom()-2.f).withHeight(3.f),1.f);return;
     }
-    if(info(type).hasVU||type==Flanger){
+    if(info(type).hasVU||hasOutputPeak(type)){
         // A legible meter icon, not a reduced full-size scale.
         f=r.reduced(3.5f);
         g.setColour(Colour(0xff18140f));g.fillRoundedRectangle(f,3);
@@ -444,7 +445,7 @@ inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
             for(int k=-1;k<=1;++k)g.drawHorizontalLine(int(my+k*amp),x0,x1);};
         bool drawn=true;
         switch(type){
-        case Eq:case Bell:case Tilt:case DualFilter:{
+        case Eq:case Bell:case Tilt:case DualFilter:case SkellRubyQ:case SkellDope:{
             guideLines();juce::Path curve;
             for(int i=0;i<=40;++i){const float t=i/40.f,x=x0+w*t;float y=my;
                 if(type==Eq){y=my-amp*(.75f*std::exp(-std::pow((t-.28f)/.12f,2.f))-.55f*std::exp(-std::pow((t-.72f)/.13f,2.f)));}

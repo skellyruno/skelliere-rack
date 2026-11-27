@@ -4,6 +4,7 @@
 #include "RackCompressor.h"
 #include "RackProgramOpto.h"
 #include "AnalogRackModules.h"
+#include "NewColorModules.h"
 #include <SkellCore/backends/vocal/SkellAir.h>
 #include <SkellCore/backends/vocal/ClassicDeEsser.h>
 namespace skl {
@@ -118,6 +119,7 @@ private:
     std::atomic<float> reduction{0};
 };
 inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
+    if(type==SkellDope||type==SkellMixHead||type==SkellRubyQ)return std::make_unique<NewColorModule>(type);
     if(type==SkellDeEsserFX)return std::make_unique<SkellClassicDeEsserModule>();
     if(type==SkellAirFX)return std::make_unique<SkellAirModule>();
     if(type==Eq || type==Air) return std::make_unique<SmoothedTone>(type);

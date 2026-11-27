@@ -56,19 +56,22 @@ int main(int argc, char** argv) {
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
     options.scenes={{"catalog_1",1260,790,0,1},{"catalog_2",1260,790,1,1},{"catalog_3",1260,790,2,1},{"catalog_4",1260,790,3,1},{"catalog_5",1260,790,4,1},{"catalog_6",1260,790,5,1},{"catalog_7",1260,790,6,1},
-      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1},{"rack_last_slots",1260,790,10,1},{"rack_last_hidden",1260,790,10,1}};
+      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1},{"rack_last_slots",1260,790,10,1},{"rack_last_hidden",1260,790,10,1},{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"},{"full_rack","library_hidden"},{"library_hidden","library_hidden_edit"},{"full_rack","rack_last_slots"},{"library_hidden","rack_last_hidden"}};
     if(!args.full){
         options.scenes={{"approved_studio",1260,790,8,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"studio_midnight",1260,790,8,3}};
         options.mustDiffer={{"approved_studio","studio_edit"},{"approved_studio","studio_midnight"}};
     }
+    if(args.colors){options.scenes={{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
     int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;navOK=true;processor.clearRack();
         expectedLast=scene.id=="rack_last_slots"||scene.id=="rack_last_hidden";
         expectedLibrary=!(scene.id=="library_hidden"||scene.id=="library_hidden_edit"||scene.id=="library_hidden_80"||scene.id=="library_hidden_150"||scene.id=="rack_last_hidden");
-        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit";
+        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit"||scene.id=="color_modules_edit";
         if(scene.theme<7)for(int i=0;i<4;++i){const int type=1+scene.theme*4+i;if(type<skl::kNumRackTypes){processor.addModule(type,i);++expectedCount;}}
+        if(scene.theme==11){const int models[]={skl::SkellDope,skl::SkellMixHead,skl::SkellRubyQ};
+            for(int k=0;k<3;++k)processor.addModule(models[k],k);expectedCount=3;}
         if(scene.theme==8||scene.theme==9){
             const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger};
             for(int k=0;k<4;++k)processor.addModule(models[k],k);
@@ -99,7 +102,7 @@ int main(int argc, char** argv) {
             for(int i=skl::kNumSlots-1;i>=0;--i){ui->revealSlot(i);navOK=ui->slotIsFullyVisible(i)&&ui->fittedRackIsValid()&&navOK;}
             if(expectedLast)ui->revealSlot(7);
         }});
-        // Check all 27 models in both layouts, then restore requested screenshot mode.
+        // Check the current models in both layouts, then restore requested screenshot mode.
         visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->setEditMode(true);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(false);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(edit);}});
         if(scene.id=="catalog_min"||scene.id=="catalog_max")for(int s=0;s<expectedCount;++s)
             for(int k=0;k<skl::info(processor.slotType(s)).numKnobs;++k)

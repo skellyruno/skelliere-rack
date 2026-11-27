@@ -24,7 +24,7 @@ static double rms(const std::vector<float>& v,int start=0,int end=-1){
 static std::vector<float> tone(float freq,float amp=0.15f){std::vector<float> a(48000);for(size_t i=0;i<a.size();++i)a[i]=amp*std::sin(2*kPi*freq*i/48000);return a;}
 static double delta(const std::vector<float>& a,const std::vector<float>& b){double e=0;for(size_t i=0;i<a.size();++i){const auto d=a[i]-b[i];e+=d*d;}return std::sqrt(e/a.size());}
 int main(){
-    static_assert(kNumRackTypes==28&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25&&SkellAirFX==26&&SkellDeEsserFX==27,"Catalog IDs changed");
+    static_assert(kNumRackTypes==31&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25&&SkellAirFX==26&&SkellDeEsserFX==27&&SkellDope==28&&SkellMixHead==29&&SkellRubyQ==30,"Catalog IDs changed");
     for(int t=1;t<kNumRackTypes;++t)require(std::string_view(displayName(t)).rfind("Skell ",0)==0,"Missing Skell prefix");
     const auto quiet=tone(1000,.001f), loud=tone(1000,.2f), low=tone(80),high=tone(8000);
     require(rms(run(Gate,quiet,{{0,-35},{1,48}}),24000)<rms(quiet,24000)*.02,"Gate fails quiet attenuation");
@@ -44,7 +44,7 @@ int main(){
     require(std::abs(slap[0]-.5f)<1e-6,"Slap dry impulse lost");
     require(rms(slap,1,2399)==0,"Slap repeats before configured time");
     require(rms(slap,2400,2500)>0.005,"Slap repeat missing");
-    for(int t=Gate;t<=SkellDeEsserFX;++t){
+    for(int t=Gate;t<kNumRackTypes;++t){
         require(run(t,loud,{},false)==loud,"Disabled new module not bit-exact dry");
         require(run(t,loud,{},true,1)==run(t,loud,{},true,511),"Block size changes new DSP");
         require(resolveRackType(0,t-kNumTypes+1)==t,"New reserved selector mismatch");
@@ -53,5 +53,14 @@ int main(){
     require(delta(run(SkellAirFX,high,{{0,.5f},{1,.5f},{2,1.f}}),high)>.001,"Skell Air has no effect");
     require(run(SkellAirFX,high,{{0,.5f},{1,.5f}},true,1)==run(SkellAirFX,high,{{0,.5f},{1,.5f}},true,511),"Skell Air block dependency");
     require(rms(run(SkellDeEsserFX,high,{{1,-36},{2,12}}),24000)<rms(high,24000)*.9,"De-esser must reduce treble");
-    std::puts("27-effect catalog: legacy IDs, new DSP behavior, bypass and block-size tests passed");
+    require(delta(run(SkellDope,high,{{2,0}}),high)<1e-7,"Dope dry-only is not dry");
+    require(delta(run(SkellDope,high,{{0,0},{2,1}}),run(SkellDope,high,{{0,1},{2,1}}))>.005,"Dope mode has no effect");
+    require(delta(run(SkellDope,high,{{2,1},{3,0}}),run(SkellDope,high,{{2,1},{3,1}}))>.001,"Dope comp has no effect");
+    require(delta(run(SkellMixHead,loud),loud)<1e-7,"Neutral tape must be dry");
+    require(delta(run(SkellMixHead,loud,{{1,1}}),loud)>.005,"Tape drive has no effect");
+    require(delta(run(SkellMixHead,high,{{2,6}}),high)>.005,"Tape tone has no effect");
+    require(rms(run(SkellRubyQ,low,{{0,12}}),24000)>rms(low,24000)*1.8,"Ruby low shelf has no effect");
+    require(rms(run(SkellRubyQ,loud,{{2,-12}}),24000)<rms(loud,24000)*.3,"Ruby mid cut has no effect");
+    require(rms(run(SkellRubyQ,high,{{4,12}}),24000)>rms(high,24000)*1.7,"Ruby high shelf has no effect");
+    std::puts("30-effect catalog: legacy IDs, new DSP behavior, bypass and block-size tests passed");
 }

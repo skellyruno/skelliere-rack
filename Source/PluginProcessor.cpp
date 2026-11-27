@@ -187,14 +187,14 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             for (int i = 0; i < kMaxKnobs; ++i) k[i] = kRaw[s][i]->load();
             const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
             m->process(chunk,k,active);
-            // Real post-effect peak telemetry only for Jet. No audio changes,
+            // Real post-effect peak telemetry for Jet and MixHead. No audio changes,
             // allocations or locking; the existing buffer is read once.
-            if(type==Flanger&&active)measuredJet[s]=juce::jmax(measuredJet[s],chunk.getMagnitude(0,len));
+            if(hasOutputPeak(type)&&active)measuredJet[s]=juce::jmax(measuredJet[s],chunk.getMagnitude(0,len));
         }
     }
 
     for(int s=0;s<kNumSlots;++s) {
-        if(types[s]!=Flanger || onRaw[s]->load()<=.5f || (solo>=0&&solo!=s))
+        if(!hasOutputPeak(types[s]) || onRaw[s]->load()<=.5f || (solo>=0&&solo!=s))
             jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);
         else {
             auto& peak=jetPeak[static_cast<size_t>(s)];

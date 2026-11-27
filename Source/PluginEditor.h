@@ -20,7 +20,17 @@ public:
     void setNativeFace(bool native, bool side=false) { nativeFace_=native; sideReadout_=side; resized(); repaint(); }
     bool controlGeometryValid() const noexcept;
     void setBipolarLegend(float low,float high){if(low<0.f&&high>0.f){rangeLow=juce::String(low,0);rangeHigh="+"+juce::String(high,0);}}
-    juce::Slider slider;
+    // Preserve the same host attachment while providing direct binary switches.
+    struct ControlSlider final : juce::Slider {
+        bool isSwitch() { return bool(getProperties().getWithDefault("colorSwitch",false)); }
+        void mouseDown(const juce::MouseEvent& e) override {
+            if(isSwitch() && !e.mods.isPopupMenu()){grabKeyboardFocus();setValue(getValue()<.5?1.:0.,juce::sendNotificationSync);}
+            else juce::Slider::mouseDown(e);
+        }
+        void mouseDrag(const juce::MouseEvent& e) override { if(!isSwitch())juce::Slider::mouseDrag(e); }
+        void mouseUp(const juce::MouseEvent& e) override { if(!isSwitch())juce::Slider::mouseUp(e); }
+        void mouseDoubleClick(const juce::MouseEvent& e) override { if(!isSwitch())juce::Slider::mouseDoubleClick(e); }
+    } slider;
 private:
     juce::String label_, text_, rangeLow, rangeHigh;
     Fmt fmt_;

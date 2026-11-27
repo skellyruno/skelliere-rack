@@ -2,12 +2,13 @@
 #include <string>
 #include <vector>
 namespace rackcapture {
-struct Args { std::string output="ui-screenshots", error; bool full=false, legacy=false; };
+struct Args { std::string output="ui-screenshots", error; bool full=false, legacy=false, colors=false; };
 inline Args parse(const std::vector<std::string>& argv) {
     Args a; bool outputSet=false;
     for(std::size_t i=0;i<argv.size();++i){
         const auto& v=argv[i];
         if(v=="--full")a.full=true;
+        else if(v=="--color-modules")a.colors=true;
         else if(v=="--output"){
             if(outputSet||i+1>=argv.size()||argv[i+1].empty()||argv[i+1].rfind("--",0)==0){a.error="Invalid --output";return a;}
             a.output=argv[++i];outputSet=true;

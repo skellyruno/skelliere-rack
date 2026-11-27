@@ -8,7 +8,7 @@ constexpr int kNumSlots = 8, kMaxKnobs = 6;
 enum ModuleType : int {
     Empty = 0, Eq, Comp, DeEss, Sat, Air, Chorus, Delay, Reverb, Limiter, Trim, Tune,
     kNumTypes, // compatibility boundary: do not extend the legacy choice parameter
-    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, SkellAirFX, SkellDeEsserFX, kNumRackTypes
+    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, SkellAirFX, SkellDeEsserFX, SkellDope, SkellMixHead, SkellRubyQ, kNumRackTypes
 };
 // Pure selection policy shared by production and host-free regression tests.
 inline int resolveRackType(float legacy, float extension) noexcept {
@@ -17,6 +17,7 @@ inline int resolveRackType(float legacy, float extension) noexcept {
     if (!std::isfinite(extension) || extension < 1 || extension > kNumRackTypes - kNumTypes) return Empty;
     return kNumTypes + (int) std::lround(extension) - 1;
 }
+inline bool hasOutputPeak(int type) noexcept { return type==Flanger || type==SkellMixHead; }
 enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps, Scalar };
 enum Category : int { CatNone=0, CatDynamics, CatTone, CatSpace, CatUtility };
 struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; };
@@ -104,14 +105,20 @@ inline const ModuleInfo& info(int type) {
         {"Air","Dynamic two-band air enhancement","Separate presence and brilliance bands with linked dynamic protection and output trim.",CatTone,4,
          {{"Mid Air",0,1,false,0,Unit::Pct,0,nullptr},{"High Air",0,1,false,0,Unit::Pct,0,nullptr},{"Protection",0,1,false,1,Unit::Pct,0,nullptr},{"Trim",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Air",0,2},{"Control",2,2}},false},
         {"De-Esser","Classic split/wideband","Stereo-linked sibilance control with high-pass or band-pass detector and detector monitor.",CatDynamics,6,
-         {{"Freq",2000,16000,true,6500,Unit::Hz,0,nullptr},{"Threshold",-80,0,false,-30,Unit::Db,0,nullptr},{"Range",0,24,false,8,Unit::Db,0,nullptr},{"Release",5,500,true,65,Unit::Ms,0,nullptr},{"Mode",0,1,false,0,Unit::Steps,2,"Split,Wide"},{"Detector",0,3,false,0,Unit::Steps,4,"HP,BP,HP Listen,BP Listen"}},3,{{"Detect",0,2},{"Reduce",2,2},{"Mode",4,2}},true}
+         {{"Freq",2000,16000,true,6500,Unit::Hz,0,nullptr},{"Threshold",-80,0,false,-30,Unit::Db,0,nullptr},{"Range",0,24,false,8,Unit::Db,0,nullptr},{"Release",5,500,true,65,Unit::Ms,0,nullptr},{"Mode",0,1,false,0,Unit::Steps,2,"Split,Wide"},{"Detector",0,3,false,0,Unit::Steps,4,"HP,BP,HP Listen,BP Listen"}},3,{{"Detect",0,2},{"Reduce",2,2},{"Mode",4,2}},true},
+        {"Dope","Two-mode dynamic color","Independent dynamic high-band color. 361 is broad; 180 is more focused. Dry and Wet are independent levels.",CatTone,5,
+         {{"Mode",0,1,false,0,Unit::Steps,2,"361,180"},{"Dry",0,1,false,1,Unit::Pct,0,nullptr},{"Wet",0,1,false,.35f,Unit::Pct,0,nullptr},{"Comp",0,1,false,.35f,Unit::Pct,0,nullptr},{"Level",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Mode",0,1},{"Blend",1,4}},false},
+        {"MixHead","Oversampled tape color","Independent 4x tape-color candidate with speed, bias and level controls; not a reference recreation.",CatTone,6,
+         {{"Input",-12,12,false,0,Unit::Db,0,nullptr},{"Drive",0,1,false,0,Unit::Pct,0,nullptr},{"Tone",-6,6,false,0,Unit::Db,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr},{"Speed",0,1,false,1,Unit::Steps,2,"Slow,Fast"},{"Bias",0,1,false,0,Unit::Steps,2,"Even,Odd"}},3,{{"Tape",0,2},{"Level",2,2},{"Mode",4,2}},false},
+        {"RubyQ","Broad three-band EQ","Independent broad low shelf, mid bell and high shelf with variable frequencies.",CatTone,6,
+         {{"Low",-12,12,false,0,Unit::Db,0,nullptr},{"Low Hz",40,300,true,100,Unit::Hz,0,nullptr},{"Mid",-12,12,false,0,Unit::Db,0,nullptr},{"Mid Hz",250,5000,true,1000,Unit::Hz,0,nullptr},{"High",-12,12,false,0,Unit::Db,0,nullptr},{"High Hz",2500,16000,true,8000,Unit::Hz,0,nullptr}},3,{{"Low",0,2},{"Mid",2,2},{"High",4,2}},false}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 // User-facing branding is separate from the legacy host choice strings.
 // Preserve host choice names and all normalized automation/state identities.
 inline const char* displayName(int type) noexcept {
-    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air","Skell De-Esser"};
+    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air","Skell De-Esser","Skell Dope","Skell MixHead","Skell RubyQ"};
     return names[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 inline float toNorm(const Knob& k,float v) {

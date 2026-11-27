@@ -65,7 +65,7 @@ void KnobCell::paint(Graphics& g) {
     // The slider clips its own paint to its square. Render only the matching
     // outside portion of the cached knob shadow here, behind the child.
     // This keeps the original cap size while allowing a real cast shadow.
-    if(!compact_&&!slider.getBounds().isEmpty()){
+    if(!compact_&&!slider.isSwitch()&&!bool(slider.getProperties().getWithDefault("blackSelector",false))&&!slider.getBounds().isEmpty()){
         juce::Graphics::ScopedSaveState save(g);
         const auto b=slider.getBounds().toFloat();
         const float capR=b.getWidth()*(b.getWidth()<61.f?.397f:.405f);
@@ -210,6 +210,13 @@ void SlotComponent::rebuild() {
             auto cell = std::make_unique<KnobCell>(k.label, *param, [k](double v) { return knobText(k, (float) v); },
                                                    capColour(mi.cat), pointerColour(mi.cat), (double) defaultNorm(type, j),
                                                    k.steps > 1 ? 1.0 / (double) (k.steps - 1) : 0.0);
+            if((type==SkellDope||type==SkellMixHead)&&k.steps==2){
+                cell->slider.getProperties().set("colorSwitch",true);
+                cell->slider.getProperties().set("dopeSwitch",type==SkellDope);
+                cell->slider.setTooltip("Click to switch mode");
+                cell->slider.setWantsKeyboardFocus(true);
+            }
+            if(type==SkellRubyQ||type==SkellMixHead)cell->slider.getProperties().set("blackSelector",true);
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
             cells.push_back(std::move(cell));
@@ -284,7 +291,7 @@ void SlotComponent::syncPowerVisual() {
 }
 
 void SlotComponent::setOutputPeak(float peak) {
-    if(type!=Flanger||vuRect.isEmpty())return;
+    if(!hasOutputPeak(type)||vuRect.isEmpty())return;
     const float target=peak>1e-5f&&std::isfinite(peak)?juce::jmax(-60.f,20.f*std::log10(peak)):-60.f;
     const float next=juce::jmax(target,outputDb-1.5f);
     if(std::abs(next-outputDb)>.05f){outputDb=next;repaint(vuRect.expanded(2));}
@@ -380,7 +387,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
-        if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,type==Flanger,MeterLayer::plate);
+        if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(mi.numKnobs==5&&!layout.meter.isEmpty()){
             const float y=float(layout.cells[4].getCentreY());
@@ -412,7 +419,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
     if(type==SkellDeEsserFX)
         paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
-    if(type==Flanger&&!vuRect.isEmpty()){
+    if(hasOutputPeak(type)&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);
 
     }else if(mi.hasVU&&!vuRect.isEmpty()){
@@ -838,7 +845,7 @@ void RackUI::timerCallback() {
     meters.setLevels(inShown, outShown);
     for (int s = 0; s < kNumSlots; ++s) {
         strip.slots[(size_t) s]->setMeter(proc.gainReduction(s));
-        if(proc.slotType(s)==Flanger){
+        if(hasOutputPeak(proc.slotType(s))){
             const float peak=proc.takeJetPeak(s);
             strip.slots[(size_t)s]->setOutputPeak(!bypass&&proc.slotOn(s)&&(solo<0||solo==s)?peak:0.f);
         }

@@ -611,6 +611,26 @@ public:
         const bool light=bool(s.getProperties().getWithDefault("lightFace",false));
         const bool utility=size<61.f;
         const float p=juce::jlimit(0.f,1.f,pos),angle=a0+p*(a1-a0);
+        if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
+            auto r=juce::Rectangle<float>(cx-size*.31f,cy-size*.35f,size*.62f,size*.70f);
+            g.setColour(Colour(0xff100f0c));g.fillRoundedRectangle(r.expanded(3.f),4.f);
+            g.setColour(Colour(0xffb2a28c).withAlpha(.7f));g.drawRoundedRectangle(r.expanded(2.f),4.f,1.f);
+            const bool dope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
+            for(int i=0;i<2;++i){
+                auto a=r.withY(r.getY()+i*r.getHeight()*.5f).withHeight(r.getHeight()*.5f).reduced(1.3f);
+                const bool on=(p>=.5f)==(i==1);const auto c=i==0?Colour(0xfff1a23b):Colour(dope?0xff48b8f7:0xffd9cdb3);
+                g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.45f):c.darker(2.f),a.getY(),on?c.darker(.32f):Colour(0xff1a1713),a.getBottom()));g.fillRoundedRectangle(a,2.f);
+                g.setColour(on?c.brighter(.7f):Colour(0xff776954));g.drawRoundedRectangle(a,2.f,.8f);
+                if(on){g.setColour(juce::Colours::white.withAlpha(.4f));g.drawHorizontalLine(int(a.getY()+2),a.getX()+3,a.getRight()-3);}
+            }
+            return;
+        }
+        if(bool(s.getProperties().getWithDefault("blackSelector",false))){
+            const float rad=size*.36f;g.setColour(juce::Colours::black.withAlpha(.75f));g.fillEllipse(cx-rad,cy-rad+2,rad*2,rad*2);
+            g.drawImage(machinedCap(Colour(0xff35322d)),juce::Rectangle<float>(cx-rad,cy-rad,rad*2,rad*2));
+            const auto ink=Colour(0xffe5c27c);for(int i=0;i<=10;++i){const float a=a0+(a1-a0)*i/10.f;g.setColour(ink.withAlpha(i%5==0?1.f:.65f));g.drawLine(cx+std::sin(a)*rad*1.14f,cy-std::cos(a)*rad*1.14f,cx+std::sin(a)*rad*1.27f,cy-std::cos(a)*rad*1.27f,1.f);}
+            g.setColour(ink);g.drawLine(cx+std::sin(angle)*rad*.4f,cy-std::cos(angle)*rad*.4f,cx+std::sin(angle)*rad*.9f,cy-std::cos(angle)*rad*.9f,1.9f);return;
+        }
         // Nearly all of the original rack knob area is now the actual metal
         // cap rather than a small cap surrounded by Necromancer's black well.
         const float capR=size*(utility?.397f:.405f);
