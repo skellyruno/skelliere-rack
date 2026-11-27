@@ -115,6 +115,7 @@ public:
     virtual void process(juce::AudioBuffer<float>& b, const float* k, bool active) = 0;
     virtual float meter() const { return 0.0f; }   // gain reduction in dB, read by the UI thread
     virtual int latency() const { return 0; }
+    virtual void setTempo(double) noexcept {}
 };
 
 // ---------------------------------------------------------------- Quad EQ

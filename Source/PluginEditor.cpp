@@ -333,6 +333,7 @@ void SlotComponent::rebuild() {
             if(type==SkellSSL){if(j==0)k.label="E/G";if(extIndex==SslThreshold)k.label="THRESH";if(extIndex==SslRatio)k.label="RATIO";}
             auto* param=proc.apvts.getParameter(ext?SkellierProcessor::sslId(index,extIndex):SkellierProcessor::knobId(index,j));
             auto cell=std::make_unique<KnobCell>(k.label,*param,[k,extIndex,type=type](double n){
+                if(type==EchoUnified&&extIndex<0&&juce::String(k.label)=="Time / Sync")return knobText(k,float(n))+" / "+juce::StringArray{"1/16","1/8","1/8 D","1/4","1/4 D","1/2"}[juce::jlimit(0,5,int(std::lround(n*5)))];
                 if(type!=SkellSSL)return knobText(k,float(n));
                 const float v=extIndex>=0?sslReal(extIndex,float(n)):toReal(k,float(n));
                 if(extIndex==SslHP&&v<16.5f)return juce::String("OFF");
@@ -469,8 +470,8 @@ void SlotComponent::setMeter(float gr) {
     const auto now=juce::Time::getMillisecondCounterHiRes();
     const float elapsed=lastMeterTime>0?static_cast<float>((now-lastMeterTime)*.001):1.0f/30.0f;
     lastMeterTime=now;
-    needle=smoothReduction(needle,gr,elapsed);
-    if (std::fabs(needle - shownNeedle) > 0.04f) {
+    needle=(type==StereoUnified||type==VoxRider)?gr+(needle-gr)*float(std::exp(-elapsed*15.f)):smoothReduction(needle,gr,elapsed);
+    if (std::fabs(needle - shownNeedle) > (type==StereoUnified?.01f:.04f)) {
         shownNeedle = needle;
         repaint(vuRect.expanded(2));
     }
@@ -562,7 +563,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         }
         const auto layout=originalLayout(type,w,editing);
-        if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
+        if(!layout.detail.isEmpty()){const int art=legacyArtworkType(type);if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),art);else if(art==Reverb||art==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),art);else if(art==Sat||art==SoftClip||art==Eq||art==Tremolo||art==Phaser||art==Stereo||art==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),art);else paintTapeDetail(pg,layout.detail.toFloat(),art==Delay&&nativeChoice==1);}
         if(type==SkellSSL){
             const int split=w*46/100,left=10,right=split+6,lw=split-15,rw=w-right-10;
             const auto console=Rectangle<float>(11,75,float(w-22),float(tallPanelY(548)-75));
@@ -605,6 +606,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.setColour(ink.withAlpha(.62f));pg.setFont(font(8.4f,true).withExtraKerningFactor(.11f));
             pg.drawFittedText("DIGITAL TAPE SATURATION",Rectangle<int>(12,tallPanelY(518),w-24,18),juce::Justification::centred,1);
         }
+        else if((type==StereoUnified||type==VoxRider)&&!layout.meter.isEmpty())paintRecessedWindow(pg,layout.meter.toFloat(),4.f);
         else if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(type!=SkellDope&&mi.numKnobs==5&&!layout.meter.isEmpty()){
@@ -631,11 +633,11 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     if(!detail.isEmpty()&&g.clipRegionIntersects(detail)){
         // Repaint only the optical scene; the heavy chassis/faceplate stays cached.
         juce::Graphics::ScopedSaveState scene(g);g.reduceClipRegion(detail);
-        const auto r=detail.toFloat();const auto& m=artworkMotion;
-        if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,type,m.phase,m.level,false);
-        else if(type==Reverb||type==Chorus)paintSpaceDetail(g,r,type,m.phase,m.level,false);
-        else if(type==Delay||type==Slap)paintTapeDetail(g,r,type==Delay&&nativeChoice==1,m.left,m.right,m.phase);
-        else paintWorkshopDetail(g,r,type,m.phase,m.level,false);
+        const auto r=detail.toFloat();const auto& m=artworkMotion;const int art=legacyArtworkType(type);
+        if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,art,m.phase,m.level,false);
+        else if(art==Reverb||art==Chorus)paintSpaceDetail(g,r,art,m.phase,m.level,false);
+        else if(art==Delay||art==Slap)paintTapeDetail(g,r,art==Delay&&nativeChoice==1,m.left,m.right,m.phase);
+        else paintWorkshopDetail(g,r,art,m.phase,m.level,false);
     }
     if(type==DeEss&&!editing)
         paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
@@ -649,6 +651,12 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     }else if(hasOutputPeak(type)&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);
 
+    }else if((type==StereoUnified||type==VoxRider)&&!vuRect.isEmpty()){
+        const auto r=vuRect.toFloat().reduced(12.f);const float full=type==StereoUnified?1.f:18.f;
+        g.setColour(Colour(0xffd8dbcc));g.setFont(font(12.f,true));g.drawFittedText(type==StereoUnified?"CORRELATION":"GAIN RIDE",r.withHeight(20).toNearestInt(),juce::Justification::centred,1);
+        auto track=r.withY(r.getCentreY()-3.f).withHeight(7.f);g.setColour(Colour(0xff38433e));g.fillRoundedRectangle(track,2.f);
+        const float x=track.getCentreX()+.5f*track.getWidth()*juce::jlimit(-1.f,1.f,needle/full);g.setColour(needle<0?Colour(0xffd9a56a):Colour(0xffa8d4ae));g.fillRect(juce::Rectangle<float>(std::min(x,track.getCentreX()),track.getY(),std::abs(x-track.getCentreX()),track.getHeight()));
+        g.setColour(Colour(0xffd8dbcc));g.drawVerticalLine(int(track.getCentreX()),track.getY()-2.f,track.getBottom()+2.f);g.setFont(font(14.f));g.drawFittedText(juce::String(needle,type==StereoUnified?2:1)+(type==VoxRider?" dB":""),r.withY(track.getBottom()+7).withHeight(20).toNearestInt(),juce::Justification::centred,1);
     }else if(mi.hasVU&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),needle,false,MeterLayer::needle);
 
@@ -675,7 +683,7 @@ void SlotComponent::mouseDown(const juce::MouseEvent& e) {
         const char* labels[]={"Dynamics","Tone / EQ","Modulation / Space","Utility"};
         for(int i=0;i<4;++i){
             juce::PopupMenu group;
-            for(int t=1;t<kNumRackTypes;++t)if(info(t).cat==cats[i])
+            for(int t=1;t<kNumRackTypes;++t)if(catalogVisible(t)&&info(t).cat==cats[i])
                 group.addItem(100+t,displayName(t));
             menu.addSubMenu(labels[i],group);
         }
@@ -800,9 +808,10 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     tileViewport.setScrollBarsShown(true, false);
     tileViewport.setScrollBarThickness(6);
     addAndMakeVisible(tileViewport);
-    std::vector<int> order{Comp,Bell,Delay,Flanger,Eq,DeEss,Sat,Air};
+    std::vector<int> order{NoiseGateUnified,VoxRider,DynamicEQ,Multiband,Resonance,ProgramOpto,DeEsserUnified,AirUnified,Doubler,Exciter};
     for(int t=Eq;t<kNumRackTypes;++t)if(std::find(order.begin(),order.end(),t)==order.end())order.push_back(t);
     for(int t:order) {
+        if(!catalogVisible(t))continue;
         auto* tile = new ModuleTile(t, [this](int type) { select(type); }, [this](int type) { proc.addModule(type, -1); });
         tiles.add(tile);
         tileContent.addAndMakeVisible(tile);
@@ -811,7 +820,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     infoLabel.setColour(juce::Label::textColourId, pal::inkDim);
     infoLabel.setJustificationType(juce::Justification::topLeft);
     infoLabel.setMinimumHorizontalScale(1.0f);
-    infoLabel.setText(juce::String(skl::kNumRackTypes-1)+" original Skell effects. Double-click or drag a module into the rack.",juce::dontSendNotification);
+    infoLabel.setText(juce::String(skl::activeCatalogCount())+" Skell effects. Double-click or drag a module into the rack.",juce::dontSendNotification);
     addAndMakeVisible(infoLabel);
     refresh();
 }

@@ -109,12 +109,12 @@ private:
 // Four-line feedback delay network; allocation happens only in prepare().
 class FDNReverb {
 public:
-    void prepare(double sampleRate) {
+    void prepare(double sampleRate,double size=1.0) {
         ready_ = false;
         rate_ = detail::safeSampleRate(sampleRate);
         constexpr std::array<double, 4> delays { .0297, .0371, .0411, .0437 };
         for (std::size_t i = 0; i < 4; ++i) {
-            lengths_[i] = std::max<std::size_t>(31, static_cast<std::size_t>(rate_ * delays[i]) | 1U);
+            lengths_[i] = std::max<std::size_t>(31, static_cast<std::size_t>(rate_ * delays[i] * std::clamp(size,.4,2.0)) | 1U);
             lines_[i].assign(lengths_[i], 0.0f);
         }
         reset();

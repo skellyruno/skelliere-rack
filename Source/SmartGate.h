@@ -5,6 +5,7 @@ namespace skl {
 // Threshold is minimum opening level; adaptive threshold is at most +10 dB.
 class SmartGateModule final : public ModuleBase {
 public:
+    explicit SmartGateModule(int t=SmartGate):type(t){}
     void prepare(double sr,int,int) override {
         rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,384000.);
         hp.highPass(rate,85);lp.lowPass(rate,8000);
@@ -19,12 +20,12 @@ public:
     float meter()const override{return gr.load(std::memory_order_relaxed);}
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         const int ch=std::min(2,b.getNumChannels()),n=b.getNumSamples();if(!ch||!n)return;
-        float target[4];for(int j=0;j<4;++j)target[j]=std::isfinite(k[j])?std::clamp(k[j],0.f,1.f):defaultNorm(SmartGate,j);
-        if(!seed){std::copy(target,target+4,p);update();gainDb=-range;wet=active?1.f:0.f;seed=true;}
+        const int count=info(type).numKnobs;float target[6]{};for(int j=0;j<count;++j)target[j]=std::isfinite(k[j])?std::clamp(k[j],0.f,1.f):defaultNorm(type,j);
+        if(!seed){std::copy(target,target+count,p);update();gainDb=-range;wet=active?1.f:0.f;seed=true;}
         const float step=float(1/(.025*rate)),fade=float(1/(.005*rate));
         float* l=b.getWritePointer(0);float* r=ch==2?b.getWritePointer(1):nullptr;
         for(int i=0;i<n;++i){
-            for(int j=0;j<4;++j){const float next=p[j]+std::clamp(target[j]-p[j],-step,step);dirty|=next!=p[j];p[j]=next;}
+            for(int j=0;j<count;++j){const float next=p[j]+std::clamp(target[j]-p[j],-step,step);dirty|=next!=p[j];p[j]=next;}
             if((updateCounter++&31)==0&&dirty){update();dirty=false;}
             const float x=sane(l[i]),y=r?sane(r[i]):x;
             const float a=lp.process(0,hp.process(0,std::clamp(x,-8.f,8.f)));
@@ -42,7 +43,7 @@ public:
                     floor+=(bounded-floor)*(bounded>floor?.045f:.20f);
                 }
                 floor=std::clamp(floor,db2g(-85),base*2.f);
-                trigger=std::clamp(floor*3.16f,base,base*3.16f);
+                trigger=type==NoiseGateUnified&&p[5]<.5f?base:std::clamp(floor*3.16f,base,base*3.16f);
             }
             const float detected=std::max(std::sqrt(std::max(energy,0.f)),peak*.55f);
             if(detected>=trigger){open=true;holdLeft=holdSamples;}
@@ -60,8 +61,8 @@ public:
         gr.store(-g2db(std::max(1e-6f,1.f+wet*(db2g(gainDb)-1.f))),std::memory_order_relaxed);
     }
 private:
-    void update(){base=db2g(realOf(SmartGate,0,p));range=realOf(SmartGate,1,p);holdSamples=int(rate*.001*realOf(SmartGate,2,p));closePole=onePole(rate,realOf(SmartGate,3,p));trigger=std::clamp(floor*3.16f,base,base*3.16f);}
-    Biquad hp,lp;double rate=48000;float p[4]{},energy=0,peak=0,frameEnergy=0,framePeak=0,floor=.000125f,gainDb=0,wet=1,previousFrame=0;
+    void update(){base=db2g(realOf(SmartGate,0,p));range=realOf(SmartGate,1,p);holdSamples=int(rate*.001*realOf(SmartGate,2,p));closePole=onePole(rate,realOf(SmartGate,3,p));if(type==NoiseGateUnified)openPole=onePole(rate,realOf(type,4,p));trigger=type==NoiseGateUnified&&p[5]<.5f?base:std::clamp(floor*3.16f,base,base*3.16f);}
+    int type;Biquad hp,lp;double rate=48000;float p[6]{},energy=0,peak=0,frameEnergy=0,framePeak=0,floor=.000125f,gainDb=0,wet=1,previousFrame=0;
     float rmsPole=0,peakPole=0,openPole=0,closePole=0,base=.004f,trigger=.004f,range=42.f;
     int frameLength=480,counter=0,holdLeft=0,holdSamples=0,stable=0;unsigned updateCounter=0;bool seed=false,open=false,dirty=true;std::atomic<float> gr{0};
 };

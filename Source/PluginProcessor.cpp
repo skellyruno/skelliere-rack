@@ -182,6 +182,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         types[s] = slotType(s);
         if (types[s] == Tune && tuneSlot < 0) tuneSlot = s;
     }
+    double bpm=120.;if(auto* ph=getPlayHead())if(auto pos=ph->getPosition())if(auto value=pos->getBpm())bpm=*value;
     const int solo = soloSlot.load();
     float measuredJet[kNumSlots]{};
 
@@ -200,6 +201,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             for (int i = 0; i < kMaxKnobs; ++i) k[i] = kRaw[s][i]->load();
             const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
             if(type==SkellSSL){std::array<float,kSslExtraCount> ext{};for(int j=0;j<kSslExtraCount;++j)ext[j]=sslRaw[s][j]->load(std::memory_order_relaxed);static_cast<RecoveredSSL*>(m)->setExtended(ext);}
+            if(type==EchoUnified)m->setTempo(bpm);
             m->process(chunk,k,active);
             // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,
             // allocations or locking; the existing buffer is read once.

@@ -1,5 +1,6 @@
 #pragma once
 #include <cmath>
+#include <algorithm>
 namespace skl {
 // Original Rack tape residual path; zero-amount fast path advances the exact same state.
 class AlignedTape4x {
@@ -13,7 +14,7 @@ public:
     }
     void reset() noexcept {for(auto& c:channels)c={};}
     struct Result {float dry,color;};
-    Result process(int c,float x,float input,float amount,float drive,float bias,float biasZero) noexcept {
+    Result process(int c,float x,float input,float amount,float drive,float bias,float biasZero,bool hard=false) noexcept {
         auto& s=channels[c];s.history[s.w]=x;const float dry=s.history[(s.w-delay)&15];float color=0;
         // r starts at zero and advances four entries per call, so this group
         // cannot wrap within the four stores. Preserve history for reactivation.
@@ -21,7 +22,7 @@ public:
             for(int j=0;j<4;++j)s.residual[s.r+j]=0;
             s.r=(s.r+4)&63;s.w=(s.w+1)&15;return {dry,0};
         }
-        for(int j=0;j<4;++j){float residual=0;if(amount>0){float v=0;for(int k=j,m=0;k<49;k+=4,++m)v+=h[k]*s.history[(s.w-m)&15];v*=4*input;residual=(std::tanh(drive*v+bias)-biasZero)/drive-v;}s.residual[s.r]=residual;
+        for(int j=0;j<4;++j){float residual=0;if(amount>0){float v=0;for(int k=j,m=0;k<49;k+=4,++m)v+=h[k]*s.history[(s.w-m)&15];v*=4*input;residual=hard?std::clamp(v,-1.f,1.f)-v:(std::tanh(drive*v+bias)-biasZero)/drive-v;}s.residual[s.r]=residual;
             if(j==0&&amount>0){for(int k=0;k<49;++k)color+=h[k]*s.residual[(s.r-k)&63];}
             s.r=(s.r+1)&63;
         }
