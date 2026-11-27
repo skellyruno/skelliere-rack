@@ -23,7 +23,7 @@ static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
 }
 // Two independent real meter scales: gain reduction in dB and output peak in dBFS.
 static void paintSSLReduction(Graphics& g,Rectangle<float> r,float db,float peak,bool plate){
-    if(plate){paintHardwarePlate(g,r,Colour(0xff242725),false,3.f,2.2f);paintRecessedWindow(g,r.reduced(4.f),2.f);return;}
+    if(plate){paintHardwarePlate(g,r,Colour(0xff242725),false,3.f,2.2f);auto glass=r.reduced(4.f);paintRecessedWindow(g,glass,2.f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe0e8df).withAlpha(.15f),glass.getY(),juce::Colours::transparentWhite,glass.getY()+7.f));g.fillRect(glass.reduced(1.f).withHeight(6.f));return;}
     const float left=r.getX()+8.f,width=r.getWidth()-16.f;const int n=16;const float step=width/n;
     auto line=[&](float y,const char* label,float value,int lit,bool output){
         g.setColour(Colour(0xffc9cfc1));g.setFont(font(7.8f,true));
@@ -281,8 +281,7 @@ void SlotComponent::rebuild() {
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
-            if(type==SkellDope){cell->slider.getProperties().set("houseTint",juce::String("ff353431"));if(j>0){cell->slider.getProperties().set("consoleCell",true);cell->slider.getProperties().set("dopeRow",true);}}
-            if(type==SkellRubyQ)cell->slider.getProperties().set("houseTint",juce::String("ff665444"));
+            if(type==SkellDope&&j>0){cell->slider.getProperties().set("consoleCell",true);cell->slider.getProperties().set("dopeRow",true);}
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
             if(type==SkellSSL){
                 cell->slider.getProperties().set("consoleCell",true);
@@ -331,7 +330,7 @@ void SlotComponent::syncArtwork() {
         c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
         c->slider.getProperties().set("ptr",(int)Colour(0xff191510).getARGB());
         c->slider.getProperties().set("silverCap",choice==2);
-        if(type==SkellDope)c->slider.getProperties().set("houseTint",spec.light?juce::String("ff353431"):juce::String());
+        if(type==SkellDope||type==SkellRubyQ)c->slider.getProperties().remove("houseTint");
         c->slider.repaint();
     }
     resized();repaint();
@@ -459,11 +458,11 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         if(type==SkellSSL){
-            pg.setColour(Colour(0xff111514));pg.fillRect(juce::Rectangle<float>(13,29,float(w-26),48));
-            pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(77,10.f,float(w-10));
-            paintMonogram(pg,Rectangle<float>(18,39,15,21),Colour(0xffe0ded2));
-            pg.setColour(Colour(0xffe0ded2));pg.setFont(font(16.f,true).withExtraKerningFactor(.045f));pg.drawText("SSL STRIP",40,32,w-53,23,juce::Justification::centredLeft);
-            pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",40,55,w-53,14,juce::Justification::centredLeft);
+            pg.setColour(Colour(0xff111514));pg.fillRect(juce::Rectangle<float>(10,25,float(w-20),43));
+            pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(68,10.f,float(w-10));
+            paintMonogram(pg,Rectangle<float>(16,33,14,20),Colour(0xffe0ded2));
+            pg.setColour(Colour(0xffe0ded2));pg.setFont(font(16.f,true).withExtraKerningFactor(.045f));pg.drawText("SSL STRIP",36,28,w-48,23,juce::Justification::centredLeft);
+            pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",36,49,w-48,13,juce::Justification::centredLeft);
         }else{
         paintMonogram(pg,Rectangle<float>(w*.5f-11,12,22,29),ink);
         pg.setColour(ink);pg.setFont(font(14.5f,false).withExtraKerningFactor(.22f));
@@ -483,18 +482,18 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
         if(type==SkellSSL){
-            const int lane=(w-30)/2;
-            pg.setColour(Colour(0xff242826));pg.fillRect(13,84,w-26,tallPanelY(531)-84);
-            paintPeened(pg,Rectangle<float>(13,84,float(w-26),float(tallPanelY(531)-84)),.53f);
-            paintAnalogWear(pg,Rectangle<float>(13,84,float(w-26),float(tallPanelY(531)-84)),false,4632,.48f);
-            pg.setColour(Colour(0xff292d2c));pg.drawVerticalLine(15+lane,84,tallPanelY(531));
+            const int lane=(w-24)/2;
+            pg.setColour(Colour(0xff202321));pg.fillRect(10,75,w-20,tallPanelY(548)-75);
+            paintPeened(pg,Rectangle<float>(10,75,float(w-20),float(tallPanelY(548)-75)),.53f);
+            paintAnalogWear(pg,Rectangle<float>(10,75,float(w-20),float(tallPanelY(548)-75)),false,4632,.48f);
+            pg.setColour(Colour(0xff292d2c));pg.drawVerticalLine(12+lane,75,tallPanelY(548));
             auto section=[&](int x,int y,int ww,const char* label){
                 pg.setColour(Colour(0xff5c625e).withAlpha(.8f));y=tallPanelY(y);pg.drawHorizontalLine(y,float(x),float(x+ww));
                 pg.setColour(Colour(0xffdfdfd4));pg.setFont(font(9.f,true).withExtraKerningFactor(.025f));
                 pg.drawFittedText(label,Rectangle<int>(x+2,y+2,ww-4,15),juce::Justification::centredLeft,1);
             };
-            section(14,85,lane-2,"INPUT");section(14,157,lane-2,"FILTERS");section(14,229,lane-2,"COMPRESSOR");section(14,351,lane-2,"GATE / EXP");section(14,473,lane-2,"OUTPUT");
-            section(16+lane,85,lane-2,"EQ / HF");section(16+lane,175,lane-2,"HMF");section(16+lane,265,lane-2,"LMF");section(16+lane,355,lane-2,"LF");section(16+lane,445,lane-2,"DYNAMICS / OUT");
+            section(10,85,lane-2,"INPUT");section(10,157,lane-2,"FILTERS");section(10,229,lane-2,"COMPRESSOR");section(10,351,lane-2,"GATE / EXP");section(10,473,lane-2,"OUTPUT");
+            section(14+lane,85,lane-2,"EQUALIZER / HF");section(14+lane,175,lane-2,"HMF");section(14+lane,265,lane-2,"LMF");section(14+lane,355,lane-2,"LF");section(14+lane,445,lane-2,"DYNAMICS / OUT");
             paintSSLReduction(pg,layout.meter.toFloat(),0,-60,true);
         }
         else if(type==SkellDope){

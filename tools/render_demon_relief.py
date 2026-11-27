@@ -107,12 +107,12 @@ def skull_mesh(mesh):
 def build_static():
     m=Mesh()
     # Back spine and six separate curved ribs, no flat diagram lines.
-    for i in range(12):ellipsoid(m,(0,-.20-i*.073,-.16),(.093,.052,.084),3)
+    for i in range(16):ellipsoid(m,(0,-.20-i*.073,-.16),(.101,.052,.094),3)
     for side in (-1,1):
         X=lambda x:side*x
-        for i in range(7):
-            y=-.255-i*.104;w=.63-i*.040
-            tube(m,[(X(.06),y+.04,-.17),(X(w*.72),y+.065,-.11),(X(w),y-.015,.10),(X(w*.72),y-.10,.27),(X(.07),y-.08,.30)], [.044,.048,.052,.039,.027],0,26,12)
+        for i in range(10):
+            y=-.255-i*.105;w=.70-i*.032
+            tube(m,[(X(.06),y+.04,-.17),(X(w*.72),y+.065,-.11),(X(w),y-.015,.10),(X(w*.72),y-.10,.27),(X(.07),y-.08,.30)], [.046,.051,.057,.042,.028],0,32,16)
         tube(m,[(X(.04),-.20,.22),(X(.34),-.14,.23),(X(.56),-.19,.12),(X(.68),-.14,.06)],[.065,.065,.074,.05],0,22)
         # Scapula spike and skeletal shoulder joint.
         tube(m,[(X(.45),-.23,-.02),(X(.64),-.15,-.02),(X(.87),.13,-.07)],[.14,.092,.002],3,18)
@@ -130,10 +130,11 @@ def build_static():
         # Small horn roots join the cranium, avoiding floating cones.
         ellipsoid(m,(X(.37),.68,.04),(.16,.17,.14),0)
     # Front sternum and rib anchors.
-    for i in range(7):ellipsoid(m,(0,-.34-i*.091,.29),(.057,.052,.039),0)
+    tube(m,[(0,-.25,.28),(0,-.48,.32),(0,-.80,.31),(0,-1.13,.26)],[.066,.078,.064,.024],0,40,18)
+    for i in range(10):ellipsoid(m,(0,-.34-i*.091,.32),(.063,.050,.031),0)
     # Broaden the shoulder girdle, keep the ribs and sternum in perspective.
     for k in range(len(m.v)):
-        vv=m.v[k]; factor=1.0+.21*np.clip((-vv[:,1]+.12)/.65,0,1)*np.clip((vv[:,1]+1.18)/.40,0,1)
+        vv=m.v[k]; factor=1.0+.26*np.clip((-vv[:,1]+.12)/.65,0,1)*np.clip((vv[:,1]+1.18)/.40,0,1)
         vv[:,0]*=factor
         m.n[k][:,0]/=factor
         m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
@@ -233,16 +234,16 @@ def render(mesh):
     vis/=9
     N=nn;D=np.maximum(N@L,0);rimdir=np.array([.71,.14,-.68]);rimdir/=np.linalg.norm(rimdir);rim=np.maximum(N@rimdir,0)
     camera=np.array([0.,0.,CAM]);view=camera-pp;view/=np.maximum(1e-6,np.linalg.norm(view,axis=1,keepdims=True));half=L+view;half/=np.linalg.norm(half,axis=1,keepdims=True)
-    spec=np.maximum(np.sum(N*half,axis=1),0)**24 * vis
+    spec=np.maximum(np.sum(N*half,axis=1),0)**38 * vis
     fres=(1-np.maximum(np.sum(N*view,axis=1),0))**2
     # Pitted, ridged bone rather than polished plastic. Multi-frequency material
     # variation is spatially stable over all nine animation frames.
     pore=np.sin(pp[:,0]*113+np.sin(pp[:,1]*57))*np.sin(pp[:,1]*127+np.sin(pp[:,2]*63))*np.sin(pp[:,2]*131+pp[:,0]*61)
-    texture=.82+.085*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.09*np.maximum(pore,0)**3
-    colors=np.array([[.53,.071,.052],[1.0,.14,.008],[.70,.145,.085],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
+    texture=.79+.11*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.17*np.maximum(pore,0)**3
+    colors=np.array([[.48,.050,.037],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
     rgb=colors*texture[:,None]*(.049+1.43*D[:,None]*vis[:,None])
     rgb+=np.array([.61,.065,.030])*rim[:,None]*(.50+.50*fres[:,None])
-    rgb+=np.array([.93,.46,.29])*spec[:,None]*(.38+.22*texture[:,None])
+    rgb+=np.array([.93,.46,.29])*spec[:,None]*(.19+.16*texture[:,None])
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.
     rgb+=np.array([.085,.010,.005])*np.maximum(-N[:,1],0)[:,None]
     emissive=mat[mask]==1;hot=mat[mask]==4

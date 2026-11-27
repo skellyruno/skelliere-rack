@@ -41,30 +41,37 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==SkellDemon){
-        l.detail={7,101,width-14,272};
-        const int cw=(width-24)/3,rh=(editing?519:547)-376;
-        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,376+(k/3)*(rh/2),cw,rh/2-3};
+        l.detail={7,101,width-14,290};
+        const int cw=(width-24)/3,rh=(editing?519:547)-394;
+        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,394+(k/3)*(rh/2),cw,rh/2-3};
         return l;
     }
     if(type==SkellSSL){
         // Console proportions: compact input/filter/dynamics on the left,
         // four full EQ bands on the right. The six original automation slots
         // and the appended SSL controls are placed independently.
-        const int lane=(width-30)/2, left=14,right=16+lane;
+        const int lane=(width-24)/2, left=10,right=14+lane;
         auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
         row(left,102,53,{e(SslInput),e(SslPhase),0});
         row(left,174,53,{e(SslHP),e(SslLP)});
-        row(left,246,53,{5,e(SslThreshold),e(SslRatio)});
+        row(left,246,53,{e(SslThreshold),e(SslRatio),5});
         row(left,300,49,{e(SslRelease),e(SslFast)});
         row(left,368,51,{e(SslExpThreshold),e(SslExpRange)});
         row(left,420,51,{e(SslExpRelease),e(SslGate)});
         row(left,484,43,{e(SslOutput)});
-        row(right,103,71,{4,e(SslHFFreq),e(SslHFBell)});
-        row(right,193,71,{3,e(SslHMFreq),e(SslHMQ)});
-        row(right,283,71,{2,e(SslLMFreq),e(SslLMQ)});
-        row(right,373,71,{1,e(SslLFFreq),e(SslLFBell)});
-        l.meter={right+2,463,lane-4,64};return l;
+        // Console EQ: primary coloured gain at left, frequency and shape/Q
+        // stacked at right, like a physical channel strip rather than three
+        // equal-width knobs. Leave every original parameter attached.
+        auto band=[&](int y,int gain,int freq,int shape){const int a=lane/2,b=lane-a;
+            l.cells[gain]={right,y,a,71};
+            l.cells[freq]={right+a,y,b,35};
+            l.cells[shape]={right+a,y+36,b,35};};
+        band(103,4,e(SslHFFreq),e(SslHFBell));
+        band(193,3,e(SslHMFreq),e(SslHMQ));
+        band(283,2,e(SslLMFreq),e(SslLMQ));
+        band(373,1,e(SslLFFreq),e(SslLFBell));
+        l.meter={right+1,463,lane-3,64};return l;
     }
     if(type==SkellDope){
         // Vertical rack adaptation of the two-mode hardware. All four
@@ -406,7 +413,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
     // The tape mechanism is decorative; its live controls are below the window.
 }
 inline void paintDemonVectorFallback(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
-    const auto win=r.withTrimmedBottom(30.f);
+    const auto win=r.withTrimmedBottom(22.f);
     if(frame)paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);
     auto a=win.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff69120d),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
@@ -475,7 +482,7 @@ inline bool demonReliefIsValid(){const auto& a=demonReliefAtlas();return a.isVal
 inline const juce::Image& infernalBackdrop();
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
-    const auto win=r.withTrimmedBottom(30.f);const auto a=win.reduced(5.f);
+    const auto win=r.withTrimmedBottom(22.f);const auto a=win.reduced(5.f);
     if(frame){paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);return;}
     juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff5b140f),a.getCentreX(),a.getY()+a.getHeight()*.53f,Colour(0xff090306),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4.f);
@@ -497,6 +504,21 @@ inline void paintIdentityFinish(Graphics& g,juce::Rectangle<float> r,int type,bo
     juce::Random rng(0x7f124+type*937);
     for(int i=0;i<(red||ruby?240:90);++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight(),rr=6.f+rng.nextFloat()*(red?56.f:32.f);auto c=(i%3==0?tint:juce::Colours::black).withAlpha(red||ruby?.055f:.028f);g.setGradientFill(juce::ColourGradient(c,x,y,c.withAlpha(0.f),x+rr,y,true));g.fillEllipse(x-rr,y-rr,2*rr,2*rr);}
     for(int i=0;i<(red?1750:ruby?1050:420);++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight();g.setColour((i%3==0?tint:juce::Colours::black).withAlpha(red?.19f:ruby?.13f:light?.09f:.08f));g.fillEllipse(x,y,.35f+rng.nextFloat()*1.5f,.35f+rng.nextFloat()*1.3f);}
+    // Give each effect family a distinct manufacturing finish. Static cached
+    // detail; the seed and pitch differ for every individual processor.
+    const int cat=info(type).cat;
+    if(!red&&!ruby&&!tape&&type!=SkellDope&&type!=SkellSSL){
+        auto pigment=originalSpec(type,1).accent;
+        const int pitch=3+type%5;
+        if(cat==CatTone){
+            for(int x=4;x<int(r.getWidth())-4;x+=pitch){float xx=r.getX()+float(x);g.setColour(pigment.withAlpha(.027f));g.drawVerticalLine(int(xx),r.getY()+4,r.getBottom()-4);g.setColour(juce::Colours::black.withAlpha(.042f));g.drawVerticalLine(int(xx+1),r.getY()+4,r.getBottom()-4);}
+        }else if(cat==CatDynamics){
+            for(int i=0;i<850;++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight(),sz=.5f+rng.nextFloat();g.setColour(juce::Colours::black.withAlpha(.11f));g.fillEllipse(x,y,sz,sz);g.setColour(pigment.withAlpha(.085f));g.fillEllipse(x-.35f,y-.40f,sz*.70f,sz*.70f);}
+        }else{
+            for(int i=0;i<210;++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight(),len=4.f+rng.nextFloat()*18.f;g.setColour((i%3?pigment:juce::Colours::black).withAlpha(cat==CatSpace?.075f:.044f));g.drawLine(x,y,juce::jmin(r.getRight()-2,x+len),y+.13f,.45f);}
+        }
+        g.setColour(pigment.withAlpha(light?.16f:.28f));g.drawRoundedRectangle(r.reduced(2.f),4.f,.6f);
+    }
     if(ruby){
         // Deep lacquer with a single sculpted ruby cartouche; leave the legends clear.
         const float cx=r.getCentreX(),cy=r.getY()+107.f;const float rw=25.f,rh=14.f;
@@ -533,7 +555,8 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
     paintIdentityFinish(g,f,type,p.light);
-    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.22f);
+    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.30f);
+    g.setColour(p.accent.withAlpha(p.light?.20f:.32f));g.drawRoundedRectangle(r.reduced(7.5f),3.5f,.55f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
