@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#ifndef SKELLIERE_NATIVE_IMPORTS
+#define SKELLIERE_NATIVE_IMPORTS 0
+#endif
 namespace skl {
 constexpr int kNumSlots = 8, kMaxKnobs = 6;
 enum ModuleType : int {
     Empty = 0, Eq, Comp, DeEss, Sat, Air, Chorus, Delay, Reverb, Limiter, Trim, Tune,
     kNumTypes, // compatibility boundary: do not extend the legacy choice parameter
-    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, SkellAirFX, SkellDeEsserFX, SkellDope, SkellMixHead, SkellRubyQ, SkellDemon, SkellSSL, SkellNoise, SmartGate, VoxRider, DynamicEQ, Multiband, Resonance, Doubler, Exciter, AirUnified, DeEsserUnified, NoiseGateUnified, EchoUnified, RoomUnified, DriveUnified, ClipUnified, StereoUnified, LevelUnified, kNumRackTypes
+    Tilt = kNumTypes, Stereo, FastComp, BusComp, ProgramOpto, Gate, Transient, Bell, DualFilter, SoftClip, Tremolo, Phaser, Flanger, Slap, SkellAirFX, SkellDeEsserFX, SkellDope, SkellMixHead, SkellRubyQ, SkellDemon, SkellSSL, SkellNoise, SmartGate, VoxRider, DynamicEQ, Multiband, Resonance, Doubler, Exciter, AirUnified, DeEsserUnified, NoiseGateUnified, EchoUnified, RoomUnified, DriveUnified, ClipUnified, StereoUnified, LevelUnified, FlangNative, DelayNative, GlitchNative, kNumRackTypes
 };
 // Pure selection policy shared by production and host-free regression tests.
 inline int resolveRackType(float legacy, float extension) noexcept {
@@ -135,18 +138,24 @@ inline const ModuleInfo& info(int type) {
         {"Ember Clip","Soft/hard clipping, 1x or 4x","Four selectable clipping modes; fixed 12-sample compensation in every mode.",CatTone,4,{{"Drive",0,24,false,6,Unit::Db,0,nullptr},{"Ceiling",-12,0,false,-1,Unit::Db,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr},{"Mode",0,3,false,2,Unit::Steps,4,"Soft 1x,Hard 1x,Soft 4x,Hard 4x"}},1,{{"Controls",0,4}},false},
         {"Stereo Stage","Width, bass centering and balance","Mid/side width, mono-bass filter, stereo balance, output and live correlation.",CatUtility,4,{{"Width",0,2,false,1,Unit::Pct,0,nullptr},{"Mono Bass",20,300,true,100,Unit::Hz,0,nullptr},{"Output",-12,12,false,0,Unit::Db,0,nullptr},{"Balance",-1,1,false,0,Unit::Pan,0,nullptr}},1,{{"Controls",0,4}},true}
 ,
-        {"Level","Gain, pan and automatic vocal riding","Manual gain and stereo pan plus optional bounded automatic vocal leveling; quiet passages are not boosted.",CatUtility,6,{{"Gain",-24,24,false,0,Unit::Db,0,nullptr},{"Pan",-1,1,false,0,Unit::Pan,0,nullptr},{"Target",-36,-12,false,-24,Unit::Db,0,nullptr},{"Range",0,18,false,9,Unit::Db,0,nullptr},{"Speed",50,1000,true,200,Unit::Ms,0,nullptr},{"Mode",0,1,false,0,Unit::Steps,2,"Manual,Rider"}},2,{{"Trim",0,2},{"Rider",2,4}},true}
+        {"Level","Gain, pan and automatic vocal riding","Manual gain and stereo pan plus optional bounded automatic vocal leveling; quiet passages are not boosted.",CatUtility,6,{{"Gain",-24,24,false,0,Unit::Db,0,nullptr},{"Pan",-1,1,false,0,Unit::Pan,0,nullptr},{"Target",-36,-12,false,-24,Unit::Db,0,nullptr},{"Range",0,18,false,9,Unit::Db,0,nullptr},{"Speed",50,1000,true,200,Unit::Ms,0,nullptr},{"Mode",0,1,false,0,Unit::Steps,2,"Manual,Rider"}},2,{{"Trim",0,2},{"Rider",2,4}},true},
+        {"Flang","Four original standalone modulation modes","Native Classic Chorus, Flanger, Flangus and Dimension. Owner-source build only.",CatSpace,6,{{"Mode",0,3,false,0,Unit::Steps,4,"Chorus,Flanger,Flangus,Dimension"},{"Depth",0,1,false,.45f,Unit::Pct,0,nullptr},{"Rate",0,1,false,.5f,Unit::Pct,0,nullptr},{"Delay",0,1,false,.5f,Unit::Pct,0,nullptr},{"Width",0,1,false,.5f,Unit::Pct,0,nullptr},{"Mix",0,1,false,.35f,Unit::Pct,0,nullptr}},1,{{"Controls",0,6}},false},
+        {"Delay","Native Skellay Classic","Original tempo-synced Classic engine, filtered feedback and stereo offset.",CatSpace,6,{{"Time",1,768,false,144,Unit::Scalar,0,nullptr},{"Feedback",0,1,false,.35f,Unit::Pct,0,nullptr},{"Tone",0,1,false,.8f,Unit::Pct,0,nullptr},{"Offset",-1,1,false,0,Unit::Pan,0,nullptr},{"Mode",0,2,false,0,Unit::Steps,3,"Normal,Swap,Ping Pong"},{"Mix",0,1,false,.25f,Unit::Pct,0,nullptr}},1,{{"Controls",0,6}},false},
+        {"Glitch","Original gate and reverse engines","Native Glitch clock, gate sequence, capture and pitched reverse. Compact automatic full-band mode.",CatSpace,6,{{"Mode",0,2,false,2,Unit::Steps,3,"Reverse,Gate,Both"},{"Division",0,5,false,2,Unit::Steps,6,"1/16,1/8T,1/8,1/4,1/2,Bar"},{"Depth",0,1,false,.8f,Unit::Pct,0,nullptr},{"Smooth",0,1,false,.2f,Unit::Pct,0,nullptr},{"Pitch",-12,12,false,0,Unit::Scalar,0,nullptr},{"Mix",0,1,false,.65f,Unit::Pct,0,nullptr}},1,{{"Controls",0,6}},false}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 // User-facing branding is separate from the legacy host choice strings.
 // Preserve host choice names and all normalized automation/state identities.
 inline const char* displayName(int type) noexcept {
-    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C (Legacy)","Skell Sibilant","Skell Warm Drive (Legacy)","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo (Legacy)","Skell Plate Room (Legacy)","Skell Limiter","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage (Legacy)","Skell 76","Skell Bus C","Skell Opto C","Skell Iron Gate","Skell Transient Shaper","Skell Bell 73","Skell Crosscut","Skell Ember Clip (Legacy)","Skell Tremolo","Skell Phaser","Skell Jet","Skell Slap 120","Skell Air (Legacy)","Skell De-Esser (Legacy)","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Hush","Skell Smart Gate","Skell Vox Rider","Skell Dynamic EQ","Skell Multiband","Skell Soother","Skell Doubler","Skell Exciter","Skell Air","Skell De-Esser","Skell Noise Gate","Skell Tape Echo","Skell Verb","Skell Warm Drive","Skell Emerald Clip","Skell Stereo Stage","Skell Level"};
+    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C (Legacy)","Skell Sibilant","Skell Warm Drive (Legacy)","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo (Legacy)","Skell Plate Room (Legacy)","Skell Limiter","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage (Legacy)","Skell 76","Skell Bus C","Skell Opto C","Skell Iron Gate","Skell Transient Shaper","Skell Bell 73","Skell Crosscut","Skell Ember Clip (Legacy)","Skell Tremolo","Skell Phaser","Skell Jet","Skell Slap 120","Skell Air (Legacy)","Skell De-Esser (Legacy)","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Hush","Skell Smart Gate","Skell Vox Rider","Skell Dynamic EQ","Skell Multiband","Skell Soother","Skell Doubler","Skell Exciter","Skell Air","Skell De-Esser","Skell Noise Gate","Skell Tape Echo","Skell Verb","Skell Warm Drive","Skell Emerald Clip","Skell Stereo Stage","Skell Level","Skell Flang","Skell Delay","Skell Glitch"};
     return names[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 // Retired effects remain addressable by old states, automation and factory presets.
+inline constexpr bool importedType(int t) noexcept {return t>=FlangNative&&t<=GlitchNative;}
+inline constexpr bool importedAvailable(int t) noexcept {return !importedType(t)||SKELLIERE_NATIVE_IMPORTS;}
 inline constexpr bool catalogVisible(int t) noexcept {
+    if(!importedAvailable(t))return false;
     return t>Empty && t<kNumRackTypes && t!=Eq && t!=Comp && t!=DeEss && t!=Air && t!=Tilt && t!=Gate && t!=Bell && t!=Slap && t!=SkellAirFX && t!=SkellDeEsserFX && t!=SmartGate && t!=Delay && t!=Reverb && t!=Sat && t!=SoftClip && t!=Stereo && t!=Trim && t!=VoxRider;
 }
 inline constexpr int activeCatalogCount() noexcept { int n=0;for(int t=1;t<kNumRackTypes;++t)if(catalogVisible(t))++n;return n; }

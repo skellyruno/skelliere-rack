@@ -9,6 +9,7 @@
 #include "SmartGate.h"
 #include "ConsolidatedModules.h"
 #include "AdvancedRackModule.h"
+#include "NativeRackEngines.h"
 #include <SkellCore/backends/vocal/SkellAir.h>
 #include <SkellCore/backends/vocal/ClassicDeEsser.h>
 namespace skl {
@@ -122,7 +123,18 @@ private:
     skell::research::ClassicDeEsser core;
     std::atomic<float> reduction{0};
 };
+// Missing owner-source dependency: retain the slot state and bypass.
+class UnavailableNativeModule final:public ModuleBase {
+public:void prepare(double,int,int) override{} void reset() override{} void process(juce::AudioBuffer<float>&,const float*,bool) override{}
+};
 inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
+#if SKELLIERE_NATIVE_IMPORTS
+    if(type==FlangNative)return std::make_unique<NativeFlangRack>();
+    if(type==DelayNative)return std::make_unique<NativeDelayRack>();
+    if(type==GlitchNative)return std::make_unique<NativeGlitchRack>();
+#else
+    if(importedType(type))return std::make_unique<UnavailableNativeModule>();
+#endif
     if(type==SkellDemon)return std::make_unique<RecoveredDemon>();
     if(type==SkellSSL)return std::make_unique<RecoveredSSL>();
     if(type==SmartGate||type==NoiseGateUnified)return std::make_unique<SmartGateModule>(type);

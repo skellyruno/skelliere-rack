@@ -61,7 +61,7 @@ int main() {
     check(kNumTypes==12,"Legacy choice count changed");
     for(int legacy=1;legacy<kNumTypes;++legacy) for(int ext=0;ext<128;++ext) check(resolveRackType((float)legacy,(float)ext)==legacy,"Extension overrides legacy automation");
     check(resolveRackType(0,0)==Empty && resolveRackType(0,127)==Empty,"Invalid extension not empty");
-    for(int type=Tilt;type<kNumRackTypes;++type) {
+    for(int type=Tilt;type<FlangNative;++type) {
         check(resolveRackType(0,(float)(type-kNumTypes+1))==type,"Extension selection mapping");
         for(double rate:{44100.,48000.,88200.,96000.,192000.}) for(int channels:{1,2}) {
             const auto reference=render(type,rate,1,channels);

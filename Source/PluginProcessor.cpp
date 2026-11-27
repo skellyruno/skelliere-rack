@@ -221,7 +221,13 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         types[s] = slotType(s);
         if (types[s] == Tune && tuneSlot < 0) tuneSlot = s;
     }
-    double bpm=120.;if(auto* ph=getPlayHead())if(auto pos=ph->getPosition())if(auto value=pos->getBpm())bpm=*value;
+    double bpm=120.,ppq=0.;int sigNum=4,sigDen=4;bool validPpq=false;
+    if(auto* ph=getPlayHead())if(auto pos=ph->getPosition()){
+        if(auto value=pos->getBpm())bpm=*value;
+        if(auto value=pos->getPpqPosition()){ppq=*value;validPpq=pos->getIsPlaying()&&std::isfinite(ppq);}
+        if(auto value=pos->getTimeSignature()){sigNum=value->numerator;sigDen=value->denominator;}
+    }
+    bpm=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);
     const int solo = soloSlot.load();
     float measuredJet[kNumSlots]{};
 
@@ -242,7 +248,8 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             if(type==SkellSSL){std::array<float,kSslExtraCount> ext{};for(int j=0;j<kSslExtraCount;++j)ext[j]=sslRaw[s][j]->load(std::memory_order_relaxed);static_cast<RecoveredSSL*>(m)->setExtended(ext);}
             if(hasAdvancedEngine(type)){AdvancedValues ext{};for(int j=0;j<kAdvancedCount;++j)ext[j]=advancedRaw[s][j]->load(std::memory_order_relaxed);static_cast<AdvancedRackModule*>(m)->setExtended(ext,bandSolo[size_t(s)].load(std::memory_order_relaxed));}
             if(type==Tune){auto* tune=static_cast<skl::SkellyTune*>(m);tune->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));tune->setReferenceA(tuneReferenceHz(k[5]));}
-            if(type==EchoUnified)m->setTempo(bpm);
+            if(type==EchoUnified||type==DelayNative)m->setTempo(bpm);
+            if(type==GlitchNative)m->setTransport(bpm,ppq+double(start)*bpm/(60.*sampleRate_),sigNum,sigDen,validPpq);
             m->process(chunk,k,active);
             // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,
             // allocations or locking; the existing buffer is read once.
@@ -334,7 +341,7 @@ void SkellierProcessor::pushUndo() {
 }
 
 bool SkellierProcessor::addModule(int type, int slot) {
-    if (type <= 0 || type >= kNumRackTypes) return false;
+    if (type <= 0 || type >= kNumRackTypes || !importedAvailable(type)) return false;
     int target = slot;
     if (target < 0 || target >= kNumSlots) {
         target = -1;

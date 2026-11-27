@@ -5,7 +5,7 @@ inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
     require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1),"Parameter count changed unexpectedly");
-    require(skl::kNumRackTypes==50 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
+    require(skl::kNumRackTypes==53 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
     auto ordered=[&](const juce::String& id) {
@@ -74,6 +74,7 @@ inline void processorRegression() {
     for(int t=0;t<skl::kNumTypes;++t) { legacy->setValueNotifyingHost((float)t/11); require(p.slotType(0)==t,"Legacy choice automation remapped"); }
     p.clearRack();
     for(int type=skl::Tilt;type<skl::kNumRackTypes;++type) {
+        if(!skl::importedAvailable(type)){require(!p.addModule(type,0),"Missing-source module exposed");continue;}
         p.clearRack(); require(p.addModule(type,0),"New module not selectable");
         require(p.slotType(0)==type,"New module selection lost");
         p.removeSlot(0); p.undo(); require(p.slotType(0)==type,"New module undo lost");

@@ -18,7 +18,7 @@ static std::vector<float> tone(float hz,float amp){std::vector<float>x(96000);fo
 static double rms(const std::vector<float>& x,int a=48000,int b=96000){double sum=0;for(int i=a;i<b;++i)sum+=x[i]*x[i];return std::sqrt(sum/(b-a));}
 static double diff(const std::vector<float>& a,const std::vector<float>& b){double sum=0;for(size_t i=0;i<a.size();++i)sum+=(a[i]-b[i])*(a[i]-b[i]);return std::sqrt(sum/a.size());}
 int main(){
- static_assert(activeCatalogCount()==31&&VoxRider==35&&StereoUnified==48&&SmartGate==34,"Catalog migration");
+ static_assert(activeCatalogCount()==(SKELLIERE_NATIVE_IMPORTS?34:31)&&VoxRider==35&&StereoUnified==48&&SmartGate==34,"Catalog migration");
  const auto low=tone(200,.03f), high=tone(6500,.2f), loud=tone(3000,.3f), quiet=tone(3000,.0002f);
  for(int t=VoxRider;t<kNumRackTypes;++t){check(run(t,loud,{},120,false)==loud,"Bypass mismatch");}
  check(rms(run(VoxRider,low,{{0,-20}}))>rms(low)*1.7,"Rider not lifting quiet voice");

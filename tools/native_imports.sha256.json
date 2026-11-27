@@ -1,0 +1,20 @@
+{
+  "flang/FlangDSP.h": "15eb5ab4550b55f08dcb9bce3c0840c32b9cb54baf6ff99713941e1a906917da",
+  "flang/ClassicChorusSettings.h": "b78ac91f8196d05a5c502938fdfb0bb2fe2f4b1615cba005e2945df3ba838080",
+  "flang/RateMatchedMotion.h": "b8dbc3e4e4e6ddd9d9cae6faab9f2dce453f7e8950e073f7164a8be50ec265cb",
+  "flang/NativeChorus/ChorusFx.cpp": "781f27549fefb01eca6e2adf105f9fe187dabba4995b2ed4df7fbad180adea60",
+  "flang/NativeChorus/core/ChorusFx.h": "ff68b7e2f07b7ecb8030a2f00abd03408b07f0260d3ae06a4f530a34399bfb5b",
+  "flang/NativeChorus/core/Simd.h": "b24e516aaaab9b8114699be002031b5f8e80880f0f143319f8632360f493656b",
+  "flang/NativeFlangus/Flangus.cpp": "ddc4c62c73778316fec062288391487cbf96b6b490df94342d75dba97c892359",
+  "flang/NativeFlangus/SkellFlangusAdapter.h": "080c20c7a54bd443a70735fc01f4f08b8bf4617a9ba4bcf48808f9e079aeed8d",
+  "flang/NativeFlangus/core/FlangusFastDist.h": "f307be8fb18320e2ad5751f42b5edcfe6f88f9cf68fde27f0444946b6e189874",
+  "delay/native/Delay.cpp": "fd4bb4f3a376fb9d93c732af5ec3d1110449c69520bf0f6b5f598874d6874b80",
+  "delay/native/Delay.h": "c9684a7f6022eaffc6268ee612ede736df5d6c577c12d939c144177166afedb6",
+  "glitch/dsp/Crossfader.h": "bdee1618a0f8c1e5e6201903274ca5f718403b062ae866bb1f92fefa4d219279",
+  "glitch/dsp/GateSequencer.h": "8c523f948cd9561428881774b47b1de29bf23bcdc9905501f09b533b7a1fe284",
+  "glitch/dsp/GateShaper.h": "f561f2bc399cf04f4e4cd8f5a91ddf86c8264ea1960c833cd5b4c453d75b7b00",
+  "glitch/dsp/GlitchRandomizer.h": "7f98a8106409599965aecbaf211a39e871be5e9f73ba1649af5ef0cd6f479ae1",
+  "glitch/dsp/Reverser.h": "8b328da7280e891d04d201e21ee38eab909d22479872ff822c80b3de288397bd",
+  "glitch/dsp/SliceCapture.h": "f4a4e13f3d772c35bd2a8cd51084dc9556bf18f534921b642930bdaecd7aefb9",
+  "glitch/dsp/TempoClock.h": "c5a2c3f839af5a85a9fd742063bb8c83701967c391ccf2b5f984f90440f8a2d9"
+}

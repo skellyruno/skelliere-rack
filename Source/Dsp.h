@@ -116,6 +116,7 @@ public:
     virtual float meter() const { return 0.0f; }   // gain reduction in dB, read by the UI thread
     virtual int latency() const { return 0; }
     virtual void setTempo(double) noexcept {}
+    virtual void setTransport(double bpm,double,int,int,bool) noexcept {setTempo(bpm);}
 };
 
 // ---------------------------------------------------------------- Quad EQ
