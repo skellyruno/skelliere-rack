@@ -13,6 +13,27 @@ namespace skl::ui {
 using juce::Colour;
 using juce::Graphics;
 
+// Small recessed metal actuators for the module utility strip.
+inline void paintModuleActuator(Graphics& g, juce::Rectangle<float> b, bool power, bool active, bool hover, bool down, bool focus){
+    const float cx=b.getCentreX(),cy=b.getCentreY(),r=std::min(b.getWidth(),b.getHeight())*.43f;
+    auto disc=[&](float a,float dy=0.f){return juce::Rectangle<float>(cx-a,cy-a+dy,2*a,2*a);};
+    g.setColour(Colour(0xff050505));g.fillEllipse(disc(r*1.13f,.8f));
+    juce::ColourGradient rim(Colour(0xffe0d2b9),cx-r*.7f,cy-r*.9f,Colour(0xff2a2723),cx+r*.8f,cy+r,false);
+    rim.addColour(.42,Colour(0xff8e8371));rim.addColour(.61,Colour(0xff393633));rim.addColour(.83,Colour(0xffb4a58b));g.setGradientFill(rim);g.fillEllipse(disc(r));
+    g.setColour(Colour(0xff131311));g.fillEllipse(disc(r*.80f));
+    const float cap=r*.68f,dy=down?.55f:0.f;
+    const auto top=active&&power?Colour(0xff364b30):Colour(0xff444441);
+    g.setGradientFill(juce::ColourGradient::vertical(top.brighter(hover?.22f:.04f),cy-cap+dy,Colour(0xff121412),cy+cap+dy));g.fillEllipse(disc(cap,dy));
+    g.setColour(Colour(0xffd4c8b0).withAlpha(.26f));g.drawEllipse(disc(cap,dy),.55f);
+    const auto ink=power?(active?Colour(0xffc5f694):Colour(0xff969990)):(hover?Colour(0xfff4c4ac):Colour(0xffd3c7b0));
+    if(power){juce::Path symbol;symbol.addCentredArc(cx,cy+.35f+dy,cap*.55f,cap*.55f,0,.64f,juce::MathConstants<float>::twoPi-.64f,true);
+        if(active){g.setColour(ink.withAlpha(.22f));g.strokePath(symbol,juce::PathStrokeType(2.6f));}
+        g.setColour(ink);g.strokePath(symbol,juce::PathStrokeType(1.05f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.drawLine(cx,cy-cap*.76f+dy,cx,cy+.15f+dy,1.1f);
+    }else{const float d=cap*.42f;g.setColour(Colour(0xff060606));g.drawLine(cx-d,cy-d+dy+.55f,cx+d,cy+d+dy+.55f,1.7f);g.drawLine(cx-d,cy+d+dy+.55f,cx+d,cy-d+dy+.55f,1.7f);
+        g.setColour(ink);g.drawLine(cx-d,cy-d+dy,cx+d,cy+d+dy,1.05f);g.drawLine(cx-d,cy+d+dy,cx+d,cy-d+dy,1.05f);}
+    if(focus){g.setColour(Colour(0xffe4c69b));g.drawEllipse(disc(r*1.10f),.8f);}
+}
+
 namespace pal {
 inline const Colour chassis   {0xff100f0e};
 inline const Colour chassis2  {0xff201e1b};
@@ -604,9 +625,13 @@ public:
     void drawButtonBackground(Graphics& g, juce::Button& b, const Colour&, bool hover, bool down) override {
         auto r = b.getLocalBounds().toFloat().reduced(1.f);
         if(b.getProperties().contains("moduleClose")){
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff4b4840),r.getY(),Colour(0xff1c1d19),r.getBottom()));g.fillRoundedRectangle(r,4.f);
-            g.setColour(Colour(0xffc4b49c).withAlpha(hover?.7f:.34f));g.drawRoundedRectangle(r,4.f,.7f);
-            if(hover||down){g.setColour(Colour(0xffa13e30).withAlpha(down?.56f:.24f));g.fillRoundedRectangle(r.reduced(1),3.f);}return;
+            paintModuleActuator(g,b.getLocalBounds().toFloat(),false,false,hover,down,b.hasKeyboardFocus(false));return;
+        }
+        if(b.getProperties().contains("moduleHeader")){
+            paintRecessedWindow(g,r,3.f);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff3c3b36).withAlpha(hover?.8f:.52f),r.getY()+1,Colour(0xff151614),r.getBottom()-1));g.fillRoundedRectangle(r.reduced(1),2.f);
+            g.setColour(Colour(0xff978d79).withAlpha(hover?.85f:.46f));g.drawRoundedRectangle(r,3.f,.7f);
+            if(b.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawRoundedRectangle(r.reduced(.5f),2.5f,.8f);}return;
         }
         const bool on = b.getToggleState();
         Colour top=on?Colour(0xffe0c39a):Colour(0xff35312c),bot=on?Colour(0xffb08f65):Colour(0xff1c1916);
@@ -623,7 +648,7 @@ public:
         }
     }
     void drawButtonText(Graphics& g, juce::TextButton& b, bool hover, bool) override {
-        if(b.getProperties().contains("moduleClose")){const auto r=b.getLocalBounds().toFloat();const float cx=r.getCentreX(),cy=r.getCentreY();g.setColour(hover?Colour(0xffffb6a2):Colour(0xffc4bca9));g.drawLine(cx-3.5f,cy-3.5f,cx+3.5f,cy+3.5f,1.2f);g.drawLine(cx-3.5f,cy+3.5f,cx+3.5f,cy-3.5f,1.2f);return;}
+        if(b.getProperties().contains("moduleClose"))return; // engraved in background
         g.setFont(font(b.getProperties().contains("moduleHeader")?9.1f:(b.getHeight()>=32?15.f:12.f),false).withExtraKerningFactor(.035f));
         g.setColour((b.getToggleState()&&!b.getProperties().contains("quiet") ? Colour(0xff20180f) : pal::ink).withMultipliedAlpha(b.isEnabled()?1.f:.36f));
         auto r = b.getLocalBounds();
@@ -765,25 +790,6 @@ public:
             else {const float slot=hardware==5?r*.65f:r*.39f;g.setColour(Colour(0xff151714).withAlpha(.85f));g.drawLine(cx-std::sin(angle)*slot,cy+std::cos(angle)*slot,cx+std::sin(angle)*slot,cy-std::cos(angle)*slot,hardware==5?2.6f:1.4f);}
             const auto ink=light?Colour(0xff302820):Colour(0xffe6d7bc);for(int i=0;i<=12;++i){const float a=a0+(a1-a0)*i/12.f;g.setColour(ink.withAlpha(i%3==0?.91f:.55f));g.drawLine(cx+std::sin(a)*r*1.20f,cy-std::cos(a)*r*1.20f,cx+std::sin(a)*r*(i%3==0?1.34f:1.28f),cy-std::cos(a)*r*(i%3==0?1.34f:1.28f),i%3==0?.95f:.7f);}
             const float sn=std::sin(angle),cs=-std::cos(angle);g.setColour(Colour(0xff121511));g.drawLine(cx+sn*r*.67f,cy+cs*r*.67f,cx+sn*r*.94f,cy+cs*r*.94f,3.4f);g.setColour(hardware==1&&s.getName()=="Retune"?Colour(0xff91e2a0):ivory);g.drawLine(cx+sn*r*.69f,cy+cs*r*.69f,cx+sn*r*.94f,cy+cs*r*.94f,1.6f);return;
-        }
-        if(s.getProperties().contains("fetDarkCap")){
-            const float rr=size*.39f;
-            auto disc=[&](float rad,float dy=0.f){return Rectangle<float>(cx-rad,cy-rad+dy,rad*2,rad*2);};
-            g.setColour(Colour(0xff080909).withAlpha(.75f));g.fillEllipse(disc(rr*1.13f,2.2f));
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff777977),cy-rr,Colour(0xff141515),cy+rr));g.fillEllipse(disc(rr*1.06f));
-            g.setGradientFill(juce::ColourGradient(Colour(0xff424542),cx-rr*.65f,cy-rr*.65f,Colour(0xff0a0b0a),cx+rr*.70f,cy+rr*.65f,false));g.fillEllipse(disc(rr*.94f));
-            g.setColour(Colour(0xff0b0c0c));g.drawEllipse(disc(rr*.92f),1.f);
-            for(int j=0;j<36;++j){const float a=j*juce::MathConstants<float>::twoPi/36;g.setColour(Colour(0xffa3a5a1).withAlpha(.12f+.17f*std::max(0.f,-std::sin(a))));g.drawLine(cx+std::sin(a)*rr*.87f,cy-std::cos(a)*rr*.87f,cx+std::sin(a)*rr*.99f,cy-std::cos(a)*rr*.99f,.6f);}
-            {juce::Graphics::ScopedSaveState st(g);g.addTransform(juce::AffineTransform::rotation(angle,cx,cy));
-                juce::Path grip;grip.startNewSubPath(cx-rr*.25f,cy+rr*.68f);grip.lineTo(cx+rr*.25f,cy+rr*.68f);grip.lineTo(cx+rr*.17f,cy-rr*.76f);grip.lineTo(cx-rr*.17f,cy-rr*.76f);grip.closeSubPath();
-                g.setColour(juce::Colours::black.withAlpha(.75f));g.fillPath(grip,juce::AffineTransform::translation(1.3f,1.6f));
-                g.setGradientFill(juce::ColourGradient(Colour(0xff555956),cx-rr*.28f,cy,Colour(0xff101211),cx+rr*.27f,cy,false));g.fillPath(grip);
-                g.setColour(Colour(0xff9fa39e).withAlpha(.6f));g.drawLine(cx-rr*.18f,cy-rr*.70f,cx-rr*.24f,cy+rr*.60f,.85f);
-                g.setColour(Colour(0xfff3f0df));g.drawLine(cx,cy-rr*.33f,cx,cy-rr*.79f,std::max(1.25f,rr*.06f));
-            }
-            const auto tick=light?Colour(0xff272b29):Colour(0xffdfded3);
-            for(int j=0;j<=12;++j){const float a=a0+(a1-a0)*j/12.f;g.setColour(tick.withAlpha(j%3==0?.96f:.66f));g.drawLine(cx+std::sin(a)*rr*1.18f,cy-std::cos(a)*rr*1.18f,cx+std::sin(a)*rr*(j%3==0?1.35f:1.28f),cy-std::cos(a)*rr*(j%3==0?1.35f:1.28f),j%3==0?1.1f:.7f);}
-            return;
         }
         // Nearly all of the original rack knob area is now the actual metal
         // cap rather than a small cap surrounded by Necromancer's black well.

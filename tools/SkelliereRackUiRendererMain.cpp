@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
         if(scene.theme==12){const int models[]={skl::SkellDemon,skl::SkellSSL,skl::SkellNoise,skl::SkellMixHead};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
         if(scene.theme==13){const int models[]={skl::SmartGate,skl::SkellNoise,skl::SkellSSL,skl::FastComp};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
         if(scene.theme>=18){int i=0;for(int t=1;t<skl::kNumRackTypes;++t)if(skl::catalogVisible(t)){if(i/4==scene.theme-18){processor.addModule(t,i%4);++expectedCount;}++i;}}
-        if(scene.theme>=14&&scene.theme<=17){const int models[][4]={{skl::VoxRider,skl::DynamicEQ,skl::Multiband,skl::Resonance},{skl::Exciter,skl::AirUnified,skl::DriveUnified,skl::ClipUnified},{skl::Doubler,skl::EchoUnified,skl::RoomUnified,skl::StereoUnified},{skl::NoiseGateUnified,skl::DeEsserUnified,skl::ProgramOpto,skl::FastComp}};for(int k=0;k<4;++k)processor.addModule(models[scene.theme-14][k],k);expectedCount=4;}
+        if(scene.theme>=14&&scene.theme<=17){const int models[][4]={{skl::LevelUnified,skl::DynamicEQ,skl::Multiband,skl::Resonance},{skl::Exciter,skl::AirUnified,skl::DriveUnified,skl::ClipUnified},{skl::Doubler,skl::EchoUnified,skl::RoomUnified,skl::StereoUnified},{skl::NoiseGateUnified,skl::DeEsserUnified,skl::ProgramOpto,skl::FastComp}};for(int k=0;k<4;++k)processor.addModule(models[scene.theme-14][k],k);expectedCount=4;}
         if(scene.theme==8||scene.theme==9){
             const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger};
             for(int k=0;k<4;++k)processor.addModule(models[k],k);
@@ -124,9 +124,10 @@ int main(int argc, char** argv) {
         }
         processor.tuneFlats.store(scene.id=="tune_flats");
         if(scene.id=="fet_black")processor.apvts.getParameter(SkellierProcessor::knobId(3,5))->setValueNotifyingHost(1.f);
-        if(scene.id=="tune_flats")processor.apvts.getParameter(SkellierProcessor::knobId(3,5))->setValueNotifyingHost(.73f);
-        if(scene.id=="tune_flats")processor.apvts.getParameter(SkellierProcessor::knobId(3,3))->setValueNotifyingHost(1.f/11.f);
-        if(scene.id=="tune_slow"||scene.id=="tune_fast")processor.apvts.getParameter(SkellierProcessor::knobId(3,0))->setValueNotifyingHost(scene.id=="tune_fast"?1.f:0.f);
+        const auto tuneSlot=[&](){for(int i=0;i<skl::kNumSlots;++i)if(processor.slotType(i)==skl::Tune)return i;return -1;}();
+        if(scene.id=="tune_flats"&&tuneSlot>=0)processor.apvts.getParameter(SkellierProcessor::knobId(tuneSlot,5))->setValueNotifyingHost(.73f);
+        if(scene.id=="tune_flats"&&tuneSlot>=0)processor.apvts.getParameter(SkellierProcessor::knobId(tuneSlot,3))->setValueNotifyingHost(1.f/11.f);
+        if((scene.id=="tune_slow"||scene.id=="tune_fast")&&tuneSlot>=0)processor.apvts.getParameter(SkellierProcessor::knobId(tuneSlot,0))->setValueNotifyingHost(scene.id=="tune_fast"?1.f:0.f);
         if(scene.id=="mixhead_switches_150"){processor.apvts.getParameter(SkellierProcessor::knobId(3,4))->setValueNotifyingHost(0);processor.apvts.getParameter(SkellierProcessor::knobId(3,5))->setValueNotifyingHost(1);}
         if(scene.id=="catalog_min"||scene.id=="catalog_max")for(int s=0;s<expectedCount;++s)
             for(int k=0;k<skl::info(processor.slotType(s)).numKnobs;++k)

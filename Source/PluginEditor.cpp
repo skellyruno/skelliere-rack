@@ -270,20 +270,7 @@ void LevelMeter::paint(Graphics& g) {
 }
 
 void PowerButton::paintButton(Graphics& g, bool hover, bool down) {
-    auto r = getLocalBounds().toFloat().reduced(2.0f);
-    const float cx = r.getCentreX(), cy = r.getCentreY(), R = juce::jmin(r.getWidth(), r.getHeight()) * 0.5f;
-    g.setColour(juce::Colours::black.withAlpha(0.6f)); g.fillEllipse(cx - R, cy - R + 1.5f, 2 * R, 2 * R);
-    g.setGradientFill(juce::ColourGradient(Colour(0xffd2bea0),cx-R*.55f,cy-R*.65f,Colour(0xff40382c),cx+R*.65f,cy+R,true));
-    g.fillEllipse(cx - R, cy - R, 2 * R, 2 * R);
-    g.setColour(Colour(0xff1b1b1b)); g.drawEllipse(cx - R, cy - R, 2 * R, 2 * R, 1.0f);
-    const float lr=R*.74f;
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff33342f),cy-lr,Colour(0xff10130f),cy+lr));g.fillEllipse(cx-lr,cy-lr,2*lr,2*lr);
-    const auto ink=getToggleState()?Colour(0xffb8edac):Colour(0xff777b70);
-    if(getToggleState()){g.setColour(ink.withAlpha(.17f));g.fillEllipse(cx-lr,cy-lr,2*lr,2*lr);}
-    juce::Path symbol;symbol.addCentredArc(cx,cy+.3f,lr*.62f,lr*.62f,0,.67f,juce::MathConstants<float>::twoPi-.67f,true);
-    g.setColour(ink);g.strokePath(symbol,juce::PathStrokeType(1.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.drawLine(cx,cy-lr*.8f,cx,cy,1.1f);
-    if(hover||down){g.setColour(juce::Colours::white.withAlpha(down?.15f:.07f));g.fillEllipse(cx-R,cy-R,2*R,2*R);}
-
+    paintModuleActuator(g,getLocalBounds().toFloat(),true,getToggleState(),hover,down,hasKeyboardFocus(false));
 }
 
 void StripButton::mouseDown(const juce::MouseEvent& e) {
@@ -429,7 +416,7 @@ void SlotComponent::syncArtwork() {
         c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
         c->slider.getProperties().set("ptr",(int)Colour(0xff191510).getARGB());
         c->slider.getProperties().set("silverCap",choice==2);
-        if(type==FastComp)c->slider.getProperties().set("fetDarkCap",true);
+        c->slider.getProperties().remove("fetDarkCap");
         if(type==SkellDope)c->slider.getProperties().remove("houseTint");
         // Restore the shared rotating skull cap for all standard effects.
         // SSL retains its established console-specific cap colours.
@@ -444,7 +431,7 @@ bool SlotComponent::artworkLayoutIsValid() const {
     if(cells.size()!=static_cast<size_t>(uiKnobCount(type)+(type==Tune?2:0)))return false;
     const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(editing?46:23);
     if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||!removeBtn.isVisible()||artButton.isVisible()!=(editing&&type!=FastComp))return false;
-    const auto header=getLocalBounds().withHeight(38).reduced(4,0);
+    const auto header=getLocalBounds().withHeight(26).reduced(4,0);
     if(modulePresetButton.isVisible()!=!proc.modulePresetNames(type).isEmpty())return false;
     if(modulePresetButton.isVisible()&&(!header.contains(modulePresetButton.getBounds())||modulePresetButton.getBounds().intersects(powerBtn.getBounds())||modulePresetButton.getBounds().intersects(removeBtn.getBounds())||(advancedButton.isVisible()&&modulePresetButton.getBounds().intersects(advancedButton.getBounds()))))return false;
     if(!header.contains(powerBtn.getBounds())||!header.contains(removeBtn.getBounds())||powerBtn.getBounds().intersects(removeBtn.getBounds()))return false;
@@ -509,7 +496,7 @@ void SlotComponent::setMeter(float gr) {
     const auto now=juce::Time::getMillisecondCounterHiRes();
     const float elapsed=lastMeterTime>0?static_cast<float>((now-lastMeterTime)*.001):1.0f/30.0f;
     lastMeterTime=now;
-    needle=(type==StereoUnified||type==VoxRider)?gr+(needle-gr)*float(std::exp(-elapsed*15.f)):smoothReduction(needle,gr,elapsed);
+    needle=(type==StereoUnified||type==VoxRider||type==LevelUnified)?gr+(needle-gr)*float(std::exp(-elapsed*15.f)):smoothReduction(needle,gr,elapsed);
     if(type==Multiband&&hasAdvancedEngine(type)&&proc.apvts.getRawParameterValue(SkellierProcessor::advancedId(index,advMode))->load()>.5f)repaint(vuRect.expanded(2));
     if (std::fabs(needle - shownNeedle) > (type==StereoUnified?.01f:.04f)) {
         shownNeedle = needle;
@@ -527,12 +514,12 @@ void SlotComponent::resized() {
     sectionRects.clear();vuRect={};panelBounds={};
     const int w=getWidth(),h=getHeight();footRect=editing?Rectangle<int>(10,h-43,w-20,32):Rectangle<int>();
     if(type==Empty)return;
-    // Independent, edge-to-edge black header: title above the action row.
-    powerBtn.setBounds(6,8,24,24);removeBtn.setBounds(w-30,8,24,24);
-    const int actionX=34,actionW=w-68;
+    // Single-row utility strip. Identity is engraved once on the faceplate.
+    powerBtn.setBounds(5,2,22,22);removeBtn.setBounds(w-27,2,22,22);
+    const int actionX=32,actionW=w-64;
     const bool both=advancedButton.isVisible()&&modulePresetButton.isVisible();
-    modulePresetButton.setBounds(actionX,18,both?actionW*2/3-2:actionW,16);
-    advancedButton.setBounds(both?actionX+actionW*2/3:actionX,18,both?actionW-actionW*2/3:actionW,16);
+    modulePresetButton.setBounds(actionX,4,both?actionW*2/3-2:actionW,18);
+    advancedButton.setBounds(both?actionX+actionW*2/3:actionX,4,both?actionW-actionW*2/3:actionW,18);
     advancedButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("modulePreset",true);
     soloBtn.setBounds(25,h-38,27,23);leftBtn.setBounds(59,h-38,21,23);rightBtn.setBounds(84,h-38,21,23);
     artButton.setBounds(w-90,h-38,65,23);
@@ -587,12 +574,11 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         panelCache=juce::Image(juce::Image::ARGB,w*rasterScale,h*rasterScale,true);Graphics pg(panelCache);
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
-        const auto header=Rectangle<float>(0.f,0.f,float(w),38.f);
-        pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff353637),0.f,Colour(0xff090a0a),38.f));pg.fillRect(header);
-        pg.setColour(Colour(0xff858682).withAlpha(.7f));pg.drawHorizontalLine(1,2.f,float(w-2));
-        pg.setColour(Colour(0xff060707));pg.drawHorizontalLine(37,0.f,float(w));
-        pg.setColour(Colour(0xffdfded6));pg.setFont(font(10.5f,true).withExtraKerningFactor(.08f));
-        pg.drawFittedText(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase(),Rectangle<int>(34,(hasAdvancedEngine(type)||!proc.modulePresetNames(type).isEmpty())?3:11,w-68,14),juce::Justification::centred,1);
+        const auto header=Rectangle<float>(0.f,0.f,float(w),26.f);
+        pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff393a38),0.f,Colour(0xff0a0b0a),26.f));pg.fillRect(header);
+        paintBrushed(pg,header,.20f);
+        pg.setColour(Colour(0xffb0aaa0).withAlpha(.46f));pg.drawHorizontalLine(1,2.f,float(w-2));
+        pg.setColour(Colour(0xff050606));pg.drawHorizontalLine(25,0.f,float(w));
         if(type==SkellSSL){
             pg.setColour(Colour(0xff222625));pg.fillRect(juce::Rectangle<float>(9,38,float(w-18),30));
             pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(68,9.f,float(w-9));
@@ -601,19 +587,20 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",36,55,w-48,12,juce::Justification::centredLeft);
         }else{
         pg.setColour(ink);pg.setFont(font(14.5f,false).withExtraKerningFactor(.22f));
-        pg.drawText("SKELL",18,45,w-36,17,juce::Justification::centred,false);
+        pg.drawText("SKELL",18,35,w-36,17,juce::Justification::centred,false);
         pg.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultSerifFontName(),25.5f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
         const auto title=juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase();
         pg.setColour(p.light?Colour(0xfff8e5c5).withAlpha(.60f):juce::Colours::black.withAlpha(.65f));
-        pg.drawFittedText(title,Rectangle<int>(14,61,w-28,30),juce::Justification::centred,1);
-        pg.setColour(ink);pg.drawFittedText(title,Rectangle<int>(14,60,w-28,30),juce::Justification::centred,1);
+        pg.drawFittedText(title,Rectangle<int>(14,51,w-28,30),juce::Justification::centred,1);
+        pg.setColour(ink);pg.drawFittedText(title,Rectangle<int>(14,50,w-28,30),juce::Justification::centred,1);
         pg.setColour(ink.withAlpha(.58f));
         const int titleWidth=juce::jlimit(70,w-40,textWidth(pg.getCurrentFont(),title)+16);
-        pg.drawHorizontalLine(75,20,float(w-titleWidth)*.5f);
-        pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
+        pg.drawHorizontalLine(65,20,float(w-titleWidth)*.5f);
+        pg.drawHorizontalLine(65,float(w+titleWidth)*.5f,w-20);
         pg.setColour((p.light?juce::Colours::white:juce::Colours::black).withAlpha(.24f));
-        pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
+        pg.drawHorizontalLine(66,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(66,float(w+titleWidth)*.5f,w-20);
         }
+        if(type==FastComp){pg.setFont(font(8.f,true).withExtraKerningFactor(.075f));pg.setColour(ink.withAlpha(.78f));pg.drawFittedText("FET LIMITING AMPLIFIER",Rectangle<int>(12,80,w-24,13),juce::Justification::centred,1);}
         const auto layout=originalLayout(type,w,editing);
         if(type==FastComp){auto collar=layout.meter.toFloat().expanded(8.f,9.f);const auto metal=nativeChoice==3?Colour(0xff222324):Colour(0xff227ca8);pg.setGradientFill(juce::ColourGradient::vertical(metal.brighter(.25f),collar.getY(),metal.darker(.55f),collar.getBottom()));pg.fillRoundedRectangle(collar,4);paintAnalogWear(pg,collar,false,763,.65f);pg.setColour(Colour(0xffb8c0b6).withAlpha(.6f));pg.drawRoundedRectangle(collar,4,.8f);}
         if(nativeChoice==1&&(type==BusComp||type==Limiter||type==Multiband||type==DynamicEQ||type==Resonance||type==Exciter||type==Doubler||type==Trim||type==DualFilter)){
@@ -668,7 +655,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.setColour(ink.withAlpha(.62f));pg.setFont(font(8.4f,true).withExtraKerningFactor(.11f));
             pg.drawFittedText("DIGITAL TAPE SATURATION",Rectangle<int>(12,tallPanelY(518),w-24,18),juce::Justification::centred,1);
         }
-        else if((type==StereoUnified||type==VoxRider)&&!layout.meter.isEmpty())identityFrame(pg,layout.meter.toFloat(),identityInk(type));
+        else if((type==StereoUnified||type==VoxRider||type==LevelUnified)&&!layout.meter.isEmpty())identityFrame(pg,layout.meter.toFloat(),identityInk(type));
         else if(identityMeter(type)&&!layout.meter.isEmpty())paintIdentityMeter(pg,layout.meter.toFloat(),type,0,1000,2,0,false,{},true);
         else if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
@@ -714,7 +701,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
     }else if(hasOutputPeak(type)&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);
 
-    }else if((type==StereoUnified||type==VoxRider)&&!vuRect.isEmpty()){
+    }else if((type==StereoUnified||type==VoxRider||type==LevelUnified)&&!vuRect.isEmpty()){
         paintSignedInstrument(g,vuRect.toFloat(),type,needle);
     }else if(identityMeter(type)&&!vuRect.isEmpty()){
         auto v=[&](int j){return j<int(cells.size())?toReal(info(type).knobs[j],float(cells[size_t(j)]->slider.getValue())):0.f;};
@@ -895,7 +882,7 @@ LibraryPanel::LibraryPanel(SkellierProcessor& p) : proc(p) {
     tileViewport.setScrollBarsShown(true, false);
     tileViewport.setScrollBarThickness(6);
     addAndMakeVisible(tileViewport);
-    std::vector<int> order{NoiseGateUnified,VoxRider,DynamicEQ,Multiband,Resonance,ProgramOpto,DeEsserUnified,AirUnified,Doubler,Exciter};
+    std::vector<int> order{NoiseGateUnified,LevelUnified,DynamicEQ,Multiband,Resonance,ProgramOpto,DeEsserUnified,AirUnified,Doubler,Exciter};
     for(int t=Eq;t<kNumRackTypes;++t)if(std::find(order.begin(),order.end(),t)==order.end())order.push_back(t);
     for(int t:order) {
         if(!catalogVisible(t))continue;

@@ -5,7 +5,7 @@ inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
     require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1),"Parameter count changed unexpectedly");
-    require(skl::kNumRackTypes==49 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
+    require(skl::kNumRackTypes==50 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
     auto ordered=[&](const juce::String& id) {

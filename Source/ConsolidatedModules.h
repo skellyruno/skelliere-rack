@@ -43,6 +43,15 @@ public:
             float x=sane(l[i]),y=r?sane(r[i]):x;float out[2]={x,y};const float in[2]={x,y};
             const float peak=std::max(std::abs(x),std::abs(y));float gr=0;
             switch(type){
+            case LevelUnified:{
+                // Manual trim/pan plus the same linked, floor-protected riding law.
+                energy[0]=smooth(energy[0],peak*peak,a,bp);const float level=g2db(std::sqrt(energy[0]));
+                const float eligibility=std::clamp((level+55.f)/6.f,0.f,1.f);
+                const float want=eligibility*std::clamp(v[2]-level,-v[3],v[3])*p[5];
+                gain[0]=smooth(gain[0],want,cp,cp);const float g=db2g(v[0]+gain[0]);
+                const float angle=(v[1]+1.f)*float(kPi*.25);
+                out[0]=x*g*(ch==2?std::cos(angle)*1.41421356237f:1.f);
+                out[1]=y*g*std::sin(angle)*1.41421356237f;gr=gain[0];break;}
             case VoxRider:{
                 energy[0]=smooth(energy[0],peak*peak,a,bp);const float level=g2db(std::sqrt(energy[0]));
                 const float eligibility=std::clamp((level-v[3])/6.f,0.f,1.f);
@@ -107,6 +116,7 @@ private:
     float bandLevel(int j,const float* in,int ch){const float x=std::abs(detect[j].process(0,in[0]));return ch==2?std::max(x,std::abs(detect[j].process(1,in[1]))):x;}
     void update(){for(int j=0;j<info(type).numKnobs;++j)v[j]=realOf(type,j,p);a=onePole(rate,5);bp=onePole(rate,80);cp=onePole(rate,100);dp=onePole(rate,10);
         switch(type){
+        case LevelUnified:cp=onePole(rate,v[4]);a=onePole(rate,30);bp=onePole(rate,160);break;
         case VoxRider:cp=onePole(rate,v[2]);a=onePole(rate,30);bp=onePole(rate,160);break;
         case DynamicEQ:bandpass(detect[0],v[0],v[1]);a=onePole(rate,v[4]);bp=onePole(rate,v[5]);cp=a;dp=a;break;
         case Multiband:{constexpr float hz[]={120,350,1000,3000,7500};for(int j=0;j<5;++j)filters[j].lowPass(rate,hz[j]);a=onePole(rate,v[3]);bp=onePole(rate,v[4]);cp=bp;dp=a;break;}

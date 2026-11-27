@@ -18,7 +18,7 @@ static std::vector<float> tone(float hz,float amp){std::vector<float>x(96000);fo
 static double rms(const std::vector<float>& x,int a=48000,int b=96000){double sum=0;for(int i=a;i<b;++i)sum+=x[i]*x[i];return std::sqrt(sum/(b-a));}
 static double diff(const std::vector<float>& a,const std::vector<float>& b){double sum=0;for(size_t i=0;i<a.size();++i)sum+=(a[i]-b[i])*(a[i]-b[i]);return std::sqrt(sum/a.size());}
 int main(){
- static_assert(activeCatalogCount()==32&&VoxRider==35&&StereoUnified==48&&SmartGate==34,"Catalog migration");
+ static_assert(activeCatalogCount()==31&&VoxRider==35&&StereoUnified==48&&SmartGate==34,"Catalog migration");
  const auto low=tone(200,.03f), high=tone(6500,.2f), loud=tone(3000,.3f), quiet=tone(3000,.0002f);
  for(int t=VoxRider;t<kNumRackTypes;++t){check(run(t,loud,{},120,false)==loud,"Bypass mismatch");}
  check(rms(run(VoxRider,low,{{0,-20}}))>rms(low)*1.7,"Rider not lifting quiet voice");
@@ -44,5 +44,14 @@ int main(){
  check(diff(run(ClipUnified,loud,{{2,0}}),loud)<1e-8,"Clip mix alignment");
  auto stereo=makeRackModule(StereoUnified);stereo->prepare(48000,257,2);juce::AudioBuffer<float> b(2,48000);float k[6]{};for(int j=0;j<4;++j)k[j]=defaultNorm(StereoUnified,j);for(int i=0;i<48000;++i)b.getWritePointer(0)[i]=b.getWritePointer(1)[i]=loud[i];stereo->process(b,k,true);check(stereo->meter()>.99f,"Correlation not live");
  auto ping=makeRackModule(EchoUnified);ping->prepare(48000,257,2);float pk[6]{};for(int j=0;j<6;++j)pk[j]=defaultNorm(EchoUnified,j);pk[0]=toNorm(info(EchoUnified).knobs[0],50);pk[3]=1;pk[5]=toNorm(info(EchoUnified).knobs[5],1);juce::AudioBuffer<float> pb(2,10000);pb.getWritePointer(1)[0]=.5f;ping->process(pb,pk,true);check(std::abs(pb.getWritePointer(0)[2400])>.01f,"Ping-pong loses right input");
- std::puts("Consolidated modes, 32 active catalog, latency/bypass and functional DSP checks passed");
+ // The old IDs still restore their original DSP; only catalog visibility changes.
+ static_assert(!catalogVisible(Trim)&&!catalogVisible(VoxRider)&&catalogVisible(LevelUnified)&&LevelUnified==49);
+ check(diff(run(LevelUnified,loud),loud)<1e-6,"Level default not neutral");
+ check(rms(run(LevelUnified,low,{{0,6}}))>rms(low)*1.9,"Level manual gain missing");
+ check(rms(run(LevelUnified,low,{{2,-20},{5,1}}))>rms(low)*1.7,"Level rider not lifting quiet voice");
+ check(diff(run(LevelUnified,quiet,{{5,1}}),quiet)<1e-8,"Level rider raises background");
+ auto level=makeRackModule(LevelUnified);level->prepare(48000,257,2);float lk[6]{};for(int j=0;j<6;++j)lk[j]=defaultNorm(LevelUnified,j);
+ lk[1]=toNorm(info(LevelUnified).knobs[1],-1);juce::AudioBuffer<float> lp(2,257);for(int c=0;c<2;++c)for(int i=0;i<257;++i)lp.getWritePointer(c)[i]=.1f;level->process(lp,lk,true);
+ check(std::abs(lp.getWritePointer(0)[256]-.14142136f)<1e-6&&std::abs(lp.getWritePointer(1)[256])<1e-7,"Level hard left pan incorrect");
+ std::puts("Consolidated modes, 31 active catalog, latency/bypass and functional DSP checks passed");
 }
