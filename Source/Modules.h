@@ -17,7 +17,7 @@ inline int resolveRackType(float legacy, float extension) noexcept {
     if (!std::isfinite(extension) || extension < 1 || extension > kNumRackTypes - kNumTypes) return Empty;
     return kNumTypes + (int) std::lround(extension) - 1;
 }
-inline bool hasOutputPeak(int type) noexcept { return type==Flanger || type==SkellMixHead || type==SkellSSL; }
+inline bool hasOutputPeak(int type) noexcept { return type==Flanger || type==SkellMixHead || type==SkellSSL || type==SkellDope; }
 enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps, Scalar };
 enum Category : int { CatNone=0, CatDynamics, CatTone, CatSpace, CatUtility };
 struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; };

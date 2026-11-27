@@ -142,16 +142,16 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
         juce::Graphics::ScopedSaveState save(g);
         juce::Path clip;clip.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),rr);g.reduceClipRegion(clip);
         const bool light=metal.getPerceivedBrightness()>.46f;
-        juce::ColourGradient body(metal.interpolatedWith(Colour(0xfff8e9d6),light?.15f:.055f),face.getX(),face.getY(),
+        juce::ColourGradient body(metal.interpolatedWith(Colour(0xfff8e9d6),light?.19f:.075f),face.getX(),face.getY(),
             metal.interpolatedWith(Colour(0xff080a0a),light?.16f:.25f),face.getRight(),face.getBottom(),false);
         body.addColour(.44,metal);g.setGradientFill(body);g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(light?.15f:.075f),
             face.getX()+face.getWidth()*.22f,face.getY()+face.getHeight()*.14f,juce::Colours::transparentWhite,
             face.getRight(),face.getCentreY(),true));g.fillRect(face);
-        if(brushed)paintBrushed(g,face,light?.70f:.56f);else {paintPeened(g,face,.52f);paintBrushed(g,face,.30f);}
+        if(brushed)paintBrushed(g,face,light?.76f:.62f);else {paintPeened(g,face,.52f);paintBrushed(g,face,.30f);}
         // Large reflected softbox and darker return, clipped to the metal.
         g.setGradientFill(juce::ColourGradient(Colour(0xffffe9c7).withAlpha(light?.055f:.018f),face.getX()+face.getWidth()*.18f,face.getY()+face.getHeight()*.18f,juce::Colours::transparentWhite,face.getRight(),face.getBottom(),true));g.fillRect(face);
-        g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(light?.06f:.12f),face.getRight(),face.getBottom(),juce::Colours::transparentBlack,face.getX(),face.getCentreY(),true));g.fillRect(face);
+        g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(light?.09f:.15f),face.getRight(),face.getBottom(),juce::Colours::transparentBlack,face.getX(),face.getCentreY(),true));g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(.18f),face.getRight(),face.getCentreY(),juce::Colours::transparentBlack,face.getRight()-7.f,face.getCentreY(),false));g.fillRect(face);
         g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,face.getBottom()-8.f,
             juce::Colours::black.withAlpha(.28f),face.getBottom()));g.fillRect(face);
@@ -689,9 +689,9 @@ public:
                 g.drawLine(cx+sine*capR*1.105f,cy+cosine*capR*1.105f,
                            cx+sine*capR*1.205f,cy+cosine*capR*1.205f,juce::jmax(.8f,capR*.033f));
             }else{
-                const float rr=capR*1.16f,dot=juce::jmax(.95f,capR*.043f);
-                g.setColour(tick.withAlpha(.94f));
-                g.fillEllipse(cx+sine*rr-dot,cy+cosine*rr-dot,2*dot,2*dot);
+                const float inner=capR*1.125f,outer=capR*1.195f;
+                g.setColour(tick.withAlpha(.87f));
+                g.drawLine(cx+sine*inner,cy+cosine*inner,cx+sine*outer,cy+cosine*outer,juce::jmax(.65f,capR*.026f));
             }
         }
         // A narrow pointer at the metal rim: never crosses the skull, and

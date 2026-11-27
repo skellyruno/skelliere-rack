@@ -82,7 +82,7 @@ def skull_mesh(mesh):
         s=union(s,e((side*.235,.405,.35),(.267,.096,.155),side*.24),.025)
         s=union(s,e((side*.365,.29,.09),(.145,.24,.24)),.03)
         # Outer edge of the orbit higher, inner lower: threatening brow.
-        s=np.maximum(s,-e((side*.238,.305,.445),(.213,.133,.287),side*.31))
+        s=np.maximum(s,-e((side*.238,.305,.445),(.224,.145,.32),side*.31))
         s=np.maximum(s,-e((side*.365,-.015,.415),(.126,.102,.218),side*.30))
         s=np.maximum(s,-e((side*.048,.105,.487),(.062,.12,.205),-side*.24))
     s=np.maximum(s,-e((0,-.188,.53),(.29,.138,.27)))
@@ -114,8 +114,8 @@ def build_static():
             tube(m,[(X(.06),y+.04,-.17),(X(w*.72),y+.065,-.11),(X(w),y-.015,.10),(X(w*.72),y-.10,.27),(X(.07),y-.08,.30)], [.044,.048,.052,.039,.027],0,26,12)
         tube(m,[(X(.04),-.20,.22),(X(.34),-.14,.23),(X(.56),-.19,.12),(X(.68),-.14,.06)],[.065,.065,.074,.05],0,22)
         # Scapula spike and skeletal shoulder joint.
-        tube(m,[(X(.45),-.23,-.02),(X(.64),-.15,-.02),(X(.74),.02,-.07)],[.12,.087,.002],3,18)
-        ellipsoid(m,(X(.65),-.245,.10),(.155,.135,.13),0)
+        tube(m,[(X(.45),-.23,-.02),(X(.64),-.15,-.02),(X(.80),.09,-.07)],[.14,.092,.002],3,18)
+        ellipsoid(m,(X(.65),-.245,.10),(.185,.158,.15),0)
         tube(m,[(X(.65),-.25,.11),(X(.77),-.44,.20),(X(.87),-.64,.35)],[.081,.066,.088],0,18)
         ellipsoid(m,(X(.87),-.64,.35),(.105,.09,.095),0)
         tube(m,[(X(.85),-.65,.36),(X(.76),-.81,.60),(X(.66),-.91,.85)],[.068,.052,.060],0,18)
@@ -132,26 +132,26 @@ def build_static():
         # Small hot eyes deep inside true sockets.
         # Sharply angled heavy brows and thin molten slits, not round pupils.
         tube(m,[(side*.055,.342,.438),(side*.18,.386,.445),(side*.315,.435,.375),(side*.435,.412,.25)],[.048,.071,.077,.031],0,25,18)
-        ellipsoid(m,(side*.222,.300,.275),(.087,.024,.031),1,side*.30)
-        ellipsoid(m,(side*.217,.299,.302),(.046,.010,.013),4,side*.30)
+        ellipsoid(m,(side*.222,.300,.275),(.095,.025,.034),1,side*.30)
+        ellipsoid(m,(side*.217,.299,.302),(.052,.012,.014),4,side*.30)
         # Spiked cranial ridge, framing the angry face.
         tube(m,[(side*.30,.65,.14),(side*.39,.75,.15),(side*.43,.87,.08)],[.087,.055,.002],3,18,14)
     # Upper teeth along a curved dental arch; long outer canines.
     for i in range(10):
         x=(i-4.5)*.050;z=.520-.095*(abs(x)/.225)**1.5;y=-.106+.014*abs(i-4.5)
-        l=.135 if i in (0,9) else .072+.014*(i%2)
+        l=.165 if i in (0,9) else .086+.014*(i%2)
         tube(m,[(x,y,z),(x,y-l*.53,z+.014),(x*.98,y-l,z+.002)],[.027,.022,.004],2,10,12)
     # Bring the skull toward the listener; keep the horns anchored to the cranium.
     for k in range(head_start,len(m.v)):
-        m.v[k][:,0]*=1.12;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.08;m.v[k][:,2]+=.035
-        m.n[k][:,0]/=1.12;m.n[k][:,1]/=1.08;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
+        m.v[k][:,0]*=1.25;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.15;m.v[k][:,2]+=.07
+        m.n[k][:,0]/=1.25;m.n[k][:,1]/=1.15;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
     return m
 
 def add_jaw(m,open_amt):
     # Hinge-driven 3D jaw, rotating the chin forward and down, not a flat mouth overlay.
     # Y displacement grows toward the front of the mandible.
     def pose(p):
-        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.12,.27+(y-open_amt*.22*w-.27)*1.08,z+open_amt*.035*w+.035)
+        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.25,.27+(y-open_amt*.28*w-.27)*1.15,z+open_amt*.055*w+.07)
     for side in (-1,1):
         X=lambda x:side*x
         points=[(X(.36),.015,.09),(X(.34),-.235,.17),(X(.235),-.36,.36),(X(.13),-.414,.49),(0,-.435,.53)]
@@ -159,14 +159,14 @@ def add_jaw(m,open_amt):
     ellipsoid(m,pose((0,-.423,.53)),(.10,.063,.059),0)
     for i in range(10):
         x=(i-4.5)*.047;z=.523-.085*(abs(x)/.22)**1.4;y=-.386+.018*abs(i-4.5)
-        l=.105 if i in (0,9) else .062+.012*(i%2)
+        l=.13 if i in (0,9) else .077+.012*(i%2)
         tube(m,[pose((x,y,z)),pose((x,y+l*.52,z+.008)),pose((x*.98,y+l,z+.001))],[.026,.022,.004],2,10,12)
 
 def add_hands(m,amt):
     # Foreground joints and claws reach past the window frame in perspective.
     for side in (-1,1):
-        X=lambda x:side*x;reach=amt*.027
-        ellipsoid(m,(X(.69),-.935,.86+reach),(.18,.115,.095),3)
+        X=lambda x:side*x;reach=amt*.075
+        ellipsoid(m,(X(.69),-.935,.86+reach),(.19,.126,.103),3)
         for i in range(4):
             x=.49+i*.112;y=-.93+(.012*abs(i-1));z=.875+.015*(3-i)+reach
             ellipsoid(m,(X(x),y,z),(.052,.045,.049),0)
@@ -222,8 +222,8 @@ def render(mesh):
     spec=np.maximum(np.sum(N*half,axis=1),0)**32 * vis
     fres=(1-np.maximum(np.sum(N*view,axis=1),0))**2
     texture=.91+.045*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.033*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.019*np.sin(pp[:,2]*140+pp[:,0]*97)
-    colors=np.array([[.48,.059,.049],[1.0,.14,.008],[.72,.19,.10],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
-    rgb=colors*texture[:,None]*(.15+1.18*D[:,None]*vis[:,None])
+    colors=np.array([[.53,.071,.052],[1.0,.14,.008],[.72,.19,.10],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
+    rgb=colors*texture[:,None]*(.12+1.26*D[:,None]*vis[:,None])
     rgb+=np.array([.50,.048,.023])*rim[:,None]*(.50+.50*fres[:,None])
     rgb+=np.array([.72,.40,.27])*spec[:,None]*.43
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.
@@ -233,7 +233,7 @@ def render(mesh):
     # Small surface grain in camera space, color in sRGB-like artist units.
     rgb=np.clip(rgb,0,1);rgb=np.power(rgb,.82)
     image=np.zeros((H,W,4),np.uint8);image[mask,:3]=(rgb*255).astype(np.uint8);image[mask,3]=255
-    eye=(mat==1)|(mat==4);bloom=gaussian_filter(eye.astype(np.float32),3.1)*1.1
+    eye=(mat==1)|(mat==4);bloom=gaussian_filter(eye.astype(np.float32),3.1)*1.45
     image[:,:,:3]=np.clip(image[:,:,:3].astype(np.float32)+bloom[:,:,None]*np.array([115,25,5],np.float32),0,255).astype(np.uint8)
     return Image.fromarray(image,'RGBA')
 

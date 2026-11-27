@@ -60,7 +60,7 @@ inline void processorRegression() {
     require(p.slotType(0)==skl::Eq,"Extension overrode legacy selection");
     // A real Jet meter must match the output of a unity-gain single-slot
     // rack, consume its peak once and clear on bypass/removal.
-    for(int meterType:{skl::Flanger,skl::SkellMixHead,skl::SkellSSL}){
+    for(int meterType:{skl::Flanger,skl::SkellMixHead,skl::SkellSSL,skl::SkellDope}){
     p.clearRack();require(p.addModule(meterType,0),"Peak-meter module not selectable");
     p.soloSlot.store(-1);set("in",0);set("out",0);set("bypass",0);set(p.onId(0),1);
     juce::AudioBuffer<float> jet(2,63);juce::MidiBuffer jetMidi;

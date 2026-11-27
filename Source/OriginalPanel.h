@@ -15,7 +15,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==Reverb)metal=Colour(0xff423b4a);
     if(finish==1&&type==Chorus)metal=Colour(0xff29454a);
     if(finish==1&&type==SkellDope)metal=Colour(0xffc1c3be);
-    if(finish==1&&type==SkellSSL)metal=Colour(0xff212425);
+    if(finish==1&&type==SkellSSL)metal=Colour(0xff1a1c1c);
     if(finish==1&&type==SkellDemon)metal=Colour(0xff591014);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
@@ -39,34 +39,36 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==SkellDemon){
-        l.detail={10,101,width-20,249};
-        const int cw=(width-24)/3,rh=(editing?519:547)-355;
-        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,355+(k/3)*(rh/2),cw,rh/2-3};
+        l.detail={7,101,width-14,255};
+        const int cw=(width-24)/3,rh=(editing?519:547)-360;
+        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,360+(k/3)*(rh/2),cw,rh/2-3};
         return l;
     }
     if(type==SkellSSL){
         // Console proportions: compact input/filter/dynamics on the left,
         // four full EQ bands on the right. The six original automation slots
         // and the appended SSL controls are placed independently.
-        const int lane=(width-28)/2, left=13,right=15+lane;
+        const int lane=(width-22)/2, left=10,right=12+lane;
         auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
-        row(left,120,53,{e(SslInput),e(SslOutput),e(SslPhase)});
-        row(left,190,54,{e(SslHP),e(SslLP),0});
-        row(left,263,54,{5,e(SslThreshold),e(SslRatio)});
-        row(left,319,53,{e(SslRelease),e(SslFast)});
-        row(left,394,54,{e(SslExpThreshold),e(SslExpRange)});
-        row(left,451,61,{e(SslExpRelease),e(SslGate)});
-        row(right,120,64,{4,e(SslHFFreq),e(SslHFBell)});
-        row(right,204,64,{3,e(SslHMFreq),e(SslHMQ)});
-        row(right,288,64,{2,e(SslLMFreq),e(SslLMQ)});
-        row(right,372,64,{1,e(SslLFFreq),e(SslLFBell)});
-        l.meter={right+2,456,lane-4,64};return l;
+        row(left,103,63,{e(SslInput),e(SslOutput),e(SslPhase)});
+        row(left,185,63,{e(SslHP),e(SslLP),0});
+        row(left,267,63,{5,e(SslThreshold),e(SslRatio)});
+        row(left,330,54,{e(SslRelease),e(SslFast)});
+        row(left,403,55,{e(SslExpThreshold),e(SslExpRange)});
+        row(left,458,57,{e(SslExpRelease),e(SslGate)});
+        row(right,103,71,{4,e(SslHFFreq),e(SslHFBell)});
+        row(right,193,71,{3,e(SslHMFreq),e(SslHMQ)});
+        row(right,283,71,{2,e(SslLMFreq),e(SslLMQ)});
+        row(right,373,71,{1,e(SslLFFreq),e(SslLFBell)});
+        l.meter={right+2,463,lane-4,64};return l;
     }
     if(type==SkellDope){
-        l.cells[0]={14,113,81,111};
-        for(int k=1;k<=4;++k)l.cells[k]={12+((k-1)%2)*half,238+((k-1)/2)*135,half,128};
-        return l;
+        // Four rotary controls share one exact horizontal centreline.
+        l.cells[0]={12,124,70,98};
+        const int cw=(width-24)/4;
+        for(int k=1;k<=4;++k)l.cells[k]={12+(k-1)*cw,234,cw,86};
+        l.meter={20,363,width-40,72};return l;
     }
     if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -387,7 +389,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
     // The tape mechanism is decorative; its live controls are below the window.
 }
 inline void paintDemonVectorFallback(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
-    const auto win=r.withTrimmedBottom(15.f);
+    const auto win=r.withTrimmedBottom(23.f);
     if(frame)paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);
     auto a=win.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff69120d),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
@@ -455,7 +457,7 @@ inline const juce::Image& demonReliefAtlas(){
 inline bool demonReliefIsValid(){const auto& a=demonReliefAtlas();return a.isValid()&&a.hasAlphaChannel()&&a.getWidth()==1296&&a.getHeight()==1488;}
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
-    const auto win=r.withTrimmedBottom(15.f);const auto a=win.reduced(5.f);
+    const auto win=r.withTrimmedBottom(23.f);const auto a=win.reduced(5.f);
     if(frame){paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);return;}
     juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff5b140f),a.getCentreX(),a.getY()+a.getHeight()*.53f,Colour(0xff090306),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4.f);
@@ -464,7 +466,7 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
         for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
     }
     const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
-    const auto& atlas=demonReliefAtlas();const auto dst=r.reduced(1.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
+    const auto& atlas=demonReliefAtlas();const auto dst=r.reduced(0.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
     g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
