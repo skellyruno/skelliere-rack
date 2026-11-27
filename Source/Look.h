@@ -121,6 +121,28 @@ inline void paintBrushed(Graphics& g, juce::Rectangle<float> r, float opacity = 
     g.fillRect(r);
 }
 
+// Deterministic restrained edge patina and handling marks, cached with plates.
+inline void paintAnalogWear(Graphics& g,juce::Rectangle<float> r,bool light,int seed,float amount){
+    if(r.getWidth()<24||r.getHeight()<30)return;
+    juce::Graphics::ScopedSaveState state(g);g.reduceClipRegion(r.toNearestInt());
+    juce::Random rng(seed);const auto dark=Colour(0xff17130e),exposed=Colour(0xffded2bc);
+    const int count=juce::jlimit(18,180,int(r.getWidth()*r.getHeight()/1050.f));
+    for(int i=0;i<count;++i){
+        const float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight();
+        const float len=1.5f+rng.nextFloat()*9.f,dy=(rng.nextFloat()-.5f)*1.8f;
+        g.setColour(dark.withAlpha(amount*(light?.23f:.25f)*(.3f+rng.nextFloat()*.7f)));g.drawLine(x,y,x+len,y+dy,.45f);
+        g.setColour(exposed.withAlpha(amount*(light?.33f:.18f)));g.drawLine(x,y+.55f,x+len,y+dy+.55f,.45f);
+    }
+    for(int side=0;side<4;++side)for(int i=0;i<15;++i){
+        const float t=rng.nextFloat(),len=1.1f+rng.nextFloat()*5.f,off=.35f+rng.nextFloat()*1.9f;
+        const float x=side<2?r.getX()+t*(r.getWidth()-len):(side==2?r.getX()+off:r.getRight()-off);
+        const float y=side<2?(side==0?r.getY()+off:r.getBottom()-off):r.getY()+t*(r.getHeight()-len);
+        const float dx=side<2?len:0.f,dy=side<2?0.f:len;
+        g.setColour(dark.withAlpha(amount*.23f));g.drawLine(x,y,x+dx,y+dy,1.f);
+        g.setColour(exposed.withAlpha(amount*(light?.45f:.32f)));g.drawLine(x+.45f,y-.4f,x+dx+.45f,y+dy-.4f,.55f);
+    }
+}
+
 // Common physical enclosure: broad convex edge, directional reflected light,
 // recessed contact lip. Rendered into the callers' static image caches.
 inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal,bool brushed,float radius=9.f,float bevel=4.f){
@@ -148,7 +170,8 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
         g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(light?.15f:.075f),
             face.getX()+face.getWidth()*.22f,face.getY()+face.getHeight()*.14f,juce::Colours::transparentWhite,
             face.getRight(),face.getCentreY(),true));g.fillRect(face);
-        if(brushed)paintBrushed(g,face,light?.76f:.62f);else {paintPeened(g,face,.52f);paintBrushed(g,face,.30f);}
+        if(brushed)paintBrushed(g,face,light?.82f:.72f);else {paintPeened(g,face,.65f);paintBrushed(g,face,.36f);}
+        if(r.getWidth()>200&&r.getHeight()>45)paintAnalogWear(g,face,light,739+int(r.getWidth())*13+int(r.getHeight())*7,.50f);
         // Large reflected softbox and darker return, clipped to the metal.
         g.setGradientFill(juce::ColourGradient(Colour(0xffffe9c7).withAlpha(light?.055f:.018f),face.getX()+face.getWidth()*.18f,face.getY()+face.getHeight()*.18f,juce::Colours::transparentWhite,face.getRight(),face.getBottom(),true));g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(light?.09f:.15f),face.getRight(),face.getBottom(),juce::Colours::transparentBlack,face.getX(),face.getCentreY(),true));g.fillRect(face);
@@ -642,6 +665,26 @@ public:
                 g.setColour(on?Colour(0xff211b14):dope?Colour(0xfff4ead7):Colour(0xffb1a99a));g.setFont(font(juce::jlimit(8.f,12.f,size*.14f),true));
                 g.drawFittedText(choices[i],a.toNearestInt(),juce::Justification::centred,1);
             }
+            return;
+        }
+        if(bool(s.getProperties().getWithDefault("sslConsoleCap",false))){
+            // Compact molded console cap, fluted skirt, painted pointer.
+            const float r=size*.365f;
+            auto disk=[&](float rr,float dy=0.f){return juce::Rectangle<float>(cx-rr,cy-rr+dy,rr*2,rr*2);};
+            const auto tint=s.getProperties().getWithDefault("houseTint",juce::var(juce::String("ffa5a6a0"))).toString();
+            const auto col=Colour(unsigned(tint.getHexValue32()));
+            g.setColour(juce::Colours::black.withAlpha(.55f));g.fillEllipse(disk(r*1.22f,1.5f));
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff333633),cy-r,Colour(0xff070909),cy+r+1));g.fillEllipse(disk(r*1.11f,1.f));
+            for(int i=0;i<24;++i){const float a=float(i)*juce::MathConstants<float>::twoPi/24.f;g.setColour(Colour(0xffa2a29b).withAlpha(.14f+.18f*juce::jmax(0.f,-std::sin(a))));g.drawLine(cx+std::sin(a)*r*.96f,cy-std::cos(a)*r*.96f,cx+std::sin(a)*r*1.08f,cy-std::cos(a)*r*1.08f,.6f);}
+            g.setGradientFill(juce::ColourGradient::vertical(col.brighter(.28f),cy-r,col.darker(.58f),cy+r));g.fillEllipse(disk(r));
+            g.setColour(col.brighter(.36f).withAlpha(.9f));g.drawEllipse(disk(r*.95f),.65f);
+            juce::Path rim;rim.addCentredArc(cx,cy,r*.94f,r*.94f,0.f,-1.9f,.25f,true);g.setColour(Colour(0xfff2e5d0).withAlpha(.35f));g.strokePath(rim,juce::PathStrokeType(.7f));
+            g.setGradientFill(juce::ColourGradient(col.brighter(.17f),cx-r*.55f,cy-r*.7f,col.darker(.18f),cx+r*.55f,cy+r*.65f,false));g.fillEllipse(disk(r*.78f));
+            const auto ticks=light?Colour(0xff282c29):Colour(0xffd0d1c4);
+            for(int i=0;i<=10;++i){const float a=a0+(a1-a0)*i*.1f;g.setColour(ticks.withAlpha(i%5==0?.9f:.49f));g.drawLine(cx+std::sin(a)*r*1.20f,cy-std::cos(a)*r*1.20f,cx+std::sin(a)*r*1.34f,cy-std::cos(a)*r*1.34f,.62f);}
+            const float sn=std::sin(angle),cs=-std::cos(angle);g.setColour(Colour(0xff151715).withAlpha(.85f));g.drawLine(cx+sn*r*.27f,cy+cs*r*.27f,cx+sn*r*.89f,cy+cs*r*.89f,2.4f);
+            g.setColour(Colour(0xfff0eee1));g.drawLine(cx+sn*r*.31f,cy+cs*r*.31f,cx+sn*r*.89f,cy+cs*r*.89f,1.25f);
+            if(s.isMouseOverOrDragging()||s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.fillEllipse(cx+sn*r*1.25f-1.f,cy+cs*r*1.25f-1.f,2,2);}
             return;
         }
         if(bool(s.getProperties().getWithDefault("blackSelector",false))){

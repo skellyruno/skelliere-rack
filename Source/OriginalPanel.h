@@ -14,8 +14,8 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==Sat)metal=Colour(0xff594033);
     if(finish==1&&type==Reverb)metal=Colour(0xff423b4a);
     if(finish==1&&type==Chorus)metal=Colour(0xff29454a);
-    if(finish==1&&type==SkellDope)metal=Colour(0xffc1c3be);
-    if(finish==1&&type==SkellSSL)metal=Colour(0xff1a1c1c);
+    if(finish==1&&type==SkellDope)metal=Colour(0xffd2d3cc);
+    if(finish==1&&type==SkellSSL)metal=Colour(0xff252827);
     if(finish==1&&type==SkellDemon)metal=Colour(0xff591014);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
@@ -48,7 +48,7 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
         // Console proportions: compact input/filter/dynamics on the left,
         // four full EQ bands on the right. The six original automation slots
         // and the appended SSL controls are placed independently.
-        const int lane=(width-22)/2, left=10,right=12+lane;
+        const int lane=(width-30)/2, left=14,right=16+lane;
         auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
         row(left,103,63,{e(SslInput),e(SslOutput),e(SslPhase)});
@@ -64,11 +64,11 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
         l.meter={right+2,463,lane-4,64};return l;
     }
     if(type==SkellDope){
-        // Four rotary controls share one exact horizontal centreline.
-        l.cells[0]={12,124,70,98};
-        const int cw=(width-24)/4;
-        for(int k=1;k<=4;++k)l.cells[k]={12+(k-1)*cw,234,cw,86};
-        l.meter={20,363,width-40,72};return l;
+        // Vertical rack adaptation of the two-mode hardware. All four
+        // existing APVTS attachments remain in their original order.
+        l.cells[0]={9,111,50,96};
+        for(int k=1;k<=4;++k)l.cells[k]={60,106+(k-1)*103,88,100};
+        l.meter={153,225,width-165,289};return l;
     }
     if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -481,6 +481,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(r.reduced(4.f),4.f,.85f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
+    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {
