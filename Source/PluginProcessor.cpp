@@ -76,6 +76,7 @@ SkellierProcessor::SkellierProcessor()
         for (int k = 0; k < kMaxKnobs; ++k) kRaw[s][k] = apvts.getRawParameterValue(knobId(s, k));
         lastType[s] = -1;
         apvts.addParameterListener(typeId(s), this);
+        apvts.addParameterListener(extraId(s), this);
     }
     inRaw = apvts.getRawParameterValue("in");
     outRaw = apvts.getRawParameterValue("out");
@@ -86,7 +87,7 @@ SkellierProcessor::SkellierProcessor()
 
 SkellierProcessor::~SkellierProcessor() {
     latencyUpdater.cancelPendingUpdate();
-    for (int s = 0; s < kNumSlots; ++s) apvts.removeParameterListener(typeId(s), this);
+    for (int s = 0; s < kNumSlots; ++s) { apvts.removeParameterListener(typeId(s), this); apvts.removeParameterListener(extraId(s), this); }
 }
 
 void SkellierProcessor::parameterChanged(const juce::String&, float) { latencyUpdater.triggerAsyncUpdate(); }
@@ -115,7 +116,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
         }
     tuneModule = makeModule(Tune);
     tuneModule->prepare(sampleRate_, maxBlock, ch);
-    bypassDelay.prepare(tuneModule->latency());
+    bypassDelay.prepare(tuneModule->latency()+kNumSlots*std::max(mods[0][SkellDemon]->latency(),mods[0][SkellMixHead]->latency()));
     for (int s = 0; s < kNumSlots; ++s) {lastType[s] = -1;jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);}
     inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
     inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(inRaw->load()));
@@ -125,7 +126,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
 }
 
 void SkellierProcessor::updateLatency() {
-    setLatencySamples(latencyOfTune());
+    setLatencySamples(rackLatency());
 }
 
 int SkellierProcessor::latencyOfTune() const {
@@ -133,6 +134,12 @@ int SkellierProcessor::latencyOfTune() const {
     for (int s = 0; s < kNumSlots; ++s)
         if (slotType(s) == Tune) return tuneModule->latency();
     return 0;
+}
+
+int SkellierProcessor::rackLatency() const {
+    int latency=latencyOfTune();
+    for(int s=0;s<kNumSlots;++s){const auto t=slotType(s);if(t!=Tune&&t>0&&t<kNumRackTypes&&mods[s][t])latency+=mods[s][t]->latency();}
+    return latency;
 }
 
 void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
@@ -148,7 +155,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     // latency remains the same when the user toggles Bypass All, avoiding a dry
     // timing jump relative to other tracks when a Tune module is present.
     const float rawPeak = buffer.getMagnitude(0, total);
-    bypassDelay.process(buffer, latencyOfTune(), bypass);
+    bypassDelay.process(buffer, rackLatency(), bypass);
     if (bypass) {
         for(auto& peak:jetPeak)peak.store(0,std::memory_order_relaxed);
         inPeak.store(juce::jmax(inPeak.load(), rawPeak));

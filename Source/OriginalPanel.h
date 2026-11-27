@@ -5,8 +5,8 @@ namespace skl::ui {
 #include "ReferenceTapeArtwork.h"
 struct PanelSpec { Colour metal,accent,cap; bool light; const char* series; };
 inline PanelSpec originalSpec(int type,int finish) {
-    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xe1c4a6,0x62352e,0x5d4132,0xc4c0ad,0x293640,0x34382a,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x59322e,0x706449,0x496464,0x45484a,0x3c4144,0x992c20,0x8a232a};
-    static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4,0xf2b367,0xf6c06a,0xe4c27e};
+    static constexpr unsigned metals[]={0x25292c,0x9eaaa6,0xe1c4a6,0x62352e,0x5d4132,0xc4c0ad,0x293640,0x34382a,0x45433e,0x323235,0x6b716e,0x242d34,0x97876e,0x425c61,0x62403b,0x344c59,0xc1aa83,0x454f3e,0x71614d,0x303e4b,0x5e6354,0x784d3e,0x3c594d,0x4e4059,0x59322e,0x706449,0x496464,0x45484a,0x3c4144,0x992c20,0x8a232a,0x461719,0x3d4549,0x292e34};
+    static constexpr unsigned accents[]={0x9a9a9a,0x39534b,0xaed5bf,0xe0b88e,0xe9be7b,0x365b55,0xa4bedc,0xe7c68c,0xaed0aa,0xe2ad9f,0xb5d3c4,0x9bddb7,0x3c514b,0xa4d4df,0xe5d9bf,0xb7d8cf,0x26392f,0xc0d58e,0xf0cc9b,0x405e50,0xe1d7ab,0xf3b397,0xc1d4ab,0xd5b7de,0xa7d5e5,0xf0cd98,0xc6e8da,0xc6c7b4,0xf2b367,0xf6c06a,0xe4c27e,0xf2a470,0xd6d9d4,0x99ded6};
     static_assert(std::size(metals)==kNumRackTypes && std::size(accents)==kNumRackTypes,"Panel palette must cover catalog");
     type=std::clamp(type,0,static_cast<int>(kNumRackTypes)-1);
     auto metal=Colour(0xff000000u|metals[type]);const auto accent=Colour(0xff000000u|accents[type]);
@@ -35,10 +35,12 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     if(mi.hasVU||hasOutputPeak(type))l.meter={15,106,width-30,120};
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
+    if(type==SkellDemon)l.detail={16,106,width-32,132};
+    if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
     // Four-window controls leave a lower breathing area like real rack gear.
     // Five-control compressors need the bottom row for makeup gain.
-    const int top=type==Eq?199:window?(n==5?(editing?248:253):242):108;
+    const int top=type==SkellDemon?250:type==Eq?199:window?(n==5?(editing?248:253):242):108;
     const int bottom=editing?520:(window&&n==4?515:window&&n==5&&!l.meter.isEmpty()?565:548),available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
@@ -352,6 +354,21 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
     }
     // The tape mechanism is decorative; its live controls are below the window.
 }
+inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
+    if(frame)paintHardwarePlate(g,r,Colour(0xff52251f),false,8.f,3.f);
+    auto a=r.reduced(6.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(a.toNearestInt());
+    const float cx=a.getCentreX(),cy=a.getCentreY(),h=a.getHeight();
+    g.setGradientFill(juce::ColourGradient(Colour(0xff7a2116),cx,cy,Colour(0xff10090c),cx+a.getWidth()*.55f,a.getBottom(),true));g.fillRoundedRectangle(a,4);
+    for(int i=0;i<20;++i){float t=float(i)*.83f+phase;float x=cx+std::sin(t)*a.getWidth()*.44f;float y=a.getBottom()-std::fmod(float(i)*17.f+phase*16.f,h);g.setColour(Colour(0xffff8545).withAlpha(.10f+.14f*level));g.fillEllipse(x,y,1.8f,3.5f);}
+    auto skull=juce::Rectangle<float>(cx-h*.23f,cy-h*.28f,h*.46f,h*.58f);
+    for(int side:{-1,1}){juce::Path horn;horn.startNewSubPath(cx+side*h*.12f,cy-h*.15f);horn.cubicTo(cx+side*h*.44f,cy-h*.18f,cx+side*h*.32f,cy-h*.48f,cx+side*h*.44f,cy-h*.47f);horn.cubicTo(cx+side*h*.49f,cy-h*.02f,cx+side*h*.30f,cy+h*.05f,cx+side*h*.15f,cy-h*.03f);horn.closeSubPath();g.setGradientFill(juce::ColourGradient(Colour(0xffe8b78a),cx,cy-h*.45f,Colour(0xff342021),cx,cy+h*.12f,false));g.fillPath(horn);g.setColour(Colour(0xffe69a65).withAlpha(.6f));g.strokePath(horn,juce::PathStrokeType(.7f));}
+    g.setGradientFill(juce::ColourGradient(Colour(0xfff5d8af),skull.getX(),skull.getY(),Colour(0xff50312d),skull.getRight(),skull.getBottom(),false));juce::Path bone;bone.startNewSubPath(cx,cy-h*.29f);bone.cubicTo(cx+h*.20f,cy-h*.32f,cx+h*.25f,cy-h*.22f,cx+h*.23f,cy-h*.04f);bone.lineTo(cx+h*.18f,cy+h*.04f);bone.lineTo(cx+h*.14f,cy+h*.08f);bone.lineTo(cx+h*.12f,cy+h*.24f);bone.quadraticTo(cx,cy+h*.29f,cx-h*.12f,cy+h*.24f);bone.lineTo(cx-h*.14f,cy+h*.08f);bone.lineTo(cx-h*.18f,cy+h*.04f);bone.lineTo(cx-h*.23f,cy-h*.04f);bone.cubicTo(cx-h*.25f,cy-h*.22f,cx-h*.20f,cy-h*.32f,cx,cy-h*.29f);bone.closeSubPath();g.fillPath(bone);
+    for(int side:{-1,1}){juce::Path ridge;ridge.startNewSubPath(cx,cy-h*.18f);ridge.quadraticTo(cx+side*h*.13f,cy-h*.21f,cx+side*h*.21f,cy-h*.07f);ridge.lineTo(cx+side*h*.14f,cy-h*.04f);ridge.quadraticTo(cx+side*h*.10f,cy-h*.12f,cx,cy-h*.10f);ridge.closeSubPath();g.setGradientFill(juce::ColourGradient(Colour(0xffeac4a0),cx,cy-h*.20f,Colour(0xff533329),cx,cy-h*.035f,false));g.fillPath(ridge);g.setColour(Colour(0xff2d1719).withAlpha(.6f));g.drawLine(cx+side*h*.19f,cy+h*.015f,cx+side*h*.11f,cy+h*.13f,1.3f);}
+    g.setColour(Colour(0xffc49976).withAlpha(.75f));g.strokePath(bone,juce::PathStrokeType(.65f));
+    auto jaw=juce::Rectangle<float>(cx-h*.13f,cy+h*.10f,h*.26f,h*.19f);g.setColour(Colour(0xffa77e64));g.fillRoundedRectangle(jaw,3);g.setColour(Colour(0xff2a171a));for(int j=1;j<6;++j)g.drawVerticalLine(int(jaw.getX()+j*jaw.getWidth()/6),jaw.getY()+2,jaw.getBottom()-1);
+    for(int side:{-1,1}){auto eye=juce::Rectangle<float>(cx+side*h*.105f-h*.075f,cy-h*.10f,h*.15f,h*.095f);g.setColour(Colour(0xff1a0a0b));g.fillEllipse(eye.expanded(2));float glow=.65f+.25f*std::sin(phase*2.f)+.10f*level;g.setColour(Colour(0xffff5b26).withAlpha(juce::jlimit(.2f,1.f,glow)));g.fillEllipse(eye.reduced(2));g.setColour(Colour(0xffffdc9c));g.fillEllipse(eye.withSizeKeepingCentre(h*.035f,h*.035f));}
+    juce::Path nose;nose.startNewSubPath(cx,cy-h*.015f);nose.lineTo(cx-h*.045f,cy+h*.08f);nose.lineTo(cx+h*.045f,cy+h*.08f);nose.closeSubPath();g.setColour(Colour(0xff271419));g.fillPath(nose);g.setColour(Colour(0xfff0b895).withAlpha(.52f));g.drawRoundedRectangle(a.reduced(1),4,.8f);
+}
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
     // The reference's dark anodised panels are substantially darker and more
@@ -360,6 +377,8 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead6b8),.08f)
         :p.metal.interpolatedWith(Colour(0xff0e0d0b),.21f);
     paintHardwarePlate(g,r.reduced(.3f),base,p.light,10.f,4.9f);
+    auto f=r.reduced(6.f);g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(.055f),f.getX(),f.getY(),juce::Colours::black.withAlpha(.20f),f.getRight(),f.getBottom(),false));g.fillRoundedRectangle(f,6.f);
+    g.setColour(juce::Colours::black.withAlpha(.28f));g.drawRoundedRectangle(r.reduced(4.f),7.f,.8f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {

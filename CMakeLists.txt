@@ -40,11 +40,13 @@ target_link_libraries(SkellierRack PUBLIC SkelliereKnobArt)
 # Original JUCE panels; legacy asset archives are retained as reference only.
 set(SKELLIERE_FULL_ARTWORK 0)
 target_sources(SkellierRack PRIVATE
+  Source/Recovered/ConsoleEG.cpp Source/Recovered/VocalPitch.cpp Source/Recovered/VoiceShiftCore.cpp
   Source/Modules.h Source/Dsp.h Source/RackModuleFactory.h Source/ProgramOptoCore.h Source/RackProgramOpto.h
   Source/PluginProcessor.cpp Source/PluginProcessor.h
   Source/Look.h Source/OriginalPanel.h Source/AnalogRackModules.h
   Source/PluginEditor.cpp Source/PluginEditor.h)
 
+target_include_directories(SkellierRack PRIVATE Source/Recovered)
 target_compile_features(SkellierRack PRIVATE cxx_std_17)
 target_compile_definitions(SkellierRack PUBLIC JUCE_VST3_CAN_REPLACE_VST2=0 SKELLIERE_FULL_ARTWORK=${SKELLIERE_FULL_ARTWORK})
 target_compile_definitions(SkellierRack PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)

@@ -29,6 +29,11 @@ static void paintMixHeadPeak(Graphics& g,Rectangle<float> r,float db,bool plate)
     }
 }
 
+static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
+    auto track=r.reduced(12,0).withTrimmedTop(27).withTrimmedBottom(22);track.setWidth(16.f);
+    if(plate){paintHardwarePlate(g,r,Colour(0xff29343a),false,5.f,3.f);paintRecessedWindow(g,track,2);g.setFont(font(9.5f,true));g.setColour(Colour(0xffcbd5cf));g.drawText("GR dB",r.withHeight(24),juce::Justification::centred);for(int i=0;i<=4;++i){float y=track.getY()+track.getHeight()*i*.25f;g.setColour(Colour(0xff80908d));g.drawHorizontalLine(int(y),track.getRight()+3,track.getRight()+8);g.drawText(juce::String(i*6),Rectangle<float>(track.getRight()+10,y-7,22,14),juce::Justification::centredLeft);}}
+    else {const float v=juce::jlimit(0.f,1.f,std::abs(db)/24.f);auto bar=track.reduced(2).withHeight(track.reduced(2).getHeight()*v);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdcffb5),bar.getY(),Colour(0xff2a986b),bar.getBottom()));g.fillRoundedRectangle(bar,1);}
+}
 // =================================================================== KnobCell
 KnobCell::KnobCell(const juce::String& label, juce::RangedAudioParameter& param, Fmt fmt, juce::Colour cap, juce::Colour pointer,
                    double resetValue, double step, bool compact)
@@ -58,6 +63,7 @@ void KnobCell::setLightFace(bool light) {
 void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVerticalDrag); }
 
 void KnobCell::resized() {
+    if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_){slider.setBounds(5,3,getWidth()-10,getHeight()-36);return;}
     if(compact_){
         const int size=juce::jmax(1,juce::jmin(getHeight(),getWidth(),48));
         slider.setBounds(0,(getHeight()-size)/2,size,size);
@@ -74,7 +80,9 @@ void KnobCell::resized() {
 }
 bool KnobCell::controlGeometryValid() const noexcept {
     const auto b=slider.getBounds();
-    if(b.isEmpty()||!getLocalBounds().contains(b)||b.getWidth()!=b.getHeight())return false;
+    if(b.isEmpty()||!getLocalBounds().contains(b))return false;
+    if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_)return b.getBottom()+28<=getHeight();
+    if(b.getWidth()!=b.getHeight())return false;
     if(compact_)return b.getWidth()<=48;
     if(sideReadout_)return b.getWidth()<=88&&b.getRight()+12<getWidth();
     const int limit=getWidth()<90?58:getWidth()<125?76:96;
@@ -230,15 +238,17 @@ void SlotComponent::rebuild() {
             auto cell = std::make_unique<KnobCell>(k.label, *param, [k](double v) { return knobText(k, (float) v); },
                                                    capColour(mi.cat), pointerColour(mi.cat), (double) defaultNorm(type, j),
                                                    k.steps > 1 ? 1.0 / (double) (k.steps - 1) : 0.0);
-            if((type==SkellDope||type==SkellMixHead)&&k.steps==2){
+            if((type==SkellDope||type==SkellMixHead||type==SkellDemon||type==SkellSSL)&&k.steps==2){
                 cell->slider.getProperties().set("colorSwitch",true);
                 cell->slider.getProperties().set("dopeSwitch",type==SkellDope);
                 cell->slider.getProperties().set("switchLabels",juce::String(k.names));
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
-            if(type==SkellRubyQ||type==SkellMixHead||type==SkellDope)cell->slider.getProperties().set("blackSelector",true);
+            if(type==SkellRubyQ||type==SkellMixHead||type==SkellDope||type==SkellDemon||type==SkellSSL||type==SkellNoise)cell->slider.getProperties().set("blackSelector",true);
             if(type==SkellDope)cell->slider.getProperties().set("plainSilver",true);
+            if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
+            if(type==SkellSSL){static const unsigned caps[]={0xffb0aba0,0xffa93235,0xff4e8c76,0xff437cb5,0xffa4883c,0xffc2c0b8};cell->slider.getProperties().set("capColorOverride",juce::String::toHexString(int(caps[j]))); }
             if(type==SkellRubyQ&&k.unit==Unit::Hz)cell->slider.getProperties().set("frequencySelector",true);
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
@@ -409,8 +419,9 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.setColour((p.light?juce::Colours::white:juce::Colours::black).withAlpha(.24f));
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
-        if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
-        if(type==SkellMixHead&&!layout.meter.isEmpty())paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
+        if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
+        if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
+        else if(type==SkellMixHead&&!layout.meter.isEmpty())paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
         else if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(mi.numKnobs==5&&!layout.meter.isEmpty()){
@@ -434,7 +445,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         // Repaint only the optical scene; the heavy chassis/faceplate stays cached.
         juce::Graphics::ScopedSaveState scene(g);g.reduceClipRegion(detail);
         const auto r=detail.toFloat();const auto& m=artworkMotion;
-        if(isAirPanel(type))paintAirDetail(g,r,type,m.phase,m.level,false);
+        if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,type,m.phase,m.level,false);
         else if(type==Reverb||type==Chorus)paintSpaceDetail(g,r,type,m.phase,m.level,false);
         else if(type==Delay||type==Slap)paintTapeDetail(g,r,type==Delay&&nativeChoice==1,m.left,m.right,m.phase);
         else paintWorkshopDetail(g,r,type,m.phase,m.level,false);
@@ -443,7 +454,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
     if(type==SkellDeEsserFX)
         paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
-    if(type==SkellMixHead&&!vuRect.isEmpty()){
+    if(type==SkellNoise&&!vuRect.isEmpty()){paintHushMeter(g,vuRect.toFloat(),needle,false);}
+    else if(type==SkellMixHead&&!vuRect.isEmpty()){
         paintMixHeadPeak(g,vuRect.toFloat(),outputDb,false);
     }else if(hasOutputPeak(type)&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);

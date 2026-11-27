@@ -56,22 +56,24 @@ int main(int argc, char** argv) {
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
     options.scenes={{"catalog_1",1260,790,0,1},{"catalog_2",1260,790,1,1},{"catalog_3",1260,790,2,1},{"catalog_4",1260,790,3,1},{"catalog_5",1260,790,4,1},{"catalog_6",1260,790,5,1},{"catalog_7",1260,790,6,1},
-      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1},{"rack_last_slots",1260,790,10,1},{"rack_last_hidden",1260,790,10,1},{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1}};
+      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1},{"rack_last_slots",1260,790,10,1},{"rack_last_hidden",1260,790,10,1},{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1},{"engine_modules",1260,790,12,1},{"engine_modules_edit",1260,790,12,1},{"engine_modules_80",1008,632,12,1},{"engine_modules_150",1890,1185,12,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"},{"full_rack","library_hidden"},{"library_hidden","library_hidden_edit"},{"full_rack","rack_last_slots"},{"library_hidden","rack_last_hidden"}};
     if(!args.full){
         options.scenes={{"approved_studio",1260,790,8,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"studio_midnight",1260,790,8,3}};
         options.mustDiffer={{"approved_studio","studio_edit"},{"approved_studio","studio_midnight"}};
     }
+    if(args.engines){options.scenes={{"engine_modules",1260,790,12,1},{"engine_modules_edit",1260,790,12,1},{"engine_modules_80",1008,632,12,1},{"engine_modules_150",1890,1185,12,1}};options.mustDiffer={{"engine_modules","engine_modules_edit"}};}
     if(args.colors){options.scenes={{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
     int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;navOK=true;processor.clearRack();
         expectedLast=scene.id=="rack_last_slots"||scene.id=="rack_last_hidden";
         expectedLibrary=!(scene.id=="library_hidden"||scene.id=="library_hidden_edit"||scene.id=="library_hidden_80"||scene.id=="library_hidden_150"||scene.id=="rack_last_hidden");
-        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit"||scene.id=="color_modules_edit";
+        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit"||scene.id=="color_modules_edit"||scene.id=="engine_modules_edit";
         if(scene.theme<7)for(int i=0;i<4;++i){const int type=1+scene.theme*4+i;if(type<skl::kNumRackTypes){processor.addModule(type,i);++expectedCount;}}
         if(scene.theme==11){const int models[]={skl::SkellDope,skl::SkellMixHead,skl::SkellRubyQ};
             for(int k=0;k<3;++k)processor.addModule(models[k],k);expectedCount=3;}
+        if(scene.theme==12){const int models[]={skl::SkellDemon,skl::SkellSSL,skl::SkellNoise,skl::SkellMixHead};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
         if(scene.theme==8||scene.theme==9){
             const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger};
             for(int k=0;k<4;++k)processor.addModule(models[k],k);
@@ -142,7 +144,7 @@ int main(int argc, char** argv) {
     if(changed<1000||unstable!=0||first.getPixelAt(3,3)!=before.getPixelAt(3,3)){std::fprintf(stderr,"Tape motion regression: %d changed, %d unstable\n",changed,unstable);return 1;}
     std::printf("Tape motion: %d changed pixels, pause and offscreen freeze passed\n",changed);
     // Real native frames from every animated module; exact pause equality.
-    const int animated[]={skl::Air,skl::SkellAirFX,skl::Chorus,skl::Reverb,skl::Sat,skl::SoftClip,skl::Eq,skl::Tremolo,skl::Phaser,skl::Stereo,skl::Transient,skl::Slap,skl::DeEss,skl::SkellDeEsserFX};
+    const int animated[]={skl::Air,skl::SkellAirFX,skl::Chorus,skl::Reverb,skl::Sat,skl::SoftClip,skl::Eq,skl::Tremolo,skl::Phaser,skl::Stereo,skl::Transient,skl::Slap,skl::DeEss,skl::SkellDeEsserFX,skl::SkellDemon};
     for(int type:animated){
         processor.clearRack();processor.addModule(type,0);
         skl::ui::SlotComponent* target=nullptr;

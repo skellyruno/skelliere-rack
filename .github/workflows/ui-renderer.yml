@@ -57,10 +57,10 @@ jobs:
           if (-not $exe) { throw 'SkelliereRackUIRenderer.exe missing' }
           & $exe.FullName --output (Join-Path (Get-Location) 'ui-screenshots') --full
           if ($LASTEXITCODE -ne 0) { throw "Renderer failed: $LASTEXITCODE" }
-          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 33) { throw 'Expected thirty-three real-editor screenshots' }
+          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 37) { throw 'Expected thirty-seven real-editor screenshots' }
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }
           $manifest = Get-Content ui-screenshots/manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.count -ne 33) { throw 'Screenshot manifest count mismatch' }
+          if ($manifest.count -ne 37) { throw 'Screenshot manifest count mismatch' }
           if (-not (Test-Path ui-screenshots/performance.csv)) { throw 'Missing UI/processor benchmark' }
       - name: Export actual editor evidence for connected review
         run: python tools/ci_editor_evidence.py ui-screenshots

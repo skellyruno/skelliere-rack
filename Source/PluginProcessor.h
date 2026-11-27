@@ -60,6 +60,7 @@ public:
     bool loadStrip(const juce::String&);
     void deleteStrip(const juce::String&);
     int latencyOfTune() const;
+    int rackLatency() const;
 private:
     static std::unique_ptr<skl::ModuleBase> makeModule(int t) { return skl::makeRackModule(t); }
     struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; };

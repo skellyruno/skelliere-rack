@@ -11,9 +11,10 @@ static std::vector<float> run(int type,const std::vector<float>& input,const std
     m->prepare(48000,block,1);
     float k[6]{};for(int j=0;j<info(type).numKnobs;++j)k[j]=defaultNorm(type,j);
     for(auto p:changes)k[p.first]=toNorm(info(type).knobs[p.first],p.second);
-    auto output=input;float* ch[]={output.data()};
+    auto output=input;const int delay=m->latency();output.resize(input.size()+delay);float* ch[]={output.data()};
     for(int i=0;i<(int)output.size();i+=block){juce::AudioBuffer<float> b(ch,1,i,std::min(block,(int)output.size()-i));m->process(b,k,active);}
     for(auto x:output)require(std::isfinite(x),"Nonfinite analog output");
+    if(delay)output.erase(output.begin(),output.begin()+delay);
     return output;
 }
 static double rms(const std::vector<float>& v,int start=0,int end=-1){
@@ -24,7 +25,7 @@ static double rms(const std::vector<float>& v,int start=0,int end=-1){
 static std::vector<float> tone(float freq,float amp=0.15f){std::vector<float> a(48000);for(size_t i=0;i<a.size();++i)a[i]=amp*std::sin(2*kPi*freq*i/48000);return a;}
 static double delta(const std::vector<float>& a,const std::vector<float>& b){double e=0;for(size_t i=0;i<a.size();++i){const auto d=a[i]-b[i];e+=d*d;}return std::sqrt(e/a.size());}
 int main(){
-    static_assert(kNumRackTypes==31&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25&&SkellAirFX==26&&SkellDeEsserFX==27&&SkellDope==28&&SkellMixHead==29&&SkellRubyQ==30,"Catalog IDs changed");
+    static_assert(kNumRackTypes==34&&kNumTypes==12&&ProgramOpto==16&&Gate==17&&Slap==25&&SkellAirFX==26&&SkellDeEsserFX==27&&SkellDope==28&&SkellMixHead==29&&SkellRubyQ==30&&SkellDemon==31&&SkellSSL==32&&SkellNoise==33,"Catalog IDs changed");
     for(int t=1;t<kNumRackTypes;++t)require(std::string_view(displayName(t)).rfind("Skell ",0)==0,"Missing Skell prefix");
     const auto quiet=tone(1000,.001f), loud=tone(1000,.2f), low=tone(80),high=tone(8000);
     require(rms(run(Gate,quiet,{{0,-35},{1,48}}),24000)<rms(quiet,24000)*.02,"Gate fails quiet attenuation");
@@ -62,5 +63,5 @@ int main(){
     require(rms(run(SkellRubyQ,low,{{0,12}}),24000)>rms(low,24000)*1.8,"Ruby low shelf has no effect");
     require(rms(run(SkellRubyQ,loud,{{2,-12}}),24000)<rms(loud,24000)*.3,"Ruby mid cut has no effect");
     require(rms(run(SkellRubyQ,high,{{4,12}}),24000)>rms(high,24000)*1.7,"Ruby high shelf has no effect");
-    std::puts("30-effect catalog: legacy IDs, new DSP behavior, bypass and block-size tests passed");
+    std::puts("33-effect catalog: legacy IDs, new DSP behavior, bypass and block-size tests passed");
 }

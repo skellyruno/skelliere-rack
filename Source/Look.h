@@ -605,6 +605,13 @@ public:
         g.setColour(pal::amber); g.fillPath(p);
     }
 
+    void drawLinearSlider(Graphics& g,int x,int y,int w,int h,float sliderPos,float minPos,float maxPos,const juce::Slider::SliderStyle style,juce::Slider& s) override {
+        if(!bool(s.getProperties().getWithDefault("hushFader",false))){juce::LookAndFeel_V4::drawLinearSlider(g,x,y,w,h,sliderPos,minPos,maxPos,style,s);return;}
+        const float cx=x+w*.5f,top=y+9.f,bottom=y+h-9.f;auto track=juce::Rectangle<float>(cx-5,top,10,bottom-top);
+        g.setColour(Colour(0xff0c0e10));g.fillRoundedRectangle(track.expanded(3),4);g.setColour(Colour(0xff727c80));g.drawRoundedRectangle(track.expanded(2),3,.8f);g.setColour(Colour(0xff181b1b));g.fillRoundedRectangle(track,2);
+        for(int i=0;i<=10;++i){float yy=top+(bottom-top)*i/10.f;g.setColour(Colour(0xffc8d4cc).withAlpha(.65f));g.drawHorizontalLine(int(yy),cx+11,cx+(i%5==0?22:17));}
+        const float cy=juce::jlimit(top,bottom,sliderPos);auto cap=juce::Rectangle<float>(cx-22,cy-13,44,26);g.setColour(juce::Colours::black.withAlpha(.8f));g.fillRoundedRectangle(cap.translated(1,4).expanded(2),4);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe1dfd1),cap.getY(),Colour(0xff514d45),cap.getBottom()));g.fillRoundedRectangle(cap,3);g.setColour(Colour(0xffeee4c8));g.drawRoundedRectangle(cap.reduced(.5f),3,.8f);g.setColour(Colour(0xff252322));for(int i=-2;i<=2;++i)g.drawHorizontalLine(int(cy+i*3),cx-16,cx+16);g.setColour(Colour(0xffa8ffda));g.drawHorizontalLine(int(cy),cx-16,cx+16);
+    }
     void drawRotarySlider(Graphics& g,int x,int y,int w,int h,float pos,float a0,float a1,juce::Slider& s) override {
         const float size=float(juce::jmin(w,h)),cx=x+w*.5f,cy=y+h*.5f;
         if(size<2.f)return;
@@ -629,10 +636,12 @@ public:
             return;
         }
         if(bool(s.getProperties().getWithDefault("blackSelector",false))){
-            const float rad=size*.36f;g.setColour(juce::Colours::black.withAlpha(.75f));g.fillEllipse(cx-rad,cy-rad+2,rad*2,rad*2);
+            const float rad=size*.36f;g.setOpacity(1.f);g.drawImage(capMount(),juce::Rectangle<float>(cx-rad*1.43f,cy-rad*1.43f,rad*2.86f,rad*2.86f));g.setColour(Colour(0xff131211));g.fillEllipse(cx-rad*1.04f,cy-rad*1.04f,rad*2.08f,rad*2.08f);
             const bool dope=bool(s.getProperties().getWithDefault("plainSilver",false))&&!light;
             const bool selector=bool(s.getProperties().getWithDefault("frequencySelector",false));
-            g.setOpacity(1.f);g.drawImage(machinedCap(dope?Colour(0xffc8c9c4):Colour(0xff35322d)),juce::Rectangle<float>(cx-rad,cy-rad,rad*2,rad*2));
+            const auto overrideColour=s.getProperties().getWithDefault("capColorOverride",juce::var(juce::String())).toString();
+            const auto cap=overrideColour.isNotEmpty()?Colour(unsigned(overrideColour.getHexValue32())):(dope?Colour(0xffc8c9c4):Colour(0xff35322d));
+            g.setOpacity(1.f);g.drawImage(machinedCap(cap),juce::Rectangle<float>(cx-rad,cy-rad,rad*2,rad*2));
             const auto ink=light?Colour(0xff392f24):(dope?Colour(0xffe4e4dd):Colour(0xffe5c27c));for(int i=0;i<=10;++i){const float a=a0+(a1-a0)*i/10.f;g.setColour(ink.withAlpha(i%5==0?1.f:.65f));g.drawLine(cx+std::sin(a)*rad*1.14f,cy-std::cos(a)*rad*1.14f,cx+std::sin(a)*rad*1.27f,cy-std::cos(a)*rad*1.27f,1.f);}
             if(selector){
                 juce::Path lever;lever.startNewSubPath(0,-rad*.96f);lever.lineTo(rad*.30f,rad*.46f);lever.quadraticTo(0,rad*.72f,-rad*.30f,rad*.46f);lever.closeSubPath();
