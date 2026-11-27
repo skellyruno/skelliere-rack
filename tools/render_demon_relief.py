@@ -43,7 +43,13 @@ def tube(mesh,points,radii,mat=0,rings=12,sides=14,ridges=0.0,aspect=1.0):
         cross=np.cos(ang)[:,None]*u*aspect+np.sin(ang)[:,None]*v
         normal=np.cos(ang)[:,None]*u/aspect+np.sin(ang)[:,None]*v
         normal/=np.linalg.norm(normal,axis=1,keepdims=True)
-        vv.append(p[i]+r[i]*cross);nn.append(normal)
+        if mat in (0,2,3):
+            # Small anisotropic longitudinal ridges and noncircular cortical shafts.
+            # Local variations remain fixed in object space and through jaw animation.
+            phase=points[0,0]*7+points[0,1]*11
+            profile=1+.022*np.sin(3*ang+phase+tt[i]*3)+.014*np.cos(5*ang-phase+tt[i]*6)
+        else:profile=np.ones(sides)
+        vv.append(p[i]+r[i]*cross*profile[:,None]);nn.append(normal)
     faces=[]
     for i in range(rings-1):
         for j in range(sides):
@@ -83,9 +89,14 @@ def skull_mesh(mesh):
     s=union(s,e((0,.20,.19),(.32,.278,.30)))
     s=union(s,e((0,.64,.19),(.09,.135,.13)),.035)
     s=union(s,e((0,-.018,.335),(.295,.145,.23)))
+    s=union(s,e((0,.245,.326),(.082,.184,.107)),.025)
     for side in (-1,1):
         s=union(s,e((side*.345,.095,.24),(.178,.087,.185),-side*.42))
-        s=union(s,e((side*.235,.405,.35),(.258,.060,.155),side*.24),.025)
+        s=union(s,e((side*.235,.405,.35),(.246,.075,.155),side*.24),.045)
+        s=union(s,e((side*.13,.115,.32),(.108,.14,.125),-side*.22),.025)
+        # Temporal fossa and infraorbital depression give the skull real bony planes.
+        s=np.maximum(s,-e((side*.47,.34,.19),(.093,.145,.20),side*.15))
+        s=np.maximum(s,-e((side*.19,.15,.48),(.080,.035,.082),side*.16))
         s=union(s,e((side*.365,.29,.09),(.145,.24,.24)),.03)
         # Outer edge of the orbit higher, inner lower: threatening brow.
         s=np.maximum(s,-e((side*.228,.305,.445),(.178,.139,.40),side*.32))
@@ -125,9 +136,9 @@ def build_static():
         # Scapula spike and skeletal shoulder joint.
         tube(m,[(X(.45),-.23,-.02),(X(.64),-.15,-.02),(X(.87),.13,-.07)],[.14,.092,.002],3,18)
         ellipsoid(m,(X(.70),-.245,.10),(.210,.182,.182),0)
-        tube(m,[(X(.70),-.25,.11),(X(.77),-.44,.20),(X(.87),-.64,.35)],[.144,.102,.112],0,22,18)
+        tube(m,[(X(.70),-.25,.11),(X(.74),-.32,.15),(X(.78),-.44,.20),(X(.84),-.57,.30),(X(.87),-.64,.35)],[.130,.113,.075,.078,.105],0,36,22,aspect=.85)
         ellipsoid(m,(X(.87),-.64,.35),(.105,.09,.095),0)
-        tube(m,[(X(.85),-.65,.36),(X(.76),-.81,.60),(X(.66),-.91,.85)],[.082,.057,.062],0,22,18)
+        tube(m,[(X(.85),-.65,.36),(X(.80),-.73,.47),(X(.76),-.81,.60),(X(.70),-.87,.76),(X(.66),-.91,.85)],[.083,.064,.044,.052,.068],0,34,20,aspect=.78)
         tube(m,[(X(.93),-.65,.33),(X(.84),-.83,.59),(X(.74),-.93,.84)],[.050,.043,.049],3,18)
         # Massive bone horns, curved and segmented, with dark growth bands.
         tube(m,[(X(.34),.68,-.015),(X(.57),.75,.015),(X(.78),.88,.04),(X(.94),1.04,.05),(X(.87),1.24,-.01),(X(.70),1.38,.02)], [.177,.165,.139,.096,.040,.001],3,96,22,.105)
@@ -164,7 +175,7 @@ def build_static():
     for side in (-1,1):
         # Small hot eyes deep inside true sockets.
         # Sharply angled heavy brows and thin molten slits, not round pupils.
-        tube(m,[(side*.055,.342,.438),(side*.18,.386,.445),(side*.315,.435,.375),(side*.435,.412,.25)],[.031,.046,.051,.021],0,25,18,aspect=.82)
+        tube(m,[(side*.055,.355,.405),(side*.18,.393,.402),(side*.315,.435,.350),(side*.435,.412,.235)],[.022,.035,.033,.009],0,30,22,aspect=.84)
         ellipsoid(m,(side*.222,.300,.275),(.098,.024,.028),1,side*.30)
         ellipsoid(m,(side*.217,.299,.302),(.046,.010,.013),4,side*.30)
         # Sharper zygomatic spurs and brow ridge, receding in the temple.
@@ -202,7 +213,11 @@ def add_hands(m,amt):
     # Foreground joints and claws reach past the window frame in perspective.
     for side in (-1,1):
         X=lambda x:side*x;reach=amt*.16
-        ellipsoid(m,(X(.69),-.935,.86+reach),(.231,.142,.129),3)
+        ellipsoid(m,(X(.69),-.935,.86+reach),(.225,.123,.112),3)
+        # Four separate metacarpal ridges, merging into the existing hand grip.
+        for k in range(4):
+            px=.49+k*.112
+            tube(m,[(X(.70+(px-.70)*.32),-.855,.825+reach),(X(px),-.899,.912+reach),(X(px),-.939,.927+reach)],[.043,.048,.032],0,18,16,aspect=.72)
         for i in range(4):
             x=.49+i*.112;y=-.93+(.012*abs(i-1));z=.875+.015*(3-i)+reach
             ellipsoid(m,(X(x),y,z),(.052,.045,.049),0)
@@ -238,9 +253,9 @@ def raster(p,verts,norms,faces,mats,w,h):
 def render(mesh):
     v,f,n,m=mesh
     # Shadow-map in key light space, including horns over skull and jaw over ribs.
-    L=np.array([-.63,.70,.64]);L/=np.linalg.norm(L)
+    L=np.array([-.78,.55,.55]);L/=np.linalg.norm(L)
     U=np.cross([0,1,0],L);U/=np.linalg.norm(U);V=np.cross(L,U)
-    ss=188.;sw=sh=576
+    ss=272.;sw=sh=832
     lp=np.stack([v@U*ss+sw/2,-v@V*ss+sh/2,v@L],axis=-1).astype(np.float32)
     shadow,*_=raster(lp,v,n,f,m,sw,sh)
     perspective=CAM/(CAM-v[:,2]);proj=np.stack([W/2+v[:,0]*perspective*SCALE,H*.465-v[:,1]*perspective*SCALE,v[:,2]],axis=-1).astype(np.float32)
@@ -251,12 +266,12 @@ def render(mesh):
     vis=np.zeros(len(pp))
     for dx,dy in ((0,0),(-2,-2),(2,2),(-2,2),(2,-2),(-3,0),(3,0),(0,-3),(0,3)):
         d=shadow[np.clip(sy+dy,0,sh-1),np.clip(sx+dx,0,sw-1)]
-        vis+=(sd>=d-.028)
+        vis+=(sd>=d-.018)
     vis/=9
     # Screen-space cavity occlusion at multiple radii. Only count nearby geometry
     # in front of each visible surface; the transparent background never occludes.
     occ=np.zeros_like(dep,dtype=np.float32)
-    for radius,weight in ((2,.32),(5,.25),(11,.16)):
+    for radius,weight in ((2,.38),(5,.27),(11,.18)):
         near=maximum_filter(dep,size=2*radius+1)
         diff=np.where(mask,np.maximum(0,near-dep-.018),0)
         occ+=weight*np.clip(diff/.27,0,1)
@@ -283,20 +298,55 @@ def render(mesh):
                     h^=h>>np.uint32(16);h*=np.uint32(0x7feb352d);h^=h>>np.uint32(15)
                     acc+=(h.astype(np.float64)/4294967295.)*(f[:,0] if a else 1-f[:,0])*(f[:,1] if b else 1-f[:,1])*(f[:,2] if c else 1-f[:,2])
         return acc
-    mottled=.55*grain(pp,18)+.30*grain(pp,47)+.15*grain(pp,102)
-    texture*=.70+.60*mottled
-    colors*=np.column_stack((.86+.25*mottled,.73+.50*mottled,.73+.50*mottled))
-    rgb=colors*texture[:,None]*(.070+1.29*D[:,None]*vis[:,None])*ao[:,None]
-    rgb+=np.array([.54,.067,.035])*rim[:,None]*(.45+.55*fres[:,None])
-    rgb+=np.array([.96,.64,.43])*spec[:,None]*(.065+.055*texture[:,None])*ao[:,None]
-    # Subtle warm bounce from the crimson enclosure and cold upper-edge reflection.
-    rgb+=np.array([.12,.038,.025])*np.maximum(N@np.array([-.38,-.26,.72]),0)[:,None]*(.45+.55*texture[:,None])
-    # Subtle red up-light, keeps shadows deep rather than flattening into orange.
-    rgb+=np.array([.085,.010,.005])*np.maximum(-N[:,1],0)[:,None]
+    # Bone is a rough dielectric, not painted plastic. Work in linear light,
+    # vary mineral density and perturb the geometric normals with stable 3D
+    # microstructure. No frame-dependent noise or modification to silhouette.
+    mottled=.50*grain(pp,12)+.30*grain(pp,38)+.20*grain(pp,95)
+    coarse=grain(pp,9);fine=grain(pp,120)
+    def relief(p):
+        return .50*grain(p,27)+.35*grain(p,68)+.15*grain(p,135)
+    delta=.0025
+    grad=np.stack([(relief(pp+np.eye(3)[i]*delta)-relief(pp-np.eye(3)[i]*delta))/(2*delta) for i in range(3)],axis=1)
+    grad-=np.sum(grad*N,axis=1,keepdims=True)*N
+    N=N-.0037*grad;N/=np.maximum(np.linalg.norm(N,axis=1,keepdims=True),1e-6)
+    D=np.maximum(N@L,0);rim=np.maximum(N@rimdir,0)
+    nv=np.maximum(np.sum(N*view,axis=1),0);nh=np.maximum(np.sum(N*half,axis=1),0)
+    # GGX microfacet lobe with varying roughness, Schlick Fresnel and Smith masking.
+    rough=np.clip(.65+.20*(mottled-.5)+.06*vein,.50,.82)
+    alpha2=rough**4
+    ndist=alpha2/(np.pi*np.maximum(1e-5,(nh*nh*(alpha2-1)+1)**2))
+    k=(rough+1)**2/8
+    gv=nv/np.maximum(nv*(1-k)+k,1e-6);gl=D/np.maximum(D*(1-k)+k,1e-6)
+    vh=np.maximum(np.sum(view*half,axis=1),0)
+    fresnel=.035+.965*(1-vh)**5
+    glossy=ndist*gv*gl*fresnel/np.maximum(4*nv*D,1e-5)*D*vis
+    # Red environmental illumination, warm mineral highlights, dark crevices.
+    # Material-specific linear albedos retain differentiated enamel, bone,
+    # horn and joint surfaces instead of a uniform red diffuse tint.
+    bone=np.array([[.39,.082,.043],[1.,.14,.008],[.48,.21,.115],[.095,.021,.014],[1.,.58,.12]])[mat[mask]]
+    texture*=.72+.52*mottled
+    bone*=np.column_stack((.84+.28*coarse,.78+.40*coarse,.68+.49*coarse))
+    bone*=1-.26*np.maximum(pore,0)[:,None]**3
+    # Fine stained fissures and dark mineral inclusions on the cortical surface.
+    ridge=np.abs(np.sin(pp[:,1]*34+2.8*grain(pp,16)+pp[:,0]*12))
+    stain=np.exp(-36*ridge)*np.clip((mottled-.27)*2.5,0,1)
+    bone*=1-.23*stain[:,None]
+    key=np.array([1.32,.46,.34]);bounce=np.array([.22,.018,.012]);edge=np.array([1.15,.12,.06])
+    shade=(.012+1.61*D*vis)*ao**1.75
+    rgb=bone*texture[:,None]*shade[:,None]*key
+    rgb+=bone*bounce[None,:]*(.16+.70*np.maximum(-N[:,1],0))[:,None]*ao[:,None]
+    rgb+=bone*edge[None,:]*rim[:,None]*(.24+.76*(1-nv[:,None])**2)
+    rgb+=np.array([1.18,.74,.48])[None,:]*glossy[:,None]*(.87+.24*fine[:,None])*ao[:,None]
+    # Low-strength fill to retain the skull's readable silhouette and hand joints.
+    fill=np.maximum(N@np.array([-.38,-.26,.72]),0)
+    rgb+=bone*np.array([.09,.025,.016])*fill[:,None]*ao[:,None]
+    # Camera transfer: gentle highlight shoulder and standard sRGB encoding.
+    rgb=rgb/(1+.27*rgb)
+    rgb=np.where(rgb<=.0031308,12.92*rgb,1.055*np.maximum(rgb,0)**(1/2.4)-.055)
     emissive=mat[mask]==1;hot=mat[mask]==4
     rgb[emissive]=np.array([1.,.24,.025]);rgb[hot]=np.array([1.,.78,.26])
     # Small surface grain in camera space, color in sRGB-like artist units.
-    rgb=np.clip(rgb,0,1);rgb=np.power(rgb,.91)
+    rgb=np.clip(rgb,0,1)
     image=np.zeros((H,W,4),np.uint8);image[mask,:3]=(rgb*255).astype(np.uint8);image[mask,3]=255
     eye=(mat==1)|(mat==4);bloom=gaussian_filter(eye.astype(np.float32),3.1)*1.45
     image[:,:,:3]=np.clip(image[:,:,:3].astype(np.float32)+bloom[:,:,None]*np.array([115,25,5],np.float32),0,255).astype(np.uint8)

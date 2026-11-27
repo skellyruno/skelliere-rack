@@ -731,17 +731,17 @@ RackStrip::RackStrip(SkellierProcessor& p) {
     resized();
 }
 
+rackgeo::PackedRack RackStrip::geometry() const {
+    std::array<bool,kNumSlots> narrow{},fixed{};
+    for(int i=0;i<kNumSlots;++i)if(slots[i]){narrow[i]=slots[i]->currentType()==SkellSSL;fixed[i]=slots[i]->currentType()==SkellDemon;}
+    return rackgeo::pack(libraryMode,narrow,fixed);
+}
 void RackStrip::resized() {
-    int x=kPad;
-    for(auto& slot:slots) if(slot) {
-        const int w=rackgeo::width(libraryMode);
-        const int inset=slot->currentType()==SkellSSL?8:0;
-        slot->setBounds(x+inset,2,w-2*inset,SlotComponent::kHeight);
-        x+=w+kGap;
-    }
-    const int total=x-kGap+kPad;
-    if(getWidth()!=total || getHeight()!=SlotComponent::kHeight+4)
-        setSize(total,SlotComponent::kHeight+4);
+    const auto geo=geometry();
+    for(int i=0;i<kNumSlots;++i)if(slots[i])
+        slots[i]->setBounds(geo.x[i],2,geo.w[i],SlotComponent::kHeight);
+    if(getWidth()!=geo.total||getHeight()!=SlotComponent::kHeight+4)
+        setSize(geo.total,SlotComponent::kHeight+4);
 }
 
 // =================================================================== library
@@ -1052,12 +1052,16 @@ void RackUI::rebuildStripButtons() {
 }
 
 void RackUI::handleAsyncUpdate() {
+    const int anchor=strip.geometry().first(viewport.getViewPositionX());
+    bool changed=false;
     for (int s=0;s<kNumSlots;++s) {
         auto& slot=*strip.slots[(size_t)s];
-        if(slot.currentType()!=proc.slotType(s))slot.rebuild();
+        if(slot.currentType()!=proc.slotType(s)){slot.rebuild();changed=true;}
         else slot.syncPowerVisual();
     }
     strip.resized();
+    if(changed)viewport.setViewPosition(strip.geometry().anchor(anchor),0);
+    refreshRackNavigation();
     pathStrip.repaint();
 }
 
@@ -1102,44 +1106,37 @@ void RackUI::revealSlot(int slot){
     if(slot<0||slot>=kNumSlots)return;
     strip.resized();
     pathStrip.setFocusedSlot(slot);
-    const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
-    viewport.setViewPosition(rackgeo::offset(rackgeo::firstForSlot(first,slot,libraryVisible),libraryVisible),0);
+    viewport.setViewPosition(strip.geometry().reveal(slot,viewport.getViewPositionX()),0);
     refreshRackNavigation();
 }
 bool RackUI::slotIsFullyVisible(int slot) const{
     return slot>=0&&slot<kNumSlots&&viewport.getViewArea().contains(strip.slots[static_cast<size_t>(slot)]->getBounds());
 }
 void RackUI::refreshRackNavigation(){
-    const auto area=viewport.getViewArea();
-    int first=0,last=kNumSlots-1;
-    for(int i=0;i<kNumSlots;++i)if(strip.slots[static_cast<size_t>(i)]->getX()>=area.getX()){first=i;break;}
-    for(int i=kNumSlots-1;i>=0;--i)if(strip.slots[static_cast<size_t>(i)]->getRight()<=area.getRight()){last=i;break;}
-    pathStrip.setVisibleRange(first,last);
+    const auto geo=strip.geometry();const int scroll=viewport.getViewPositionX();
+    pathStrip.setVisibleRange(geo.first(scroll),geo.last(scroll));
 }
 void RackUI::pageRack(int direction){
-    const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
-    viewport.setViewPosition(rackgeo::offset(first+direction*rackgeo::count(libraryVisible),libraryVisible),0);
+    viewport.setViewPosition(strip.geometry().page(direction,viewport.getViewPositionX(),libraryVisible),0);
     refreshRackNavigation();
 }
 void RackUI::setLibraryVisible(bool visible) {
-    const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
+    const int first=strip.geometry().first(viewport.getViewPositionX());
     libraryVisible=visible;
     library.setVisible(visible);
     libraryToggle.setButtonText(visible?"HIDE LIBRARY":"SHOW LIBRARY");
     libraryToggle.setTooltip(visible?"Hide the module library to see five full rack slots":
                                      "Show the module library to browse, search and add effects");
     resized();
-    viewport.setViewPosition(rackgeo::offset(first,libraryVisible),0);
+    viewport.setViewPosition(strip.geometry().anchor(first),0);
     refreshRackNavigation();repaint();
 }
 bool RackUI::fittedRackIsValid() const {
-    const auto area=viewport.getViewArea();
-    const auto w=rackgeo::width(libraryVisible);
-    if(viewport.getRight()!=rackgeo::end(libraryVisible)||area.getWidth()!=rackgeo::viewWidth(libraryVisible))return false;
+    const auto area=viewport.getViewArea();const auto geo=strip.geometry();
+    if(viewport.getRight()!=rackgeo::end(libraryVisible)||area.getWidth()!=geo.view||strip.getWidth()!=geo.total)return false;
     for(int i=0;i<kNumSlots;++i){
         const auto b=strip.slots[static_cast<size_t>(i)]->getBounds();
-        const int inset=strip.slots[static_cast<size_t>(i)]->currentType()==SkellSSL?8:0;
-        if(b.getX()!=rackgeo::pad+i*(w+rackgeo::gap)+inset||b.getWidth()!=w-2*inset)return false;
+        if(b.getX()!=geo.x[i]||b.getWidth()!=geo.w[i])return false;
     }
     return (1252-(viewport.getRight()-rackgeo::pad))==14;
 }

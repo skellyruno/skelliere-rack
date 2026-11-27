@@ -124,6 +124,7 @@ public:
     static constexpr int kGap = rackgeo::gap, kPad = rackgeo::pad;
     void setLibraryMode(bool visible){if(libraryMode!=visible){libraryMode=visible;resized();}}
     void resized() override;
+    rackgeo::PackedRack geometry() const;
     bool libraryMode=true;
     std::array<std::unique_ptr<SlotComponent>, skl::kNumSlots> slots;
 };
