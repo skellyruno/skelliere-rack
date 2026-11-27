@@ -622,14 +622,24 @@ public:
                 g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.45f):c.darker(2.f),a.getY(),on?c.darker(.32f):Colour(0xff1a1713),a.getBottom()));g.fillRoundedRectangle(a,2.f);
                 g.setColour(on?c.brighter(.7f):Colour(0xff776954));g.drawRoundedRectangle(a,2.f,.8f);
                 if(on){g.setColour(juce::Colours::white.withAlpha(.4f));g.drawHorizontalLine(int(a.getY()+2),a.getX()+3,a.getRight()-3);}
+                const auto choices=juce::StringArray::fromTokens(s.getProperties().getWithDefault("switchLabels",juce::var("0,1")).toString(),",","");
+                g.setColour(on?Colour(0xff211b14):Colour(0xffb1a99a));g.setFont(font(juce::jlimit(8.f,12.f,size*.14f),true));
+                g.drawFittedText(choices[i],a.toNearestInt(),juce::Justification::centred,1);
             }
             return;
         }
         if(bool(s.getProperties().getWithDefault("blackSelector",false))){
             const float rad=size*.36f;g.setColour(juce::Colours::black.withAlpha(.75f));g.fillEllipse(cx-rad,cy-rad+2,rad*2,rad*2);
-            g.drawImage(machinedCap(Colour(0xff35322d)),juce::Rectangle<float>(cx-rad,cy-rad,rad*2,rad*2));
-            const auto ink=Colour(0xffe5c27c);for(int i=0;i<=10;++i){const float a=a0+(a1-a0)*i/10.f;g.setColour(ink.withAlpha(i%5==0?1.f:.65f));g.drawLine(cx+std::sin(a)*rad*1.14f,cy-std::cos(a)*rad*1.14f,cx+std::sin(a)*rad*1.27f,cy-std::cos(a)*rad*1.27f,1.f);}
-            g.setColour(ink);g.drawLine(cx+std::sin(angle)*rad*.4f,cy-std::cos(angle)*rad*.4f,cx+std::sin(angle)*rad*.9f,cy-std::cos(angle)*rad*.9f,1.9f);return;
+            const bool dope=bool(s.getProperties().getWithDefault("plainSilver",false))&&!light;
+            const bool selector=bool(s.getProperties().getWithDefault("frequencySelector",false));
+            g.setOpacity(1.f);g.drawImage(machinedCap(dope?Colour(0xffc8c9c4):Colour(0xff35322d)),juce::Rectangle<float>(cx-rad,cy-rad,rad*2,rad*2));
+            const auto ink=light?Colour(0xff392f24):(dope?Colour(0xffe4e4dd):Colour(0xffe5c27c));for(int i=0;i<=10;++i){const float a=a0+(a1-a0)*i/10.f;g.setColour(ink.withAlpha(i%5==0?1.f:.65f));g.drawLine(cx+std::sin(a)*rad*1.14f,cy-std::cos(a)*rad*1.14f,cx+std::sin(a)*rad*1.27f,cy-std::cos(a)*rad*1.27f,1.f);}
+            if(selector){
+                juce::Path lever;lever.startNewSubPath(0,-rad*.96f);lever.lineTo(rad*.30f,rad*.46f);lever.quadraticTo(0,rad*.72f,-rad*.30f,rad*.46f);lever.closeSubPath();
+                lever.applyTransform(juce::AffineTransform::rotation(angle).translated(cx,cy));
+                g.setColour(Colour(0xff131312));g.fillPath(lever);g.setColour(Colour(0xff84715c));g.strokePath(lever,juce::PathStrokeType(.7f));
+            }
+            g.setColour(dope?Colour(0xff191816):ink);g.drawLine(cx+std::sin(angle)*rad*.4f,cy-std::cos(angle)*rad*.4f,cx+std::sin(angle)*rad*.9f,cy-std::cos(angle)*rad*.9f,1.9f);return;
         }
         // Nearly all of the original rack knob area is now the actual metal
         // cap rather than a small cap surrounded by Necromancer's black well.

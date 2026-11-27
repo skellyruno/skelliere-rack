@@ -9,6 +9,26 @@ using juce::Rectangle;
 static juce::String slotLetter(int i) { return juce::String::charToString((juce::juce_wchar) ('A' + i)); }
 static int textWidth(const juce::Font& f, const juce::String& s) { return juce::GlyphArrangement::getStringWidthInt(f, s); }
 
+// A single measured aggregate output peak, not invented stereo channels.
+static void paintMixHeadPeak(Graphics& g,Rectangle<float> r,float db,bool plate){
+    if(plate){
+        g.setColour(Colour(0xff291813));g.fillRoundedRectangle(r,5.f);
+        g.setColour(Colour(0xffc48c59));g.drawRoundedRectangle(r.reduced(1),4.f,1.f);
+        g.setColour(Colour(0xff10140f));g.fillRoundedRectangle(r.reduced(7),3.f);
+        g.setColour(Colour(0xffceccb4));g.setFont(font(10.f,true));
+        g.drawText("OUTPUT  /  PEAK",r.withY(r.getY()+11).withHeight(16).toNearestInt(),juce::Justification::centred,false);
+        const auto track=r.reduced(16,0).withY(r.getY()+39).withHeight(29);
+        for(int i=0;i<30;++i){const float step=track.getWidth()/30.f;g.setColour(Colour(0xff262b20));g.fillRoundedRectangle({track.getX()+i*step,track.getY(),step-1.f,track.getHeight()},.7f);}
+        const char* labels[]={"-60","-40","-20","-6","0"};const float points[]={0.f,1.f/3.f,2.f/3.f,.9f,1.f};
+        g.setFont(font(8.5f));for(int i=0;i<5;++i){const float x=track.getX()+track.getWidth()*points[i];g.setColour(Colour(0xffadac95));g.drawVerticalLine(int(x),track.getBottom()+2,track.getBottom()+6);g.drawText(labels[i],Rectangle<float>(x-12,track.getBottom()+7,24,12).toNearestInt(),juce::Justification::centred,false);}
+    }else{
+        const auto track=r.reduced(16,0).withY(r.getY()+39).withHeight(29);
+        const int lit=juce::jlimit(0,30,int(std::ceil((db+60.f)*.5f)));
+        for(int i=0;i<lit;++i){const float step=track.getWidth()/30.f;auto b=Rectangle<float>(track.getX()+i*step,track.getY(),step-1.f,track.getHeight());const auto c=i>=29?Colour(0xffef6252):i>=25?Colour(0xffffc362):Colour(0xff8ed456);g.setGradientFill(juce::ColourGradient::vertical(c.brighter(.35f),b.getY(),c.darker(.55f),b.getBottom()));g.fillRoundedRectangle(b,.7f);}
+        g.setColour(Colour(0xffd0e7a1));g.setFont(font(12.f,true));g.drawText((db<=-60.f?juce::String("-INF"):juce::String(db,1))+" dBFS",r.withY(r.getBottom()-29).withHeight(18).toNearestInt(),juce::Justification::centred,false);
+    }
+}
+
 // =================================================================== KnobCell
 KnobCell::KnobCell(const juce::String& label, juce::RangedAudioParameter& param, Fmt fmt, juce::Colour cap, juce::Colour pointer,
                    double resetValue, double step, bool compact)
@@ -213,10 +233,13 @@ void SlotComponent::rebuild() {
             if((type==SkellDope||type==SkellMixHead)&&k.steps==2){
                 cell->slider.getProperties().set("colorSwitch",true);
                 cell->slider.getProperties().set("dopeSwitch",type==SkellDope);
+                cell->slider.getProperties().set("switchLabels",juce::String(k.names));
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
-            if(type==SkellRubyQ||type==SkellMixHead)cell->slider.getProperties().set("blackSelector",true);
+            if(type==SkellRubyQ||type==SkellMixHead||type==SkellDope)cell->slider.getProperties().set("blackSelector",true);
+            if(type==SkellDope)cell->slider.getProperties().set("plainSilver",true);
+            if(type==SkellRubyQ&&k.unit==Unit::Hz)cell->slider.getProperties().set("frequencySelector",true);
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
             cells.push_back(std::move(cell));
@@ -387,7 +410,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
-        if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
+        if(type==SkellMixHead&&!layout.meter.isEmpty())paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
+        else if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(mi.numKnobs==5&&!layout.meter.isEmpty()){
             const float y=float(layout.cells[4].getCentreY());
@@ -419,7 +443,9 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
     if(type==SkellDeEsserFX)
         paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
-    if(hasOutputPeak(type)&&!vuRect.isEmpty()){
+    if(type==SkellMixHead&&!vuRect.isEmpty()){
+        paintMixHeadPeak(g,vuRect.toFloat(),outputDb,false);
+    }else if(hasOutputPeak(type)&&!vuRect.isEmpty()){
         paintVU(g,vuRect.toFloat(),outputDb,true,MeterLayer::needle);
 
     }else if(mi.hasVU&&!vuRect.isEmpty()){
