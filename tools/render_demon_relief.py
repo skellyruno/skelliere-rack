@@ -137,7 +137,7 @@ def build_static():
     for i in range(7):ellipsoid(m,(0,-.34-i*.091,.32),(.063,.050,.031),0)
     # Broaden the shoulder girdle, keep the ribs and sternum in perspective.
     for k in range(len(m.v)):
-        vv=m.v[k]; factor=1.0+.21*np.clip((-vv[:,1]+.12)/.65,0,1)*np.clip((vv[:,1]+1.18)/.40,0,1)
+        vv=m.v[k]; factor=1.0+.08*np.clip((-vv[:,1]+.12)/.65,0,1)*np.clip((vv[:,1]+1.18)/.40,0,1)
         vv[:,0]*=factor
         m.n[k][:,0]/=factor
         m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
@@ -161,15 +161,15 @@ def build_static():
         tube(m,[(x,y,z),(x,y-l*.53,z+.014),(x*.98,y-l,z+.002)],[.027,.022,.004],2,10,12)
     # Bring the skull toward the listener; keep the horns anchored to the cranium.
     for k in range(head_start,len(m.v)):
-        m.v[k][:,0]*=1.08;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.06;m.v[k][:,2]+=.07
-        m.n[k][:,0]/=1.08;m.n[k][:,1]/=1.06;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
+        m.v[k][:,0]*=1.02;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.13;m.v[k][:,2]+=.07
+        m.n[k][:,0]/=1.02;m.n[k][:,1]/=1.13;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
     return m
 
 def add_jaw(m,open_amt):
     # Hinge-driven 3D jaw, rotating the chin forward and down, not a flat mouth overlay.
     # Y displacement grows toward the front of the mandible.
     def pose(p):
-        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.08,.27+(y-open_amt*.33*w-.27)*1.06,z+open_amt*.083*w+.07)
+        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.02,.27+(y-open_amt*.33*w-.27)*1.13,z+open_amt*.083*w+.07)
     for side in (-1,1):
         X=lambda x:side*x
         points=[(X(.33),.015,.09),(X(.31),-.22,.17),(X(.226),-.35,.36),(X(.122),-.405,.49),(0,-.427,.53)]
@@ -244,7 +244,7 @@ def render(mesh):
     pore=np.sin(pp[:,0]*113+np.sin(pp[:,1]*57))*np.sin(pp[:,1]*127+np.sin(pp[:,2]*63))*np.sin(pp[:,2]*131+pp[:,0]*61)
     texture=.83+.10*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.12*np.maximum(pore,0)**3
     colors=np.array([[.52,.070,.051],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
-    rgb=colors*texture[:,None]*(.052+1.22*D[:,None]*vis[:,None])
+    rgb=colors*texture[:,None]*(.035+1.28*D[:,None]*vis[:,None])
     rgb+=np.array([.54,.067,.035])*rim[:,None]*(.45+.55*fres[:,None])
     rgb+=np.array([.96,.56,.35])*spec[:,None]*(.18+.12*texture[:,None])
     # Subtle warm bounce from the crimson enclosure and cold upper-edge reflection.

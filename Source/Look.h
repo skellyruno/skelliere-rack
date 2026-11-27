@@ -171,7 +171,7 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
             face.getX()+face.getWidth()*.22f,face.getY()+face.getHeight()*.14f,juce::Colours::transparentWhite,
             face.getRight(),face.getCentreY(),true));g.fillRect(face);
         if(brushed)paintBrushed(g,face,light?.82f:.72f);else {paintPeened(g,face,.65f);paintBrushed(g,face,.36f);}
-        if(r.getWidth()>200&&r.getHeight()>45)paintAnalogWear(g,face,light,739+int(r.getWidth())*13+int(r.getHeight())*7,.50f);
+        if(r.getWidth()>200&&r.getHeight()>45)paintAnalogWear(g,face,light,739+int(r.getWidth())*13+int(r.getHeight())*7,.61f);
         // Large reflected softbox and darker return, clipped to the metal.
         g.setGradientFill(juce::ColourGradient(Colour(0xffffe9c7).withAlpha(light?.055f:.018f),face.getX()+face.getWidth()*.18f,face.getY()+face.getHeight()*.18f,juce::Colours::transparentWhite,face.getRight(),face.getBottom(),true));g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(light?.09f:.15f),face.getRight(),face.getBottom(),juce::Colours::transparentBlack,face.getX(),face.getCentreY(),true));g.fillRect(face);
@@ -660,18 +660,22 @@ public:
             g.setColour(Colour(0xff151b18));g.setFont(font(juce::jlimit(8.f,10.f,size*.23f),true));g.drawFittedText(names[p>=.5f?1:0],key.toNearestInt(),juce::Justification::centred,1);return;
         }
         if(bool(s.getProperties().getWithDefault("tapeToggle",false))){
-            const bool on=p>=.5f;const float r=size*.25f;
-            auto disk=juce::Rectangle<float>(cx-r,cy-r,r*2,r*2);
-            g.setColour(juce::Colours::black.withAlpha(.8f));g.fillEllipse(disk.expanded(4.f).translated(1.f,2.f));
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb3a68f),disk.getY(),Colour(0xff413831),disk.getBottom()));g.fillEllipse(disk.expanded(2.f));
-            g.setColour(Colour(0xff181716));g.fillEllipse(disk.reduced(2.f));
-            juce::Graphics::ScopedSaveState leverState(g);
-            g.addTransform(juce::AffineTransform::rotation(on?.56f:-.56f,cx,cy));
-            auto shaft=juce::Rectangle<float>(cx-size*.115f,cy-size*.30f,size*.23f,size*.50f);
-            g.setColour(juce::Colours::black.withAlpha(.75f));g.fillRoundedRectangle(shaft.translated(1.7f,2.3f),3.f);
-            g.setGradientFill(juce::ColourGradient(Colour(0xff746a58),shaft.getX(),shaft.getY(),Colour(0xff231e18),shaft.getRight(),shaft.getY(),false));g.fillRoundedRectangle(shaft,2.5f);
-            auto tip=shaft.withHeight(size*.18f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffc6ad87),tip.getY(),Colour(0xff5b4a38),tip.getBottom()));g.fillRoundedRectangle(tip,2.5f);
-            g.setColour(Colour(0xfff6e0b0).withAlpha(.6f));g.drawRoundedRectangle(tip,2.5f,.65f);return;
+            // Recessed two-position tape lever: real selected state, separate
+            // detent witness lights and a machined paddle over the pivot.
+            const bool on=p>=.5f;auto mount=Rectangle<float>(cx-size*.36f,cy-size*.38f,size*.72f,size*.76f);
+            paintHardwarePlate(g,mount,Colour(0xff453b32),false,4.f,2.f);
+            paintRecessedWindow(g,mount.reduced(3.f),2.f);
+            for(int i=0;i<2;++i){const float yy=cy+(i?1.f:-1.f)*size*.23f;auto col=(i==int(on)?Colour(0xffffbc50):Colour(0xff59472d));g.setColour(col);g.fillEllipse(cx-size*.22f-2,yy-2,4,4);}
+            const auto pivot=Rectangle<float>(cx-size*.12f,cy-size*.12f,size*.24f,size*.24f);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffc5b79d),pivot.getY(),Colour(0xff36302b),pivot.getBottom()));g.fillEllipse(pivot);
+            juce::Graphics::ScopedSaveState leverState(g);g.addTransform(juce::AffineTransform::rotation(on?2.68f:-.46f,cx,cy));
+            auto shaft=Rectangle<float>(cx-size*.065f,cy-size*.27f,size*.13f,size*.32f);
+            g.setColour(juce::Colours::black.withAlpha(.85f));g.fillRoundedRectangle(shaft.translated(1.4f,2.f),2.f);
+            g.setGradientFill(juce::ColourGradient(Colour(0xffe1d4b6),shaft.getX(),shaft.getY(),Colour(0xff62584a),shaft.getRight(),shaft.getY(),false));g.fillRoundedRectangle(shaft,1.4f);
+            auto paddle=Rectangle<float>(cx-size*.17f,cy-size*.33f,size*.34f,size*.19f);
+            g.setColour(juce::Colours::black.withAlpha(.8f));g.fillRoundedRectangle(paddle.translated(1.5f,2.f),2.f);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff666762),paddle.getY(),Colour(0xff171817),paddle.getBottom()));g.fillRoundedRectangle(paddle,2.f);
+            g.setColour(Colour(0xffc4c1b3).withAlpha(.72f));g.drawRoundedRectangle(paddle,2.f,.7f);for(int i=1;i<4;++i){g.setColour(Colour(0xff0b0b0a));g.drawHorizontalLine(int(paddle.getY()+i*paddle.getHeight()/4),paddle.getX()+3,paddle.getRight()-3);}return;
         }
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
             const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));

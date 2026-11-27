@@ -124,7 +124,7 @@ inline const ModuleInfo& info(int type) {
 // User-facing branding is separate from the legacy host choice strings.
 // Preserve host choice names and all normalized automation/state identities.
 inline const char* displayName(int type) noexcept {
-    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air","Skell De-Esser","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Silence"};
+    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air","Skell De-Esser","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Hush"};
     return names[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 inline float toNorm(const Knob& k,float v) {

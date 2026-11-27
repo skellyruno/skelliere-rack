@@ -41,38 +41,37 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==SkellDemon){
-        l.detail={7,101,width-14,258};
-        const int cw=(width-24)/3,rh=(editing?519:547)-366;
-        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,366+(k/3)*(rh/2),cw,rh/2-3};
+        l.detail={7,93,width-14,278};
+        const int cw=(width-24)/3,rh=(editing?519:547)-376;
+        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,376+(k/3)*(rh/2),cw,rh/2-3};
         return l;
     }
     if(type==SkellSSL){
-        // Console topology: left input/dynamics, right EQ and circuit.
-        // Preserve each parameter attachment and normalized value.
-        const int lane=(width-22)/2, left=9,right=13+lane;
-        auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
+        // Reference console proportions: a compact left dynamics lane and a
+        // slightly wider four-band EQ lane. Preserve all 27 host attachments.
+        const int split=width*48/100,left=9,right=split+5;
+        const int lw=split-13,rw=width-right-9;
+        auto row=[&](int x,int w,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size());int i=0;for(int j:ids){const int a=i*w/n,b=(i+1)*w/n;l.cells[j]={x+a,y,b-a,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
-        const int a=lane/2,b=lane-a;
-        l.cells[e(SslInput)]={left,100,a,58};
-        l.cells[e(SslPhase)]={left+a,105,b,48};
-        row(left,177,54,{e(SslHP),e(SslLP)});
-        row(left,250,50,{e(SslRatio),e(SslThreshold)});
-        row(left,302,48,{e(SslRelease),5,e(SslFast)});
-        row(left,373,50,{e(SslExpThreshold),e(SslExpRange)});
-        row(left,425,48,{e(SslExpRelease),e(SslGate)});
-        l.cells[e(SslOutput)]={left,489,lane,38};
-        // Gain on the left, frequency and Q/shape stacked at right.
+        row(left,lw,100,56,{e(SslInput),e(SslPhase)});
+        row(left,lw,173,58,{e(SslHP),e(SslLP)});
+        row(left,lw,247,56,{e(SslRatio),e(SslThreshold)});
+        row(left,lw,305,46,{e(SslRelease),5,e(SslFast)});
+        row(left,lw,370,54,{e(SslExpThreshold),e(SslExpRange)});
+        row(left,lw,426,46,{e(SslExpRelease),e(SslGate)});
+        l.cells[e(SslOutput)]={left,491,lw,38};
         auto band=[&](int y,int gain,int freq,int shape){
-            l.cells[gain]={right,y+4,a,64};
-            l.cells[freq]={right+a,y,b,40};
-            l.cells[shape]={right+a,y+41,b,32};
+            const int g=rw*48/100;
+            l.cells[gain]={right,y+9,g,61};
+            l.cells[freq]={right+g,y,rw-g,40};
+            l.cells[shape]={right+g,y+41,rw-g,32};
         };
         band(100,4,e(SslHFFreq),e(SslHFBell));
         band(184,3,e(SslHMFreq),e(SslHMQ));
-        band(268,2,e(SslLMFreq),e(SslLMQ));
-        band(352,1,e(SslLFFreq),e(SslLFBell));
-        l.cells[0]={right+lane-44,435,44,29};
-        l.meter={right+1,480,lane-3,55};return l;
+        band(270,2,e(SslLMFreq),e(SslLMQ));
+        band(356,1,e(SslLFFreq),e(SslLFBell));
+        l.cells[0]={right+rw-45,439,45,29};
+        l.meter={right,480,rw,55};return l;
     }
     if(type==SkellDope){
         // Vertical rack adaptation of the two-mode hardware. All four
@@ -422,7 +421,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
 }
 inline void paintDemonVectorFallback(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     // Raise the lip to the lower chest rather than lengthening the rib cage.
-    const auto win=r.withTrimmedBottom(47.f);
+    const auto win=r.withTrimmedBottom(46.f);
     if(frame)paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);
     auto a=win.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff69120d),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
@@ -492,7 +491,7 @@ inline const juce::Image& infernalBackdrop();
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
     // Raise the lip to the lower chest rather than lengthening the rib cage.
-    const auto win=r.withTrimmedBottom(47.f);const auto a=win.reduced(5.f);
+    const auto win=r.withTrimmedBottom(46.f);const auto a=win.reduced(5.f);
     if(frame){
         paintHardwarePlate(g,win,Colour(0xff381c16),false,6.f,3.f);
         g.setColour(Colour(0xffbd8150).withAlpha(.78f));g.drawRoundedRectangle(win.reduced(2.f),4.f,.9f);
@@ -508,7 +507,7 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
         for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
     }
     const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
-    const auto& atlas=demonReliefAtlas();const float dw=r.getWidth()+23.f,dh=dw*496.f/432.f;const auto dst=juce::Rectangle<float>(r.getCentreX()-dw*.5f,r.getBottom()-dh-2.f,dw,dh);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
+    const auto& atlas=demonReliefAtlas();const float dw=r.getWidth()+16.f,dh=dw*496.f/432.f;const auto dst=juce::Rectangle<float>(r.getCentreX()-dw*.5f,r.getBottom()-dh-9.f,dw,dh);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
     g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
 }
 // Distinct patina/finish per module. Static faceplate cache only, no audio dependency.
@@ -556,7 +555,7 @@ inline const juce::Image& infernalBackdrop(){
         auto hash=[](int x,int y){unsigned v=unsigned(x)*0x9e3779b9u+unsigned(y)*0x85ebca6bu+0xf41e2u;v^=v>>16;v*=0x7feb352du;v^=v>>15;return float(v&65535u)/65535.f;};
         auto field=[&](float x,float y){const int i=int(std::floor(x)),j=int(std::floor(y));float a=x-i,b=y-j;a=a*a*(3-2*a);b=b*b*(3-2*b);return (hash(i,j)*(1-a)+hash(i+1,j)*a)*(1-b)+(hash(i,j+1)*(1-a)+hash(i+1,j+1)*a)*b;};
         auto fbm=[&](float x,float y){float n=0,amp=.54f;for(int k=0;k<7;++k){n+=amp*field(x,y);x=x*2.04f+17.f;y=y*2.03f+5.f;amp*=.49f;}return n;};
-        juce::Image::BitmapData px(im,juce::Image::BitmapData::writeOnly);for(int y=0;y<h;++y)for(int x=0;x<w;++x){const float u=float(x)/w,v=float(y)/h,warp=fbm(u*4+12,v*5+3);const float n=fbm(u*6+warp*2,v*8+warp*3),n2=fbm(u*17+warp*4,v*19+warp*4);float light=metal::sat((n-.28f)*1.65f);float fissure=std::exp(-80.f*std::abs(n2-.51f));float halo=std::exp(-4.2f*((u-.5f)*(u-.5f)+(v-.5f)*(v-.5f)));auto c=Colour(0xff100205).interpolatedWith(Colour(0xffb7210b),metal::sat(light*halo+.16f*fissure));c=c.interpolatedWith(Colour(0xffe86c20),fissure*.16f*halo);px.setPixelColour(x,y,c);}return im;}();return image;
+        juce::Image::BitmapData px(im,juce::Image::BitmapData::writeOnly);for(int y=0;y<h;++y)for(int x=0;x<w;++x){const float u=float(x)/w,v=float(y)/h,warp=fbm(u*4+12,v*5+3);const float n=fbm(u*6+warp*2,v*8+warp*3),n2=fbm(u*17+warp*4,v*19+warp*4);float flame=metal::sat((fbm(u*8+warp*3,v*3.2f+warp*2)-.39f)*3.2f);float light=metal::sat((n-.25f)*1.9f+.36f*flame);float fissure=std::exp(-80.f*std::abs(n2-.51f));float halo=std::exp(-4.2f*((u-.5f)*(u-.5f)+(v-.5f)*(v-.5f)));auto c=Colour(0xff100205).interpolatedWith(Colour(0xffe3370c),metal::sat(light*halo+.23f*fissure));c=c.interpolatedWith(Colour(0xffff9827),metal::sat(fissure*.30f*halo+flame*.20f*(.4f+.6f*v)));px.setPixelColour(x,y,c);}return im;}();return image;
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
