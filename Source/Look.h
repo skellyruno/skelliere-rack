@@ -660,21 +660,25 @@ public:
             g.setColour(Colour(0xff151b18));g.setFont(font(juce::jlimit(8.f,10.f,size*.23f),true));g.drawFittedText(names[p>=.5f?1:0],key.toNearestInt(),juce::Justification::centred,1);return;
         }
         if(bool(s.getProperties().getWithDefault("tapeSelector",false))){
-            // Original tape-machine rotary detent. Keep the two existing host
-            // values and click/keyboard behavior; the pointer never interpolates.
-            const bool on=p>=.5f; const float rad=size*.31f;
-            const auto well=Rectangle<float>(cx-rad-5,cy-rad-5,2*rad+10,2*rad+10);
-            g.setColour(Colour(0xff120e0b));g.fillEllipse(well.translated(1,2));
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffc6b6a1),well.getY(),Colour(0xff403b34),well.getBottom()));g.fillEllipse(well);
-            g.setColour(Colour(0xff171814));g.fillEllipse(well.reduced(2));
-            const auto cap=Rectangle<float>(cx-rad,cy-rad,2*rad,2*rad);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff62635f),cap.getY(),Colour(0xff121311),cap.getBottom()));g.fillEllipse(cap);
-            for(int i=0;i<24;++i){const float a=i*juce::MathConstants<float>::twoPi/24.f;g.setColour(Colour(0xff050605).withAlpha(.8f));g.drawLine(cx+std::sin(a)*rad*.83f,cy-std::cos(a)*rad*.83f,cx+std::sin(a)*rad,cy-std::cos(a)*rad,.8f);}
-            g.setColour(Colour(0xffa7a396));g.drawEllipse(cap.reduced(1),.65f);
-            const float detent=on?.78f:-.78f;
-            for(int i=0;i<2;++i){float a=i?.78f:-.78f;g.setColour(i==int(on)?Colour(0xffffcb79):Colour(0xff766b5b));g.fillEllipse(cx+std::sin(a)*(rad+7)-1.5f,cy-std::cos(a)*(rad+7)-1.5f,3,3);}
-            juce::Graphics::ScopedSaveState saved(g);g.addTransform(juce::AffineTransform::rotation(detent,cx,cy));
-            auto bar=Rectangle<float>(cx-3,cy-rad*.81f,6,rad*.77f);g.setColour(Colour(0xff131410));g.fillRoundedRectangle(bar.expanded(1),1.5f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfffaf1dc),bar.getY(),Colour(0xff998976),bar.getBottom()));g.fillRoundedRectangle(bar,1.2f);return;
+            // Recessed miniature tape-machine bat-handle switch. The two
+            // engraved detents are the real normalized host values.
+            const bool on=p>=.5f;const float u=size/58.f;
+            const auto names=juce::StringArray::fromTokens(s.getProperties().getWithDefault("switchLabels",juce::var("0,1")).toString(),",","");
+            auto plate=Rectangle<float>(cx-27*u,cy-25*u,54*u,50*u);
+            g.setColour(Colour(0xff210c08).withAlpha(.9f));g.fillRoundedRectangle(plate.translated(0,2*u),3*u);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff65534a),plate.getY(),Colour(0xff251916),plate.getBottom()));g.fillRoundedRectangle(plate,3*u);
+            g.setColour(Colour(0xffd9b58b).withAlpha(.8f));g.drawRoundedRectangle(plate.reduced(.5f),3*u,.7f);
+            auto well=Rectangle<float>(cx-24*u,cy-21*u,25*u,42*u);
+            g.setColour(Colour(0xff140f0d));g.fillRoundedRectangle(well,3*u);g.setColour(Colour(0xff726257));g.drawRoundedRectangle(well.reduced(.5f),3*u,.7f);
+            const float bx=cx-11*u,by=cy,tx=bx+(on?-3.f:3.f)*u,ty=by+(on?-15.f:15.f)*u;
+            juce::Path nut;for(int i=0;i<6;++i){const float a=juce::MathConstants<float>::twoPi*i/6.f+juce::MathConstants<float>::pi/6;const float x=bx+std::cos(a)*9*u,y=by+std::sin(a)*9*u;if(i==0)nut.startNewSubPath(x,y);else nut.lineTo(x,y);}nut.closeSubPath();
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe0d1b3),by-9*u,Colour(0xff665d4d),by+9*u));g.fillPath(nut);g.setColour(Colour(0xff241c17));g.strokePath(nut,juce::PathStrokeType(.8f));
+            g.setColour(Colour(0xff171717));g.fillEllipse(bx-5*u,by-5*u,10*u,10*u);
+            g.setColour(Colour(0xff0c0907).withAlpha(.9f));g.drawLine(bx+2*u,by+2*u,tx+2*u,ty+2*u,7.5f*u);
+            g.setColour(Colour(0xff80776b));g.drawLine(bx,by,tx,ty,6.5f*u);g.setColour(Colour(0xfff3e7cc));g.drawLine(bx-1.5f*u,by,tx-1.5f*u,ty,2*u);
+            auto tip=Rectangle<float>(tx-4*u,ty-3.5f*u,8*u,7*u);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff8ebd2),tip.getY(),Colour(0xff70675a),tip.getBottom()));g.fillRoundedRectangle(tip,2*u);g.setColour(Colour(0xfff6ead0).withAlpha(.8f));g.drawRoundedRectangle(tip.reduced(.4f),2*u,.5f);
+            for(int i=0;i<2;++i){const bool selected=(i==int(on));const float y=cy+(i==1?-13.f:13.f)*u;g.setColour(selected?Colour(0xffffb64d):Colour(0xff2a211c));g.fillEllipse(cx+4*u,y-6*u,4*u,4*u);g.setColour(selected?Colour(0xffffe2a6):Colour(0xffc8b7aa));g.setFont(font(8.5f*u,true));g.drawFittedText(names[i].toUpperCase(),Rectangle<float>(cx+2*u,y-1*u,24*u,10*u).toNearestInt(),juce::Justification::centred,1);}
+            if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawRoundedRectangle(plate.expanded(1),3*u,.8f);}return;
         }
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
             const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
