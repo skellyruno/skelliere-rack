@@ -2,6 +2,7 @@
 #include <cassert>
 int main(){using rackcapture::parse;
  assert(!parse({}).full);
+ auto gate=parse({"--gate-modules","--output","gate"});assert(gate.gates&&!gate.full&&gate.output=="gate"&&gate.error.empty());
  auto old=parse({"shots"});assert(old.full&&old.legacy&&old.output=="shots");
  auto quick=parse({"--output","shots"});assert(!quick.full&&!quick.legacy&&quick.output=="shots");
  auto full=parse({"--output","shots","--full"});assert(full.full&&!full.legacy);

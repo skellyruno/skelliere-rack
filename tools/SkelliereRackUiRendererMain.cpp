@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
     options.scenes={{"catalog_1",1260,870,0,1},{"catalog_2",1260,870,1,1},{"catalog_3",1260,870,2,1},{"catalog_4",1260,870,3,1},{"catalog_5",1260,870,4,1},{"catalog_6",1260,870,5,1},{"catalog_7",1260,870,6,1},
-      {"catalog_80",1008,696,0,1},{"catalog_125",1575,1088,3,1},{"catalog_150",1890,1305,4,1},{"catalog_min",1260,870,6,1},{"catalog_max",1260,870,6,1},{"catalog_silver",1260,870,0,2},{"catalog_empty",1260,870,7,1},{"approved_studio",1260,870,8,1},{"approved_studio_150",1890,1305,8,1},{"approved_bypass",1260,870,9,1},{"studio_graphite",1260,870,8,0},{"studio_midnight",1260,870,8,3},{"studio_80",1008,696,8,1},{"full_rack",1260,870,10,1},{"studio_edit",1260,870,8,1},{"library_hidden",1260,870,10,1},{"library_hidden_edit",1260,870,10,1},{"library_hidden_80",1008,696,10,1},{"library_hidden_150",1890,1305,10,1},{"library_restored",1260,870,8,1},{"rack_last_slots",1260,870,10,1},{"rack_last_hidden",1260,870,10,1},{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1},{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1}};
+      {"catalog_80",1008,696,0,1},{"catalog_125",1575,1088,3,1},{"catalog_150",1890,1305,4,1},{"catalog_min",1260,870,6,1},{"catalog_max",1260,870,6,1},{"catalog_silver",1260,870,0,2},{"catalog_empty",1260,870,7,1},{"approved_studio",1260,870,8,1},{"approved_studio_150",1890,1305,8,1},{"approved_bypass",1260,870,9,1},{"studio_graphite",1260,870,8,0},{"studio_midnight",1260,870,8,3},{"studio_80",1008,696,8,1},{"full_rack",1260,870,10,1},{"studio_edit",1260,870,8,1},{"library_hidden",1260,870,10,1},{"library_hidden_edit",1260,870,10,1},{"library_hidden_80",1008,696,10,1},{"library_hidden_150",1890,1305,10,1},{"library_restored",1260,870,8,1},{"rack_last_slots",1260,870,10,1},{"rack_last_hidden",1260,870,10,1},{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1},{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1},{"gate_modules",1260,870,13,1},{"gate_modules_edit",1260,870,13,1},{"gate_modules_80",1008,696,13,1},{"gate_modules_150",1890,1305,13,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"},{"full_rack","library_hidden"},{"library_hidden","library_hidden_edit"},{"full_rack","rack_last_slots"},{"library_hidden","rack_last_hidden"}};
     if(!args.full){
         options.scenes={{"approved_studio",1260,870,8,1},{"studio_edit",1260,870,8,1},{"library_hidden",1260,870,10,1},{"studio_midnight",1260,870,8,3}};
@@ -65,16 +65,18 @@ int main(int argc, char** argv) {
     }
     if(args.engines){options.scenes={{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1}};options.mustDiffer={{"engine_modules","engine_modules_edit"}};}
     if(args.colors){options.scenes={{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
+    if(args.gates){options.scenes={{"gate_modules",1260,870,13,1},{"gate_modules_edit",1260,870,13,1},{"gate_modules_80",1008,696,13,1},{"gate_modules_150",1890,1305,13,1}};options.mustDiffer={{"gate_modules","gate_modules_edit"}};}
     int expectedWidth=1260,expectedHeight=870,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;navOK=true;processor.clearRack();
         expectedLast=scene.id=="rack_last_slots"||scene.id=="rack_last_hidden";
         expectedLibrary=!(scene.id=="library_hidden"||scene.id=="library_hidden_edit"||scene.id=="library_hidden_80"||scene.id=="library_hidden_150"||scene.id=="rack_last_hidden");
-        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit"||scene.id=="color_modules_edit"||scene.id=="engine_modules_edit";
+        const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit"||scene.id=="color_modules_edit"||scene.id=="engine_modules_edit"||scene.id=="gate_modules_edit";
         if(scene.theme<7)for(int i=0;i<4;++i){const int type=1+scene.theme*4+i;if(type<skl::kNumRackTypes){processor.addModule(type,i);++expectedCount;}}
         if(scene.theme==11){const int models[]={skl::SkellDope,skl::SkellMixHead,skl::SkellRubyQ};
             for(int k=0;k<3;++k)processor.addModule(models[k],k);expectedCount=3;}
         if(scene.theme==12){const int models[]={skl::SkellDemon,skl::SkellSSL,skl::SkellNoise,skl::SkellMixHead};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
+        if(scene.theme==13){const int models[]={skl::SmartGate,skl::SkellNoise,skl::SkellSSL,skl::FastComp};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
         if(scene.theme==8||scene.theme==9){
             const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger};
             for(int k=0;k<4;++k)processor.addModule(models[k],k);

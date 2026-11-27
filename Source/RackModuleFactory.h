@@ -6,6 +6,7 @@
 #include "AnalogRackModules.h"
 #include "NewColorModules.h"
 #include "RecoveredRackModules.h"
+#include "SmartGate.h"
 #include <SkellCore/backends/vocal/SkellAir.h>
 #include <SkellCore/backends/vocal/ClassicDeEsser.h>
 namespace skl {
@@ -122,6 +123,7 @@ private:
 inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
     if(type==SkellDemon)return std::make_unique<RecoveredDemon>();
     if(type==SkellSSL)return std::make_unique<RecoveredSSL>();
+    if(type==SmartGate)return std::make_unique<SmartGateModule>();
     if(type==SkellNoise)return std::make_unique<RackNoiseReducer>();
     if(type==SkellDope||type==SkellMixHead||type==SkellRubyQ)return std::make_unique<NewColorModule>(type);
     if(type==SkellDeEsserFX)return std::make_unique<SkellClassicDeEsserModule>();
