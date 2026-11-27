@@ -121,7 +121,7 @@ void KnobCell::resized() {
         slider.setBounds((getWidth()-size)/2,0,size,size);return;
     }
     if(bool(slider.getProperties().getWithDefault("consoleCell",false))&&!compact_){
-        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-20,bool(slider.getProperties().getWithDefault("dopeRow",false))?72:43));
+        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-20,bool(slider.getProperties().getWithDefault("dopeRow",false))?72:bool(slider.getProperties().getWithDefault("sslGain",false))?49:43));
         slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-20)/2),size,size);return;
     }
     if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_){slider.setBounds(5,3,getWidth()-10,getHeight()-36);return;}
@@ -144,7 +144,7 @@ bool KnobCell::controlGeometryValid() const noexcept {
     if(b.isEmpty()||!getLocalBounds().contains(b))return false;
     if(bool(slider.getProperties().getWithDefault("sslAux",false)))return b.getWidth()==b.getHeight()&&b.getRight()+15<getWidth();
     if(bool(slider.getProperties().getWithDefault("sslSwitch",false)))return b.getWidth()==b.getHeight()&&b.getBottom()+10<=getHeight();
-    if(bool(slider.getProperties().getWithDefault("consoleCell",false)))return b.getWidth()==b.getHeight()&&b.getWidth()<=(bool(slider.getProperties().getWithDefault("dopeRow",false))?72:43)&&b.getBottom()+18<=getHeight();
+    if(bool(slider.getProperties().getWithDefault("consoleCell",false)))return b.getWidth()==b.getHeight()&&b.getWidth()<=(bool(slider.getProperties().getWithDefault("dopeRow",false))?72:bool(slider.getProperties().getWithDefault("sslGain",false))?49:43)&&b.getBottom()+18<=getHeight();
     if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_)return b.getBottom()+28<=getHeight();
     if(b.getWidth()!=b.getHeight())return false;
     if(compact_)return b.getWidth()<=48;
@@ -333,7 +333,7 @@ void SlotComponent::rebuild() {
             if((type==SkellDope||type==SkellMixHead||type==SkellDemon||type==SkellSSL)&&k.steps==2){
                 cell->slider.getProperties().set("colorSwitch",true);
                 cell->slider.getProperties().set("dopeSwitch",type==SkellDope);
-                if(type==SkellMixHead)cell->slider.getProperties().set("tapeToggle",true);
+                if(type==SkellMixHead)cell->slider.getProperties().set("tapeSelector",true);
                 cell->slider.getProperties().set("switchLabels",juce::String(k.names));
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
@@ -343,19 +343,21 @@ void SlotComponent::rebuild() {
                 auto previous=cell->slider.onValueChange;
                 cell->slider.onValueChange=[this,previous]{if(previous)previous();repaint(mixHeadBadgeBounds(getWidth()));};
             }
-            if(type==SkellNoise&&j==1)cell->slider.setTooltip("Noise-floor ceiling: higher values suppress louder background noise; lower values preserve quieter detail. Amount sets reduction strength.");
+            if(type==SkellNoise&&j==1)cell->slider.setTooltip("Maximum tracked noise level in dB. Raise for louder background noise; lower to protect quiet vocal detail. Amount sets suppression strength.");
             if(type==SkellNoise&&j==2)cell->slider.setTooltip("Recovery time of the attenuation as signal level changes.");
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
             if(type==SkellSSL){
                 cell->slider.getProperties().set("consoleCell",true);
                 if(k.steps==2)cell->slider.getProperties().set("sslSwitch",true);
-                if(extIndex==SslHMQ||extIndex==SslLMQ||extIndex==SslOutput)cell->slider.getProperties().set("sslAux",true);
+                if(extIndex==SslHMQ||extIndex==SslLMQ)cell->slider.getProperties().set("sslAux",true);
+                if(!ext&&j>=1&&j<=4)cell->slider.getProperties().set("sslGain",true);
                 // Restore shared rotating Skelliere skull cap; keep compact console geometry.
                 static const unsigned caps[]={0xffa5a79e,0xffa16b3e,0xff32698f,0xff3b7650,0xffa92c31,0xffbb393b};
                 unsigned cap=ext?0xffa5a6a0:caps[j];
                 if(extIndex==SslInput)cap=0xffb6443c;
                 if(extIndex==SslOutput)cap=0xffa9aaa5;
-                if(extIndex==SslHP||extIndex==SslLP)cap=0xff51865d;
+                if(extIndex==SslHP)cap=0xff51865d;
+                if(extIndex==SslLP)cap=0xffa16b3e;
                 if(extIndex==SslHFFreq||extIndex==SslHMFreq||extIndex==SslHMQ||extIndex==SslLMFreq||extIndex==SslLMQ||extIndex==SslLFFreq)cap=0xffa9aaa5;
                 if(extIndex==SslExpThreshold)cap=0xff41865b;
                 if(extIndex==SslThreshold)cap=0xffb63a33;
@@ -525,8 +527,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
         if(type==SkellSSL){
-            pg.setColour(Colour(0xff111514));pg.fillRect(juce::Rectangle<float>(10,25,float(w-20),43));
-            pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(68,10.f,float(w-10));
+            pg.setColour(Colour(0xff222625));pg.fillRect(juce::Rectangle<float>(9,25,float(w-18),43));
+            pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(68,9.f,float(w-9));
             paintMonogram(pg,Rectangle<float>(16,33,14,20),Colour(0xffe0ded2));
             pg.setColour(Colour(0xffe0ded2));pg.setFont(font(16.f,true).withExtraKerningFactor(.045f));pg.drawText("SSL STRIP",36,28,w-48,23,juce::Justification::centredLeft);
             pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",36,49,w-48,13,juce::Justification::centredLeft);
@@ -549,7 +551,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
         if(type==SkellSSL){
-            const int split=w*48/100,left=9,right=split+5,lw=split-13,rw=w-right-9;
+            const int split=w*49/100,left=9,right=split+5,lw=split-13,rw=w-right-9;
             const auto console=Rectangle<float>(8,75,float(w-16),float(tallPanelY(548)-75));
             pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff292c2d),console.getY(),Colour(0xff15191a),console.getBottom()));pg.fillRect(console);
             paintPeened(pg,console,.62f);
@@ -557,8 +559,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.setColour(Colour(0xff121715));pg.drawVerticalLine(split,75,tallPanelY(548));
             pg.setColour(Colour(0xff6c7169).withAlpha(.55f));pg.drawVerticalLine(split+1,75,tallPanelY(548));
             auto section=[&](int x,int y,int ww,const char* label){
-                y=tallPanelY(y);pg.setColour(Colour(0xff080b09).withAlpha(.66f));pg.fillRect(x,y,ww,14);pg.drawHorizontalLine(y,float(x),float(x+ww));
-                pg.setColour(Colour(0xffc5c8bb).withAlpha(.36f));pg.drawHorizontalLine(y+1,float(x),float(x+ww));
+                y=tallPanelY(y);pg.setColour(Colour(0xff121615));pg.drawHorizontalLine(y,float(x),float(x+ww));
+                pg.setColour(Colour(0xffc5c8bb).withAlpha(.58f));pg.drawHorizontalLine(y+1,float(x),float(x+ww));
                 pg.setColour(Colour(0xfff2f0e5));pg.setFont(font(9.3f,true).withExtraKerningFactor(.035f));
                 pg.drawFittedText(label,Rectangle<int>(x+2,y+2,ww-4,15),juce::Justification::centredLeft,1);
             };

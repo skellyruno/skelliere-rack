@@ -116,8 +116,8 @@ inline const ModuleInfo& info(int type) {
          {{"Pitch",-12,12,false,0,Unit::Scalar,0,nullptr},{"Formant",-12,12,false,0,Unit::Scalar,0,nullptr},{"Link",0,1,false,0,Unit::Steps,2,"Off,On"},{"Mode",0,2,false,0,Unit::Steps,3,"Shift,Quant,Robot"},{"Drive",0,10,false,0,Unit::Scalar,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},3,{{"Voice",0,2},{"Mode",2,2},{"Color",4,2}},false},
         {"SSL Strip","Measured E/G channel","Recovered E/G console: variable four-band EQ, filters, gain, compressor and gate/expander. COMP retains the original macro.",CatTone,6,
          {{"Circuit",0,1,false,0,Unit::Steps,2,"E,G"},{"LF",-12,12,false,0,Unit::Db,0,nullptr},{"LM",-12,12,false,0,Unit::Db,0,nullptr},{"HM",-12,12,false,0,Unit::Db,0,nullptr},{"HF",-12,12,false,0,Unit::Db,0,nullptr},{"Comp",0,1,false,0,Unit::Pct,0,nullptr}},3,{{"Circuit",0,1},{"EQ",1,4},{"Dyn",5,1}},true},
-        {"Hush","Adaptive noise reduction","Adaptive four-band suppression. Floor sets the upper bound of the tracked noise estimate; Release controls recovery.",CatUtility,3,
-         {{"Amount",0,1,false,.35f,Unit::Pct,0,nullptr},{"Floor",-72,-24,false,-48,Unit::Db,0,nullptr},{"Release",25,500,true,120,Unit::Ms,0,nullptr}},2,{{"Suppress",0,1},{"Control",1,2}},true}
+        {"Hush","Adaptive noise reduction","Adaptive four-band suppression. Noise Limit sets the upper bound of the tracked noise estimate; Release controls recovery.",CatUtility,3,
+         {{"Amount",0,1,false,.35f,Unit::Pct,0,nullptr},{"Noise Limit",-72,-24,false,-48,Unit::Db,0,nullptr},{"Release",25,500,true,120,Unit::Ms,0,nullptr}},2,{{"Suppress",0,1},{"Control",1,2}},true}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }

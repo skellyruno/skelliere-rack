@@ -74,16 +74,16 @@ def skull_mesh(mesh):
         return (np.sqrt((a/r[0])**2+(b/r[1])**2+(d/r[2])**2)-1)*min(r)
     def union(a,b,k=.045):
         h=np.maximum(k-np.abs(a-b),0)/k;return np.minimum(a,b)-h*h*k*.25
-    s=e((0,.47,.08),(.48,.415,.35))
-    s=union(s,e((0,.20,.19),(.345,.29,.30)))
+    s=e((0,.47,.08),(.455,.425,.35))
+    s=union(s,e((0,.20,.19),(.33,.285,.30)))
     s=union(s,e((0,.64,.19),(.115,.15,.16)),.035)
     s=union(s,e((0,-.018,.335),(.295,.145,.23)))
     for side in (-1,1):
-        s=union(s,e((side*.345,.095,.24),(.184,.081,.185),-side*.42))
-        s=union(s,e((side*.235,.405,.35),(.267,.096,.155),side*.24),.025)
+        s=union(s,e((side*.345,.095,.24),(.178,.087,.185),-side*.42))
+        s=union(s,e((side*.235,.405,.35),(.258,.082,.155),side*.24),.025)
         s=union(s,e((side*.365,.29,.09),(.145,.24,.24)),.03)
         # Outer edge of the orbit higher, inner lower: threatening brow.
-        s=np.maximum(s,-e((side*.228,.305,.445),(.196,.146,.40),side*.32))
+        s=np.maximum(s,-e((side*.228,.305,.445),(.192,.137,.40),side*.32))
         s=np.maximum(s,-e((side*.345,-.015,.415),(.132,.104,.245),side*.30))
         s=np.maximum(s,-e((side*.048,.105,.487),(.062,.12,.205),-side*.24))
     s=np.maximum(s,-e((0,-.188,.53),(.29,.138,.27)))
@@ -146,7 +146,7 @@ def build_static():
     for side in (-1,1):
         # Small hot eyes deep inside true sockets.
         # Sharply angled heavy brows and thin molten slits, not round pupils.
-        tube(m,[(side*.055,.342,.438),(side*.18,.386,.445),(side*.315,.435,.375),(side*.435,.412,.25)],[.048,.071,.077,.031],0,25,18)
+        tube(m,[(side*.055,.342,.438),(side*.18,.386,.445),(side*.315,.435,.375),(side*.435,.412,.25)],[.044,.064,.069,.031],0,25,18)
         ellipsoid(m,(side*.222,.300,.275),(.098,.024,.028),1,side*.30)
         ellipsoid(m,(side*.217,.299,.302),(.046,.010,.013),4,side*.30)
         # Sharper zygomatic spurs and brow ridge, receding in the temple.
@@ -157,7 +157,7 @@ def build_static():
     # Upper teeth along a curved dental arch; long outer canines.
     for i in range(10):
         x=(i-4.5)*.050;z=.520-.095*(abs(x)/.225)**1.5;y=-.106+.014*abs(i-4.5)
-        l=.185 if i in (0,9) else .086+.014*(i%2)
+        l=.151 if i in (0,9) else .075+.009*(i%2)
         tube(m,[(x,y,z),(x,y-l*.53,z+.014),(x*.98,y-l,z+.002)],[.027,.022,.004],2,10,12)
     # Bring the skull toward the listener; keep the horns anchored to the cranium.
     for k in range(head_start,len(m.v)):
@@ -177,7 +177,7 @@ def add_jaw(m,open_amt):
     ellipsoid(m,pose((0,-.423,.53)),(.10,.063,.059),0)
     for i in range(10):
         x=(i-4.5)*.047;z=.523-.085*(abs(x)/.22)**1.4;y=-.386+.018*abs(i-4.5)
-        l=.13 if i in (0,9) else .077+.012*(i%2)
+        l=.113 if i in (0,9) else .069+.009*(i%2)
         tube(m,[pose((x,y,z)),pose((x,y+l*.52,z+.008)),pose((x*.98,y+l,z+.001))],[.026,.022,.004],2,10,12)
 
 def add_hands(m,amt):
@@ -242,11 +242,13 @@ def render(mesh):
     # Pitted, ridged bone rather than polished plastic. Multi-frequency material
     # variation is spatially stable over all nine animation frames.
     pore=np.sin(pp[:,0]*113+np.sin(pp[:,1]*57))*np.sin(pp[:,1]*127+np.sin(pp[:,2]*63))*np.sin(pp[:,2]*131+pp[:,0]*61)
-    texture=.83+.10*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.12*np.maximum(pore,0)**3
-    colors=np.array([[.52,.070,.051],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
+    texture=.80+.10*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.16*np.maximum(pore,0)**3
+    colors=np.array([[.49,.085,.065],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
+    vein=np.exp(-22*np.abs(np.sin(pp[:,0]*21+pp[:,1]*14+2.5*np.sin(pp[:,2]*17+pp[:,1]*8))))
+    texture*=1-.09*vein
     rgb=colors*texture[:,None]*(.035+1.28*D[:,None]*vis[:,None])
     rgb+=np.array([.54,.067,.035])*rim[:,None]*(.45+.55*fres[:,None])
-    rgb+=np.array([.96,.56,.35])*spec[:,None]*(.18+.12*texture[:,None])
+    rgb+=np.array([.96,.56,.35])*spec[:,None]*(.11+.10*texture[:,None])
     # Subtle warm bounce from the crimson enclosure and cold upper-edge reflection.
     rgb+=np.array([.14,.052,.032])*np.maximum(N@np.array([-.38,-.26,.72]),0)[:,None]*(.45+.55*texture[:,None])
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.

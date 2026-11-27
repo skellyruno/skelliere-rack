@@ -659,23 +659,22 @@ public:
             g.setColour(Colour(0xfffbf7dd).withAlpha(.7f));g.drawHorizontalLine(int(key.getY()+1),key.getX()+2,key.getRight()-2);
             g.setColour(Colour(0xff151b18));g.setFont(font(juce::jlimit(8.f,10.f,size*.23f),true));g.drawFittedText(names[p>=.5f?1:0],key.toNearestInt(),juce::Justification::centred,1);return;
         }
-        if(bool(s.getProperties().getWithDefault("tapeToggle",false))){
-            // Recessed two-position tape lever: real selected state, separate
-            // detent witness lights and a machined paddle over the pivot.
-            const bool on=p>=.5f;auto mount=Rectangle<float>(cx-size*.36f,cy-size*.38f,size*.72f,size*.76f);
-            paintHardwarePlate(g,mount,Colour(0xff453b32),false,4.f,2.f);
-            paintRecessedWindow(g,mount.reduced(3.f),2.f);
-            for(int i=0;i<2;++i){const float yy=cy+(i?1.f:-1.f)*size*.23f;auto col=(i==int(on)?Colour(0xffffbc50):Colour(0xff59472d));g.setColour(col);g.fillEllipse(cx-size*.22f-2,yy-2,4,4);}
-            const auto pivot=Rectangle<float>(cx-size*.12f,cy-size*.12f,size*.24f,size*.24f);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffc5b79d),pivot.getY(),Colour(0xff36302b),pivot.getBottom()));g.fillEllipse(pivot);
-            juce::Graphics::ScopedSaveState leverState(g);g.addTransform(juce::AffineTransform::rotation(on?2.68f:-.46f,cx,cy));
-            auto shaft=Rectangle<float>(cx-size*.065f,cy-size*.27f,size*.13f,size*.32f);
-            g.setColour(juce::Colours::black.withAlpha(.85f));g.fillRoundedRectangle(shaft.translated(1.4f,2.f),2.f);
-            g.setGradientFill(juce::ColourGradient(Colour(0xffe1d4b6),shaft.getX(),shaft.getY(),Colour(0xff62584a),shaft.getRight(),shaft.getY(),false));g.fillRoundedRectangle(shaft,1.4f);
-            auto paddle=Rectangle<float>(cx-size*.17f,cy-size*.33f,size*.34f,size*.19f);
-            g.setColour(juce::Colours::black.withAlpha(.8f));g.fillRoundedRectangle(paddle.translated(1.5f,2.f),2.f);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff666762),paddle.getY(),Colour(0xff171817),paddle.getBottom()));g.fillRoundedRectangle(paddle,2.f);
-            g.setColour(Colour(0xffc4c1b3).withAlpha(.72f));g.drawRoundedRectangle(paddle,2.f,.7f);for(int i=1;i<4;++i){g.setColour(Colour(0xff0b0b0a));g.drawHorizontalLine(int(paddle.getY()+i*paddle.getHeight()/4),paddle.getX()+3,paddle.getRight()-3);}return;
+        if(bool(s.getProperties().getWithDefault("tapeSelector",false))){
+            // Original tape-machine rotary detent. Keep the two existing host
+            // values and click/keyboard behavior; the pointer never interpolates.
+            const bool on=p>=.5f; const float rad=size*.31f;
+            const auto well=Rectangle<float>(cx-rad-5,cy-rad-5,2*rad+10,2*rad+10);
+            g.setColour(Colour(0xff120e0b));g.fillEllipse(well.translated(1,2));
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffc6b6a1),well.getY(),Colour(0xff403b34),well.getBottom()));g.fillEllipse(well);
+            g.setColour(Colour(0xff171814));g.fillEllipse(well.reduced(2));
+            const auto cap=Rectangle<float>(cx-rad,cy-rad,2*rad,2*rad);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff62635f),cap.getY(),Colour(0xff121311),cap.getBottom()));g.fillEllipse(cap);
+            for(int i=0;i<24;++i){const float a=i*juce::MathConstants<float>::twoPi/24.f;g.setColour(Colour(0xff050605).withAlpha(.8f));g.drawLine(cx+std::sin(a)*rad*.83f,cy-std::cos(a)*rad*.83f,cx+std::sin(a)*rad,cy-std::cos(a)*rad,.8f);}
+            g.setColour(Colour(0xffa7a396));g.drawEllipse(cap.reduced(1),.65f);
+            const float detent=on?.78f:-.78f;
+            for(int i=0;i<2;++i){float a=i?.78f:-.78f;g.setColour(i==int(on)?Colour(0xffffcb79):Colour(0xff766b5b));g.fillEllipse(cx+std::sin(a)*(rad+7)-1.5f,cy-std::cos(a)*(rad+7)-1.5f,3,3);}
+            juce::Graphics::ScopedSaveState saved(g);g.addTransform(juce::AffineTransform::rotation(detent,cx,cy));
+            auto bar=Rectangle<float>(cx-3,cy-rad*.81f,6,rad*.77f);g.setColour(Colour(0xff131410));g.fillRoundedRectangle(bar.expanded(1),1.5f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfffaf1dc),bar.getY(),Colour(0xff998976),bar.getBottom()));g.fillRoundedRectangle(bar,1.2f);return;
         }
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
             const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
