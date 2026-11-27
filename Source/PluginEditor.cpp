@@ -118,6 +118,7 @@ void KnobCell::setLightFace(bool light) {
 void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVerticalDrag); }
 
 void KnobCell::resized() {
+    if(slider.getProperties().contains("tuneDetune")){slider.setBounds(getLocalBounds().withTrimmedLeft(57).withTrimmedRight(49).reduced(2,1));return;}
     if(bool(slider.getProperties().getWithDefault("sslAux",false))&&!compact_){
         const int size=juce::jmax(1,juce::jmin(getWidth()/2,getHeight()-3,43));
         slider.setBounds(1,(getHeight()-size)/2,size,size);return;
@@ -152,6 +153,7 @@ void KnobCell::resized() {
 bool KnobCell::controlGeometryValid() const noexcept {
     const auto b=slider.getBounds();
     if(b.isEmpty()||!getLocalBounds().contains(b))return false;
+    if(slider.getProperties().contains("tuneDetune"))return b.getWidth()>0;
     if(bool(slider.getProperties().getWithDefault("sslAux",false)))return b.getWidth()==b.getHeight()&&b.getRight()+15<getWidth();
     if(bool(slider.getProperties().getWithDefault("sslSwitch",false)))return b.getWidth()==b.getHeight()&&b.getBottom()+10<=getHeight();
     if(bool(slider.getProperties().getWithDefault("sslOutput",false)))return b.getWidth()==b.getHeight()&&b.getWidth()<=45&&b.getBottom()+11<=getHeight();
@@ -165,10 +167,11 @@ bool KnobCell::controlGeometryValid() const noexcept {
 }
 
 void KnobCell::paint(Graphics& g) {
+    if(slider.getProperties().contains("tuneDetune")){auto b=getLocalBounds().toFloat();paintRecessedWindow(g,b,3);g.setColour(Colour(0xffb3d2ba));g.setFont(font(10.f,true));g.drawText("DETUNE",3,0,54,getHeight(),juce::Justification::centred);g.drawText(text_,getWidth()-49,0,47,getHeight(),juce::Justification::centred);return;}
     // The slider clips its own paint to its square. Render only the matching
     // outside portion of the cached knob shadow here, behind the child.
     // This keeps the original cap size while allowing a real cast shadow.
-    if(!compact_&&!slider.isSwitch()&&!bool(slider.getProperties().getWithDefault("sslConsoleCap",false))&&!bool(slider.getProperties().getWithDefault("hushFader",false))&&!slider.getBounds().isEmpty()){
+    if(!compact_&&!slider.isSwitch()&&!slider.getProperties().contains("fetRatio")&&!bool(slider.getProperties().getWithDefault("sslConsoleCap",false))&&!bool(slider.getProperties().getWithDefault("hushFader",false))&&!slider.getBounds().isEmpty()){
         juce::Graphics::ScopedSaveState save(g);
         const auto b=slider.getBounds().toFloat();
         const float capR=b.getWidth()*(b.getWidth()<61.f?.397f:.405f);
@@ -324,21 +327,23 @@ void SlotComponent::rebuild() {
     type = proc.slotType(index);
     cells.clear();tuneHover=-1;
     const bool filled = type != Empty;
-    artButton.setVisible(filled&&editing);advancedButton.setVisible(hasAdvancedEngine(type));modulePresetButton.setVisible(filled&&!proc.modulePresetNames(type).isEmpty());
+    artButton.setVisible(filled&&editing&&type!=FastComp);advancedButton.setVisible(hasAdvancedEngine(type));modulePresetButton.setVisible(filled&&!proc.modulePresetNames(type).isEmpty());
     appliedArtworkChoice = -1; panelCache={};
     powerBtn.setVisible(filled);
     for(auto* c:{&leftBtn,&rightBtn,&soloBtn})c->setVisible(filled&&editing);removeBtn.setVisible(filled);
     if (filled) {
         const auto& mi = info(type);
-        for (int j = 0; j < uiKnobCount(type)+(type==Tune?1:0); ++j) {
+        for (int j = 0; j < uiKnobCount(type)+(type==Tune?2:0); ++j) {
             const bool ext=type==SkellSSL&&j>=kMaxKnobs;
             const int extIndex=ext?j-kMaxKnobs:-1;
-            const bool human=type==Tune&&j==5;
-            Knob k=human?Knob{"Humanize",0,1,false,0,Unit::Pct,0,nullptr}:ext?sslControl(extIndex).knob:mi.knobs[j];
+            const bool human=type==Tune&&j==5,detune=type==Tune&&j==6;
+            Knob k=detune?Knob{"Detune",-50,50,false,0,Unit::Scalar,0,nullptr}:human?Knob{"Humanize",0,1,false,0,Unit::Pct,0,nullptr}:ext?sslControl(extIndex).knob:mi.knobs[j];
             if(type==SkellSSL){if(j==0)k.label="E/G";if(extIndex==SslThreshold)k.label="THRESH";if(extIndex==SslRatio)k.label="RATIO";}
-            auto* param=proc.apvts.getParameter(human?SkellierProcessor::humanizeId(index):ext?SkellierProcessor::sslId(index,extIndex):SkellierProcessor::knobId(index,j));
+            auto* param=proc.apvts.getParameter(human?SkellierProcessor::humanizeId(index):ext?SkellierProcessor::sslId(index,extIndex):SkellierProcessor::knobId(index,detune?5:j));
             auto cell=std::make_unique<KnobCell>(k.label,*param,[k,extIndex,type=type](double n){
                 if(type==EchoUnified&&extIndex<0&&juce::String(k.label)=="Time / Sync")return knobText(k,float(n))+" / "+juce::StringArray{"1/16","1/8","1/8 D","1/4","1/4 D","1/2"}[juce::jlimit(0,5,int(std::lround(n*5)))];
+                if(juce::String(k.label)=="Detune")return juce::String(n>=.5?"+":"")+juce::String((n-.5)*100,0)+" ct";
+                if(type==FastComp&&juce::String(k.label)=="Attack")return juce::String(int(std::lround(toReal(k,float(n))*1000)))+" us";
                 if(type!=SkellSSL)return knobText(k,float(n));
                 const float v=extIndex>=0?sslReal(extIndex,float(n)):toReal(k,float(n));
                 if(extIndex==SslHP&&v<16.5f)return juce::String("OFF");
@@ -347,9 +352,9 @@ void SlotComponent::rebuild() {
                 if(k.unit==Unit::Ms)return juce::String(v/1000,2)+"s";
                 if(k.unit==Unit::Db)return juce::String(v>0?"+":"")+juce::String(v,1);
                 if(k.unit==Unit::Scalar)return juce::String(v,1);
-                return knobText(k,float(n));},capColour(mi.cat),pointerColour(mi.cat),double(human?0.f:ext?sslDefault(extIndex):defaultNorm(type,j)),
+                return knobText(k,float(n));},capColour(mi.cat),pointerColour(mi.cat),double(detune?.5f:human?0.f:ext?sslDefault(extIndex):defaultNorm(type,j)),
                                                    k.steps > 1 ? 1.0 / (double) (k.steps - 1) : 0.0);
-            if((type==SkellDope||type==SkellMixHead||type==SkellDemon||type==SkellSSL)&&k.steps==2){
+            if((type==SkellDope||type==SkellMixHead||type==SkellDemon||type==SkellSSL||type==FastComp)&&k.steps==2){
                 cell->slider.getProperties().set("colorSwitch",true);
                 cell->slider.getProperties().set("dopeSwitch",type==SkellDope);
                 if(type==SkellMixHead)cell->slider.getProperties().set("tapeSelector",true);
@@ -357,6 +362,9 @@ void SlotComponent::rebuild() {
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
+            if(detune){cell->slider.getProperties().set("tuneDetune",true);cell->slider.setSliderStyle(juce::Slider::LinearHorizontal);cell->slider.setTooltip("Shift the pitch reference by +/-50 cents (0 = A440)");}
+            if(type==FastComp&&j==1){cell->slider.getProperties().set("fetRatio",true);cell->slider.setTooltip("Select ratio: 4, 8, 12, 20 or ALL");}
+            if(type==FastComp&&j==5){cell->slider.getProperties().set("fetRevision",true);auto previous=cell->slider.onValueChange;cell->slider.onValueChange=[this,previous]{if(previous)previous();syncArtwork();};}
             if(type==SkellDope&&j>0){cell->slider.getProperties().set("consoleCell",true);cell->slider.getProperties().set("dopeRow",true);}
             if(type==SkellMixHead&&(j==0||j==1||j==3)){
                 auto previous=cell->slider.onValueChange;
@@ -388,7 +396,7 @@ void SlotComponent::rebuild() {
             }
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
-            if(type==Tune){cell->setVisible(j==0||j==5);if(j==0)cell->slider.setTooltip("0 ms hard tune; higher values slow pitch correction. Existing 0-200 ms automation preserved.");if(j==5)cell->slider.setTooltip("Preserve fast pitch expression and soften correction near the target note");}
+            if(type==Tune){cell->setVisible(j==0||j==5||j==6);if(j==0)cell->slider.setTooltip("0 ms hard tune; higher values slow pitch correction. Existing 0-200 ms automation preserved.");if(j==5)cell->slider.setTooltip("Preserve fast pitch expression and soften correction near the target note");}
             cells.push_back(std::move(cell));
         }
     }
@@ -409,9 +417,10 @@ void SlotComponent::syncArtwork() {
     // The signature Dope panel follows the actual 361/180 switch; explicit
     // user finish selections remain independent and are never rewritten.
     const bool darkDope=type==SkellDope&&choice==1&&proc.apvts.getRawParameterValue(SkellierProcessor::knobId(index,0))->load()>=.5f;
-    const int key=choice*2+(darkDope?1:0);
+    const bool darkFet=type==FastComp&&proc.apvts.getRawParameterValue(SkellierProcessor::knobId(index,5))->load()>=.5f;
+    const int key=choice*4+(darkDope?1:0)+(darkFet?2:0);
     if(key==appliedArtworkChoice)return;
-    appliedArtworkChoice=key;nativeChoice=darkDope?3:choice;panelCache={};
+    appliedArtworkChoice=key;nativeChoice=type==FastComp?(darkFet?3:1):(darkDope?3:choice);panelCache={};
     const auto spec=originalSpec(type,nativeChoice);
     static const char* names[]={"GRAPHITE","SIGNATURE","SILVER","MIDNIGHT"};
     artButton.setButtonText("FINISH");artButton.setTooltip(juce::String("Metal finish: ")+names[choice]+" (appearance only; click to cycle)");
@@ -431,9 +440,9 @@ void SlotComponent::syncArtwork() {
 
 bool SlotComponent::artworkLayoutIsValid() const {
     if(type==Empty)return cells.empty();
-    if(cells.size()!=static_cast<size_t>(uiKnobCount(type)+(type==Tune?1:0)))return false;
+    if(cells.size()!=static_cast<size_t>(uiKnobCount(type)+(type==Tune?2:0)))return false;
     const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(editing?46:23);
-    if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||!removeBtn.isVisible()||artButton.isVisible()!=editing)return false;
+    if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||!removeBtn.isVisible()||artButton.isVisible()!=(editing&&type!=FastComp))return false;
     const auto header=getLocalBounds().withHeight(60).reduced(22,0);
     if(modulePresetButton.isVisible()!=!proc.modulePresetNames(type).isEmpty())return false;
     if(modulePresetButton.isVisible()&&(!header.contains(modulePresetButton.getBounds())||modulePresetButton.getBounds().intersects(powerBtn.getBounds())||modulePresetButton.getBounds().intersects(removeBtn.getBounds())||(advancedButton.isVisible()&&modulePresetButton.getBounds().intersects(advancedButton.getBounds()))))return false;
@@ -458,7 +467,7 @@ bool SlotComponent::exerciseSpriteBindings() {
     if(cells.empty())return true;
     bool ok=true;
     for(size_t i=0;i<cells.size();++i){
-        auto* p=proc.apvts.getParameter(type==Tune&&i==5?SkellierProcessor::humanizeId(index):type==SkellSSL&&i>=kMaxKnobs?SkellierProcessor::sslId(index,int(i)-kMaxKnobs):SkellierProcessor::knobId(index,int(i)));
+        auto* p=proc.apvts.getParameter(type==Tune&&i==5?SkellierProcessor::humanizeId(index):type==SkellSSL&&i>=kMaxKnobs?SkellierProcessor::sslId(index,int(i)-kMaxKnobs):SkellierProcessor::knobId(index,type==Tune&&i==6?5:int(i)));
         const float old=p->getValue();
         p->setValueNotifyingHost(0);ok=ok&&std::abs(cells[i]->slider.getValue())<1e-5;
         cells[i]->slider.setValue(1,juce::sendNotificationSync);ok=ok&&std::abs(p->getValue()-1)<1e-5;
@@ -510,7 +519,7 @@ void SlotComponent::setMeter(float gr) {
 void SlotComponent::setEditMode(bool enabled) {
     if(editing==enabled)return;
     editing=enabled;panelCache={};
-    for(auto* c:{&leftBtn,&rightBtn,&soloBtn,&artButton})c->setVisible(type!=Empty&&editing);removeBtn.setVisible(type!=Empty);
+    for(auto* c:{&leftBtn,&rightBtn,&soloBtn})c->setVisible(type!=Empty&&editing);artButton.setVisible(type!=Empty&&type!=FastComp&&editing);removeBtn.setVisible(type!=Empty);
     resized();repaint();
 }
 void SlotComponent::resized() {
@@ -520,8 +529,8 @@ void SlotComponent::resized() {
     const int top=type==SkellSSL?3:10;
     powerBtn.setBounds(25,top,24,24);removeBtn.setBounds(w-49,top,24,24);
     advancedButton.setBounds(w/2+17,top+4,w-49-(w/2+17)-5,16);
-    modulePresetButton.setBounds(54,top+4,w/2-71,16);
-    advancedButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("moduleHeader",true);
+    modulePresetButton.setBounds(52,top+4,w/2-65,16);
+    advancedButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("modulePreset",true);
     soloBtn.setBounds(25,h-38,27,23);leftBtn.setBounds(59,h-38,21,23);rightBtn.setBounds(84,h-38,21,23);
     artButton.setBounds(w-90,h-38,65,23);
     const auto layout=originalLayout(type,w,editing);vuRect=layout.meter;
@@ -575,6 +584,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         panelCache=juce::Image(juce::Image::ARGB,w*rasterScale,h*rasterScale,true);Graphics pg(panelCache);
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
+        const auto header=Rectangle<float>(20.f,type==SkellSSL?1.f:4.f,float(w-40),type==SkellSSL?26.f:33.f);pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff252627),header.getY(),Colour(0xff070909),header.getBottom()));pg.fillRoundedRectangle(header,4.f);pg.setColour(Colour(0xff555651));pg.drawRoundedRectangle(header,4.f,.65f);
         if(type==SkellSSL){
             pg.setColour(Colour(0xff222625));pg.fillRect(juce::Rectangle<float>(9,25,float(w-18),43));
             pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(68,9.f,float(w-9));
@@ -582,7 +592,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.setColour(Colour(0xffe0ded2));pg.setFont(font(16.f,true).withExtraKerningFactor(.045f));pg.drawText("SSL STRIP",36,28,w-48,23,juce::Justification::centredLeft);
             pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",36,49,w-48,13,juce::Justification::centredLeft);
         }else{
-        paintMonogram(pg,Rectangle<float>(w*.5f-11,12,22,29),ink);
+        paintMonogram(pg,Rectangle<float>(w*.5f-9,9,18,23),Colour(0xffc3c3b9));
         pg.setColour(ink);pg.setFont(font(14.5f,false).withExtraKerningFactor(.22f));
         pg.drawText("SKELL",18,45,w-36,17,juce::Justification::centred,false);
         pg.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultSerifFontName(),25.5f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));
@@ -598,6 +608,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         }
         const auto layout=originalLayout(type,w,editing);
+        if(type==FastComp){auto collar=layout.meter.toFloat().expanded(8.f,9.f);const auto metal=nativeChoice==3?Colour(0xff262b2d):Colour(0xff276d94);pg.setGradientFill(juce::ColourGradient::vertical(metal.brighter(.25f),collar.getY(),metal.darker(.55f),collar.getBottom()));pg.fillRoundedRectangle(collar,4);paintAnalogWear(pg,collar,false,763,.65f);pg.setColour(Colour(0xffb8c0b6).withAlpha(.6f));pg.drawRoundedRectangle(collar,4,.8f);}
         if(nativeChoice==1&&(type==FastComp||type==BusComp||type==Limiter||type==Multiband||type==DynamicEQ||type==Resonance||type==Exciter||type==Doubler||type==Trim||type==DualFilter)){
             // Recessed control bays and mechanical trim, never covering labels/knobs.
             const int top=(type==Limiter?layout.cells[1]:layout.cells[0]).getY()-5, bottom=editing?h-54:h-23;
@@ -721,19 +732,19 @@ void SlotComponent::paint(Graphics& g) {
 bool SlotComponent::selectTuneKey(juce::Point<float> point,bool commit){
     if(type!=Tune)return false;const auto detail=originalLayout(type,getWidth(),editing).detail.toFloat();
     const int note=tuneKeyAt(detail,point);if(note!=tuneHover){tuneHover=note;repaint(detail.toNearestInt());}
-    if(note>=0){if(commit&&cells.size()==6)cells[3]->slider.setValue(note/11.0,juce::sendNotificationSync);return true;}
+    if(note>=0){if(commit&&cells.size()==7)cells[3]->slider.setValue(note/11.0,juce::sendNotificationSync);return true;}
 
     return false;
 }
 bool SlotComponent::showTuneMenu(juce::Point<float> point){
-    if(type!=Tune||cells.size()!=6)return false;
+    if(type!=Tune||cells.size()!=7)return false;
     const auto detail=originalLayout(type,getWidth(),editing).detail.toFloat();const auto roots=tuneRootBounds(detail),modes=tuneScaleBounds(detail);const bool root=roots.contains(point);if(!root&&!modes.contains(point))return false;
     juce::PopupMenu menu;const int current=int(std::lround(cells[root?3:4]->slider.getValue()*(root?11:2)));
     if(root){const bool flats=proc.tuneFlats.load(std::memory_order_relaxed);for(int n=0;n<12;++n)menu.addItem(n+1,tuneNoteName(n,flats),true,n==current);menu.addSeparator();menu.addItem(30,"Use sharps (#)",true,!flats);menu.addItem(31,"Use flats (b)",true,flats);}
     else{const char* labels[]={"Chromatic","Major","Minor"};for(int n=0;n<3;++n)menu.addItem(n+1,labels[n],true,n==current);}
     juce::Component::SafePointer<SlotComponent> safe(this);const auto target=localAreaToGlobal((root?roots:modes).toNearestInt());
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withTargetScreenArea(target).withMinimumWidth(120),[safe,root](int choice){
-        if(safe==nullptr||safe->type!=Tune||safe->proc.slotType(safe->index)!=Tune||safe->cells.size()!=6||choice==0)return;
+        if(safe==nullptr||safe->type!=Tune||safe->proc.slotType(safe->index)!=Tune||safe->cells.size()!=7||choice==0)return;
         if(root&&(choice==30||choice==31)){safe->proc.tuneFlats.store(choice==31,std::memory_order_relaxed);safe->repaint();return;}
         if(choice>=1&&choice<=(root?12:3)){safe->cells[root?3:4]->slider.setValue(double(choice-1)/(root?11:2),juce::sendNotificationSync);safe->repaint();}
     });return true;

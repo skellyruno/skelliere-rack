@@ -628,6 +628,7 @@ public:
         g.setColour((b.getToggleState()&&!b.getProperties().contains("quiet") ? Colour(0xff20180f) : pal::ink).withMultipliedAlpha(b.isEnabled()?1.f:.36f));
         auto r = b.getLocalBounds();
         if (b.getToggleState() && b.getClickingTogglesState() && !b.getProperties().contains("plain")) r = r.withTrimmedLeft(12);
+        if(b.getProperties().contains("modulePreset")){auto arrow=r.removeFromRight(10).toFloat();g.drawFittedText(b.getButtonText(),r,juce::Justification::centred,1);juce::Path p;p.startNewSubPath(arrow.getCentreX()-2.5f,arrow.getCentreY()-1.f);p.lineTo(arrow.getCentreX()+2.5f,arrow.getCentreY()-1.f);p.lineTo(arrow.getCentreX(),arrow.getCentreY()+2.f);p.closeSubPath();g.fillPath(p);return;}
         g.drawFittedText(b.getButtonText(), r, juce::Justification::centred, 1);
     }
 
@@ -644,6 +645,7 @@ public:
     }
 
     void drawLinearSlider(Graphics& g,int x,int y,int w,int h,float sliderPos,float minPos,float maxPos,const juce::Slider::SliderStyle style,juce::Slider& s) override {
+        if(s.getProperties().contains("tuneDetune")){const float cy=y+h*.5f;g.setColour(Colour(0xff0a100c));g.fillRoundedRectangle(Rectangle<float>(x+2.f,cy-3,w-4.f,6),2);g.setColour(Colour(0xff719b7b));g.drawLine(x+w*.5f,cy-5,x+w*.5f,cy+5,.8f);g.setColour(Colour(0xffc4dcc4));g.fillRoundedRectangle(Rectangle<float>(juce::jlimit(float(x)+3,float(x+w)-3,sliderPos)-3,cy-6,6,12),2);return;}
         if(!bool(s.getProperties().getWithDefault("hushFader",false))){juce::LookAndFeel_V4::drawLinearSlider(g,x,y,w,h,sliderPos,minPos,maxPos,style,s);return;}
         const float cx=x+w*.5f,top=y+9.f,bottom=y+h-9.f;auto track=juce::Rectangle<float>(cx-5,top,10,bottom-top);
         g.setColour(Colour(0xff0c0e10));g.fillRoundedRectangle(track.expanded(3),4);g.setColour(Colour(0xff727c80));g.drawRoundedRectangle(track.expanded(2),3,.8f);g.setColour(Colour(0xff181b1b));g.fillRoundedRectangle(track,2);
@@ -676,12 +678,16 @@ public:
             // Actual supplied kit artwork; warmed to the rack's signature nickel caps.
             static const auto up=juce::ImageFileFormat::loadFrom(SkelliereKnobData::mixhead_toggle_up_png,SkelliereKnobData::mixhead_toggle_up_pngSize);
             static const auto down=juce::ImageFileFormat::loadFrom(SkelliereKnobData::mixhead_toggle_down_png,SkelliereKnobData::mixhead_toggle_down_pngSize);
-            const auto& toggle=on?up:down;const float side=38*u;
-            const auto rect=Rectangle<float>(cx-10*u-side*.5f,cy-side*.5f,side,side);
-            g.setColour(juce::Colours::black.withAlpha(.48f));g.fillEllipse(rect.reduced(2*u).translated(1.5f*u,2.5f*u));
+            const auto& toggle=on?up:down;const float side=43*u;
+            const auto rect=Rectangle<float>(cx-side*.5f,cy-side*.5f-4*u,side,side);
+            g.setColour(juce::Colours::black.withAlpha(.48f));g.fillEllipse(rect.reduced(1*u).translated(.5f*u,2*u));
             g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);g.drawImage(toggle,rect);
-            for(int i=0;i<2;++i){const bool selected=(i==int(on));const float y=cy+(i==1?-13.f:13.f)*u;g.setColour(selected?Colour(0xffffb64d):Colour(0xff2a211c));g.fillEllipse(cx+4*u,y-6*u,4*u,4*u);g.setColour(selected?Colour(0xffffe2a6):Colour(0xffc8b7aa));g.setFont(font(8.5f*u,true));g.drawFittedText(names[i].toUpperCase(),Rectangle<float>(cx+2*u,y-1*u,24*u,10*u).toNearestInt(),juce::Justification::centred,1);}
+            for(int i=0;i<2;++i){const bool selected=(i==int(on));auto label=Rectangle<float>(cx-28*u+i*28*u,cy+20*u,28*u,10*u);g.setColour(selected?Colour(0xffffd99a):Colour(0xffa99d8e));g.setFont(font(8.1f*u,true));g.drawFittedText(names[i].toUpperCase(),label.toNearestInt(),juce::Justification::centred,1);if(selected){g.setColour(Colour(0xffffb64d));g.fillEllipse(label.getCentreX()-1.5f*u,label.getY()-3*u,3*u,3*u);}}
             if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawRoundedRectangle(plate.expanded(1),3*u,.8f);}return;
+        }
+        if(s.getProperties().contains("fetRatio")){
+            const char* labels[]={"4","8","12","20","ALL"};const int active=juce::jlimit(0,4,int(std::lround(p*4)));auto lane=Rectangle<float>(float(x)+w*.20f,float(y),w*.60f,float(h));
+            g.setColour(Colour(0xff0b0c0b));g.fillRoundedRectangle(lane,2);for(int j=0;j<5;++j){auto b=lane.withY(lane.getY()+lane.getHeight()*j/5.f).withHeight(lane.getHeight()/5.f).reduced(1.1f,.7f);const auto col=j==active?Colour(0xffe9d2a5):Colour(0xff333637);g.setGradientFill(juce::ColourGradient::vertical(col.brighter(.2f),b.getY(),col.darker(.38f),b.getBottom()));g.fillRoundedRectangle(b,1.5f);g.setColour(j==active?Colour(0xff161713):Colour(0xffe1ded0));g.setFont(font(std::min(10.f,b.getHeight()*.8f),true));g.drawFittedText(labels[j],b.toNearestInt(),juce::Justification::centred,1);}return;
         }
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
             const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
@@ -691,7 +697,7 @@ public:
             const bool dope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
             for(int i=0;i<2;++i){
                 auto a=r.withY(r.getY()+i*r.getHeight()*.5f).withHeight(r.getHeight()*.5f).reduced(1.3f);
-                const bool on=(p>=.5f)==(i==1);const auto c=i==0?Colour(dope?0xffff9418:0xfff1a23b):Colour(dope?0xff169eff:0xffd9cdb3);
+                const bool on=(p>=.5f)==(i==1);const bool fet=s.getProperties().contains("fetRevision");const auto c=fet?Colour(i==0?0xff64b5e7:0xffb1b2ab):i==0?Colour(dope?0xffff9418:0xfff1a23b):Colour(dope?0xff169eff:0xffd9cdb3);
                 g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.45f):c.darker(dope?.75f:2.f),a.getY(),on?c.darker(.32f):dope?c.darker(1.55f):Colour(0xff1a1713),a.getBottom()));g.fillRoundedRectangle(a,2.f);
                 if(dope){g.setColour(juce::Colours::black.withAlpha(.38f));g.drawRoundedRectangle(a.reduced(.6f),2.f,1.f);g.setColour(c.brighter(.5f).withAlpha(on?.35f:.13f));for(float yy=a.getY()+4;yy<a.getBottom()-2;yy+=3.f)for(float xx=a.getX()+3;xx<a.getRight()-2;xx+=3.f)g.fillEllipse(xx,yy,.85f,.85f);}
                 g.setColour(on?c.brighter(.7f):Colour(0xff776954));g.drawRoundedRectangle(a,2.f,.8f);

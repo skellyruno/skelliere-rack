@@ -74,10 +74,14 @@ inline void paintIdentityMeter(Graphics& g,juce::Rectangle<float> r,int type,flo
     }else{
         const bool fet=type==FastComp,bus=type==BusComp; text(a.withHeight(17),fet?"PEAK / FAST":bus?"BUS / LINKED":"PEAK LIMITER");
         if(fet){
-            auto b=chart.reduced(4,5);g.setColour(Colour(0xff070908));g.fillRoundedRectangle(b,3);g.setColour(Colour(0xff70573b));g.drawRoundedRectangle(b,3,.7f);
-            const int count=20;const float step=b.getWidth()/count;for(int j=0;j<count;++j){float xx=b.getX()+step*j+1;auto lamp=juce::Rectangle<float>(xx,b.getCentreY()-8,step-2,16);const auto c=norm*count>j?(j>15?Colour(0xffe86b45):Colour(0xffefba70)):Colour(0xff30251c);g.setGradientFill(juce::ColourGradient::vertical(c.brighter(.35f),lamp.getY(),c.darker(.48f),lamp.getBottom()));g.fillRoundedRectangle(lamp,1);}
-            for(int j=0;j<=4;++j){auto tx=b.getX()+b.getWidth()*j/4;identityLabel(g,{std::clamp(tx-12,b.getX(),b.getRight()-24),b.getY()+1,24,11},juce::String(j*5),ink,8.f);}
-            identityLabel(g,footer,"GAIN REDUCTION  "+value,ink,11.f);
+            const auto black=Colour(0xff352a21);auto glass=a.reduced(1);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff3e4b8),glass.getY(),Colour(0xffb89b65),glass.getBottom()));g.fillRoundedRectangle(glass,2.f);
+            identityLabel(g,glass.withHeight(17),"FET / GAIN REDUCTION",black,11.f);
+            const float cx=chart.getCentreX(),cy=chart.getBottom()+1,rad=std::min(chart.getWidth()*.46f,chart.getHeight()*1.02f);const float lo=-1.1f,hi=1.1f;
+            juce::Path arc;arc.addCentredArc(cx,cy,rad,rad,0,lo,hi,true);g.setColour(black);g.strokePath(arc,juce::PathStrokeType(1.1f));
+            for(int j=0;j<=20;++j){const float angle=lo+(hi-lo)*j/20;auto pt=[&](float d){return juce::Point<float>(cx+std::sin(angle)*d,cy-std::cos(angle)*d);};g.setColour(j<5?Colour(0xffa13724):black);g.drawLine({pt(rad),pt(rad-(j%5==0?8:4))},j%5==0?1.2f:.7f);if(j%5==0){auto p=pt(rad-18);identityLabel(g,{p.x-11,p.y-6,22,12},juce::String(j-20),black,9.f,false);}}
+            const float ang=hi-(hi-lo)*norm;g.setColour(Colour(0xff6e251b));g.drawLine(cx,cy,cx+std::sin(ang)*(rad-2),cy-std::cos(ang)*(rad-2),1.6f);
+            g.setColour(black);g.fillEllipse(cx-5,cy-5,10,10);g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::white.withAlpha(.19f),glass.getY(),juce::Colours::transparentWhite,glass.getCentreY()));g.fillRoundedRectangle(glass.withHeight(glass.getHeight()*.38f),2.f);
+            identityLabel(g,footer,"GR  "+value,black,11.f);
         }else if(bus){
             const auto black=Colour(0xff382d24);g.setColour(black);g.fillRect(a);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffeadfc2),a.getY(),Colour(0xffcbb58e),a.getBottom()));g.fillRoundedRectangle(a.reduced(1),2.f);
             identityLabel(g,a.withHeight(17),"BUS / GAIN REDUCTION",black,10.f);
@@ -113,8 +117,8 @@ inline void paintSignedInstrument(Graphics& g,juce::Rectangle<float> r,int t,flo
 // responds to aggregate audio level only, never represents a detected note.
 inline const juce::Image& tuneOrbMaterial(){static const auto im=[](){constexpr int n=256;juce::Image out(juce::Image::ARGB,n,n,true);juce::Image::BitmapData px(out,juce::Image::BitmapData::writeOnly);for(int y=0;y<n;++y)for(int x=0;x<n;++x){const float u=(x-n*.5f)/(n*.49f),v=(y-n*.5f)/(n*.49f),d=u*u+v*v;if(d>=1)continue;const float z=std::sqrt(1-d);const float diffuse=std::max(0.f,-u*.45f-v*.65f+z*.48f),fresnel=std::pow(1-z,2.8f);const float veins=std::pow(.5f+.5f*std::sin(26*u+8*std::sin(7*v+3*z)+5*std::sin(12*z)),8.f)*(.28f+.72f*z);const float nebula=.5f+.5f*std::sin(9*u+3*v+2*std::sin(8*v+z));auto c=Colour(0xff020906).interpolatedWith(Colour(0xff244d31),std::clamp(diffuse*.70f+nebula*.12f,0.f,1.f));c=c.interpolatedWith(Colour(0xff80cda0),std::clamp(veins*.25f+fresnel*.40f,0.f,1.f));const float spec=std::exp(-((u+.33f)*(u+.33f)+(v+.49f)*(v+.49f))*22.f);c=c.interpolatedWith(Colour(0xffd1e9c8),spec*.84f);px.setPixelColour(x,y,c.withAlpha(std::clamp((1-d)*35.f,0.f,1.f)));}return out;}();return im;}
 inline juce::Rectangle<float> tuneOrbBounds(juce::Rectangle<float> detail){return detail.withHeight(216.f);}
-inline juce::Rectangle<float> tuneRootBounds(juce::Rectangle<float> detail){return detail.reduced(6,0).withY(detail.getY()+229.f).withHeight(30.f);}
-inline juce::Rectangle<float> tuneScaleBounds(juce::Rectangle<float> detail){return detail.reduced(6,0).withY(detail.getY()+277.f).withHeight(26.f);}
+inline juce::Rectangle<float> tuneRootBounds(juce::Rectangle<float> detail){auto r=detail.reduced(6,0).withY(detail.getY()+229.f).withHeight(30.f);return r.withWidth(r.getWidth()*.39f);}
+inline juce::Rectangle<float> tuneScaleBounds(juce::Rectangle<float> detail){auto r=detail.reduced(6,0).withY(detail.getY()+229.f).withHeight(30.f);return r.withTrimmedLeft(r.getWidth()*.39f+5.f);}
 inline juce::Rectangle<float> tunePianoBounds(juce::Rectangle<float> detail){return detail.reduced(6,0).withY(detail.getBottom()-57.f).withHeight(52.f);}
 inline juce::String tuneNoteName(int note,bool flats){
     static const char* sharp[]={"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};

@@ -24,12 +24,13 @@ public:
     struct ControlSlider final : juce::Slider {
         bool isSwitch() { return bool(getProperties().getWithDefault("colorSwitch",false)); }
         void mouseDown(const juce::MouseEvent& e) override {
-            if(isSwitch() && !e.mods.isPopupMenu()){grabKeyboardFocus();setValue(getValue()<.5?1.:0.,juce::sendNotificationSync);}
+            if(getProperties().contains("fetRatio")&&!e.mods.isPopupMenu()){grabKeyboardFocus();setValue(std::clamp(int(e.position.y*5/std::max(1,getHeight())),0,4)*.25,juce::sendNotificationSync);}
+            else if(isSwitch() && !e.mods.isPopupMenu()){grabKeyboardFocus();setValue(getValue()<.5?1.:0.,juce::sendNotificationSync);}
             else juce::Slider::mouseDown(e);
         }
-        void mouseDrag(const juce::MouseEvent& e) override { if(!isSwitch())juce::Slider::mouseDrag(e); }
-        void mouseUp(const juce::MouseEvent& e) override { if(!isSwitch())juce::Slider::mouseUp(e); }
-        void mouseDoubleClick(const juce::MouseEvent& e) override { if(!isSwitch())juce::Slider::mouseDoubleClick(e); }
+        void mouseDrag(const juce::MouseEvent& e) override { if(!isSwitch()&&!getProperties().contains("fetRatio"))juce::Slider::mouseDrag(e); }
+        void mouseUp(const juce::MouseEvent& e) override { if(!isSwitch()&&!getProperties().contains("fetRatio"))juce::Slider::mouseUp(e); }
+        void mouseDoubleClick(const juce::MouseEvent& e) override { if(!isSwitch()&&!getProperties().contains("fetRatio"))juce::Slider::mouseDoubleClick(e); }
     } slider;
 private:
     juce::String label_, text_, rangeLow, rangeHigh;
@@ -115,7 +116,7 @@ private:
     int appliedArtworkChoice = -1, nativeChoice = 0;
     juce::Rectangle<int> panelBounds;
     juce::Image panelCache;
-    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"}, modulePresetButton{"PRESETS"};
+    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"}, modulePresetButton{"PRESET"};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};

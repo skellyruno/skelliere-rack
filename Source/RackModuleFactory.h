@@ -134,7 +134,8 @@ inline std::unique_ptr<ModuleBase> makeRackModule(int type) {
     if(type==SkellAirFX)return std::make_unique<SkellAirModule>();
     if(type==Eq || type==Air) return std::make_unique<SmoothedTone>(type);
     if(type==Tilt || type==Stereo) return std::make_unique<ExtraRackModule>(type);
-    if(type==FastComp || type==BusComp) return std::make_unique<RackCompressor>(type);
+    if(type==FastComp) return std::make_unique<FetCompressor>();
+    if(type==BusComp) return std::make_unique<RackCompressor>(type);
     if(type==ProgramOpto) return std::make_unique<RackProgramOpto>();
     if(type>=Gate && type<kNumRackTypes) return std::make_unique<AnalogRackModule>(type);
     return makeModule(type);

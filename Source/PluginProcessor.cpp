@@ -41,8 +41,10 @@ const std::vector<ModulePreset>& modulePresets(int type) {
     static const std::vector<ModulePreset> echo={{"Vocal Slap",{115,0,7000,.22f,0,2}}, {"Wide Echo",{320,.28f,6000,.25f,.30f,1}}, {"Quarter Note",{320,.35f,5500,.24f,.40f,3}}};
     static const std::vector<ModulePreset> room={{"Short Plate",{1.2f,20,9000,.20f,.35f,0}}, {"Dark Hall",{3.2f,35,4500,.28f,.35f,1}}, {"Small Room",{.65f,8,11000,.17f,.15f,2}}};
     static const std::vector<ModulePreset> drive={{"Warm Tube",{6,12000,.45f,0}}, {"Console Edge",{9,10000,.38f,1}}, {"Air Lift",{5,16000,.25f,2}}};
+    static const std::vector<ModulePreset> fast={{"Vocal Catch",{8,0,.16f,135,0,0}}, {"Black Control",{5,1,.35f,240,-1,1}}, {"Drum Slam",{12,4,.08f,90,-5,0}}};
+    static const std::vector<ModulePreset> bus={{"Gentle Glue",{-18,2,30,250,0}}, {"Vocal Level",{-24,3,12,180,2}}, {"Tight Bus",{-18,4,10,120,0}}};
     static const std::vector<ModulePreset> empty;
-    switch(type){case EchoUnified:return echo;case RoomUnified:return room;case DriveUnified:return drive;default:return empty;}
+    switch(type){case EchoUnified:return echo;case RoomUnified:return room;case DriveUnified:return drive;case FastComp:return fast;case BusComp:return bus;default:return empty;}
 }
 } // namespace
 
@@ -239,7 +241,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
             if(type==SkellSSL){std::array<float,kSslExtraCount> ext{};for(int j=0;j<kSslExtraCount;++j)ext[j]=sslRaw[s][j]->load(std::memory_order_relaxed);static_cast<RecoveredSSL*>(m)->setExtended(ext);}
             if(hasAdvancedEngine(type)){AdvancedValues ext{};for(int j=0;j<kAdvancedCount;++j)ext[j]=advancedRaw[s][j]->load(std::memory_order_relaxed);static_cast<AdvancedRackModule*>(m)->setExtended(ext,bandSolo[size_t(s)].load(std::memory_order_relaxed));}
-            if(type==Tune)static_cast<skl::SkellyTune*>(m)->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));
+            if(type==Tune){auto* tune=static_cast<skl::SkellyTune*>(m);tune->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));tune->setDetune((std::clamp(k[5],0.f,1.f)-.5f)*100.f);}
             if(type==EchoUnified)m->setTempo(bpm);
             m->process(chunk,k,active);
             // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,

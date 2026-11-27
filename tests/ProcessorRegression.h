@@ -20,11 +20,11 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
     p.clearRack();require(p.addModule(skl::Tune,0),"Tune missing");
-    set(p.humanizeId(0),.64f);set(p.knobId(0,1),.71f);set(p.knobId(0,2),.42f);
-    p.moveSlot(0,1,false);require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(1))->load()-.64f)<1e-6f,"Humanize lost on move");
+    set(p.humanizeId(0),.64f);set(p.knobId(0,5),.82f);set(p.knobId(0,1),.71f);set(p.knobId(0,2),.42f);
+    p.moveSlot(0,1,false);require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(1))->load()-.64f)<1e-6f,"Humanize lost on move");require(std::abs(p.apvts.getRawParameterValue(p.knobId(1,5))->load()-.82f)<1e-6f,"Detune lost on move");
     p.undo();require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(0))->load()-.64f)<1e-6f,"Humanize lost on undo");
     juce::MemoryBlock tuneState;p.getStateInformation(tuneState);p.clearRack();p.setStateInformation(tuneState.getData(),int(tuneState.getSize()));
-    require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(0))->load()-.64f)<1e-6f,"Humanize lost on state recall");
+    require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(0))->load()-.64f)<1e-6f,"Humanize lost on state recall");require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,5))->load()-.82f)<1e-6f,"Detune lost on state recall");
     auto tuneOld=p.apvts.copyState();for(int i=tuneOld.getNumChildren();--i>=0;)if(tuneOld.getChild(i).getProperty("id").toString().endsWith("_tune_humanize"))tuneOld.removeChild(i,nullptr);
     auto tuneOldXml=tuneOld.createXml();juce::MemoryBlock tuneOldBinary;juce::AudioProcessor::copyXmlToBinary(*tuneOldXml,tuneOldBinary);p.setStateInformation(tuneOldBinary.getData(),int(tuneOldBinary.getSize()));
     require(p.apvts.getRawParameterValue(p.humanizeId(0))->load()==0,"Legacy Tune did not default to original processing");
@@ -37,7 +37,7 @@ inline void processorRegression() {
     auto noSpelling=p.apvts.copyState();noSpelling.removeProperty("tuneFlats",nullptr);auto noSpellingXml=noSpelling.createXml();juce::MemoryBlock noSpellingBinary;juce::AudioProcessor::copyXmlToBinary(*noSpellingXml,noSpellingBinary);
     p.setStateInformation(noSpellingBinary.getData(),int(noSpellingBinary.getSize()));require(!p.tuneFlats.load(),"Old session retained stale note spelling");
     // Module presets are explicit user actions and never replace the whole rack.
-    for(int type:{skl::EchoUnified,skl::RoomUnified,skl::DriveUnified}){
+    for(int type:{skl::EchoUnified,skl::RoomUnified,skl::DriveUnified,skl::FastComp,skl::BusComp}){
         p.clearRack();require(p.addModule(type,0)&&p.addModule(skl::Trim,1),"Preset modules missing");
         set(p.onId(0),0);set(p.knobId(1,0),.81f);p.artworkChoices[0].store(2);
         require(p.modulePresetNames(type).size()==3,"Preset names missing");

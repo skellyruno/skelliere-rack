@@ -35,6 +35,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
+    if(type==FastComp)metal=Colour(finish==3?0xff202324:0xff899ba4);
     const bool light=metal.getPerceivedBrightness()>.45f;
     const auto cap=type%4==0?Colour(0xffbca487):Colour(0xffccbaa1);
     const char* series=info(type).cat==CatDynamics?"DYNAMICS":info(type).cat==CatTone?"TONE":info(type).cat==CatSpace?"MOD / SPACE":"UTILITY";
@@ -56,6 +57,10 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==Trim||type==Tune||type==DualFilter)l.detail={16,106,width-32,type==Trim?120:90};
     if(type==Tune){const int bottom=editing?520:548;l.detail={12,100,width-24,bottom-100};const int top=editing?365:374,knobBottom=editing?465:480;l.cells[0]={12,top,half,knobBottom-top};l.cells[5]={12+half,top,half,knobBottom-top};return l;}
     if(type==Trim){l.detail.setHeight(117);const int bottom=editing?520:548;l.cells[0]={mid-86,240,172,156};l.cells[1]={mid-65,402,130,bottom-406};return l;}
+    if(type==FastComp){l.meter={14,106,width-28,140};const int top=258,bottom=editing?520:548;const int row=(bottom-top)/3;
+        l.cells[0]={12,top,half,row-3};l.cells[4]={12+half,top,half,row-3};
+        l.cells[2]={12,top+row,half,row-3};l.cells[3]={12+half,top+row,half,row-3};
+        l.cells[1]={12,top+2*row,half,row-3};l.cells[5]={12+half,top+2*row,half,row-3};return l;}
     if(type==Limiter){const int top=239,bottom=editing?520:548,hero=161;l.cells[1]={mid-73,top,146,hero};l.cells[0]={12,top+hero+4,half,bottom-top-hero-8};l.cells[2]={12+half,top+hero+4,half,bottom-top-hero-8};return l;}
     if(type==StereoUnified){const int top=242,bottom=editing?520:548,lane=width*60/100,row=(bottom-top)/2;l.cells[0]={12,top,lane-12,row-4};l.cells[3]={lane,top,width-lane-12,row-4};l.cells[1]={12,top+row,half,bottom-top-row-4};l.cells[2]={12+half,top+row,half,bottom-top-row-4};return l;}
     if(type==VoxRider){const int top=243,bottom=editing?520:548,remaining=bottom-top;const int row=remaining/3;l.cells[0]={mid-76,top,152,row-4};for(int j=1;j<5;++j)l.cells[j]={12+((j-1)%2)*half,top+row+((j-1)/2)*row,half,row-4};return l;}
@@ -154,6 +159,7 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false){
     auto l=originalLayoutBase(type,width,editing);
     auto stretch=[](juce::Rectangle<int>& r){if(!r.isEmpty()){const int top=tallPanelY(r.getY()),bottom=tallPanelY(r.getBottom());r.setY(top);r.setHeight(bottom-top);}};
     for(auto& c:l.cells)stretch(c);stretch(l.meter);stretch(l.detail);
+    if(type==Tune)l.cells[6]={18,378,width-36,26};
     if(type==SkellDope){
         // Do not round individual rows: all four controls use an exact pitch.
         const int top=tallPanelY(174),pitch=101,height=98;

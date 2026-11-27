@@ -58,4 +58,46 @@ private:
     float detectorCoeff_=0,threshold_=0,slope_=0,attack_=0,release_=0,makeup_=0;
     bool seeded_=false,dirty_=true; std::atomic<float> meter_{0};
 };
+class FetCompressor final : public ModuleBase {
+public:
+    void prepare(double sr,int,int) override {rate=std::isfinite(sr)?std::clamp(sr,8000.,384000.):48000.;slew=onePole(rate,12);bypassSlew=onePole(rate,3);reset();}
+    void reset() override {env=memory=gr=0;mix=1;seeded=false;tick=0;meterValue.store(0);}
+    float meter() const override {return meterValue.load(std::memory_order_relaxed);}
+    void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
+        const int ch=std::min(2,b.getNumChannels());if(ch<1)return;
+        std::array<float,6> targets{};for(int j=0;j<6;++j)targets[j]=std::isfinite(k[j])?std::clamp(k[j],0.f,1.f):defaultNorm(FastComp,j);
+        targets[1]=std::round(targets[1]*4)*.25f;targets[5]=targets[5]>=.5f?1.f:0.f;
+        if(!seeded){cur=targets;mix=active?1.f:0.f;seeded=true;}
+        auto* l=b.getWritePointer(0);auto* r=ch==2?b.getWritePointer(1):nullptr;
+        for(int i=0;i<b.getNumSamples();++i){
+            for(int j=0;j<6;++j)cur[j]=targets[j]+slew*(cur[j]-targets[j]);
+            if((tick++&15u)==0){
+                input=db2g(realOf(FastComp,0,cur.data()));output=db2g(realOf(FastComp,4,cur.data()));
+                const float rev=cur[5],ratioIndex=cur[1]*4;const int ri=std::min(3,int(ratioIndex));static constexpr float ratios[]={4,8,12,20,32};
+                const float ratio=ratios[ri]+(ratios[ri+1]-ratios[ri])*(ratioIndex-ri);slope=1-1/ratio;slam=std::clamp(ratioIndex-3.f,0.f,1.f);
+                threshold=-18.f+rev*2.f-slam*4.f;knee=2.f+rev*2.f+slam*3.f;
+                atk=float(std::exp(-1000.0/(rate*realOf(FastComp,2,cur.data())*(1.f+.25f*rev+.65f*slam))));
+                const float release=realOf(FastComp,3,cur.data());rel=onePole(rate,release);slow=onePole(rate,release*(3.f+rev*1.6f));
+                color=.12f-.07f*rev+.1f*slam;drive=1.5f-.5f*rev+.65f*slam;
+            }
+            const float x=sane(l[i]),y=r?sane(r[i]):x;
+            const float a=std::clamp(x,-64.f,64.f)*input,bb=std::clamp(y,-64.f,64.f)*input;
+            const float peak=std::max(std::abs(a),std::abs(bb));env=std::max(peak,env*rel);
+            const float over=g2db(env)-threshold;float want=0;
+            if(over>=knee*.5f)want=over*slope;else if(over>-.5f*knee){const float t=over+.5f*knee;want=slope*t*t/(2*knee);}
+            want=std::min(want,60.f);memory=want+slow*(memory-want);
+            const float recovery=rel+(slow-rel)*std::clamp(memory/24.f,0.f,1.f);
+            gr=want+(want>gr?atk:recovery)*(gr-want);
+            const float gain=db2g(-gr);const float m=active?1.f:0.f;mix=m+bypassSlew*(mix-m);if(std::abs(mix-m)<1e-5f)mix=m;
+            auto shape=[&](float v){v*=gain;return output*(v+color*(std::tanh(v*drive)/drive-v));};
+            l[i]=mix==0?x:sane(x+mix*(shape(a)-x));if(r)r[i]=mix==0?y:sane(y+mix*(shape(bb)-y));
+        }
+        meterValue.store(gr*mix,std::memory_order_relaxed);
+    }
+private:
+    double rate=48000;std::array<float,6> cur{};unsigned tick=0;bool seeded=false;
+    float env=0,memory=0,gr=0,mix=1,slew=0,bypassSlew=0,input=1,output=1,slope=.75f,slam=0,threshold=-18,knee=2,atk=0,rel=0,slow=0,color=.12f,drive=1.5f;
+    std::atomic<float> meterValue{0};
+};
+
 }

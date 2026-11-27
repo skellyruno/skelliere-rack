@@ -63,7 +63,7 @@ inline NativeFace nativeFace(int type,int choice) {
     } else if(type==skl::FastComp) {
         f.colour=choice==1?0xff282b2e:choice==2?0xffad7622:0xffc6c9ca; f.light=choice==3;
         f.meter={34,43,147,122}; f.power={17,467,84,46};
-        f.controls={{{19,178,76,90},{116,178,81,90},{19,353,77,91},{119,353,77,91},{19,270,76,81}}};
+        f.controls={{{19,178,76,90},{116,178,81,90},{19,353,77,91},{119,353,77,91},{19,270,76,81},{116,270,81,81}}};
         f.inserts={{{9,170,197,355}}};
     } else if(type==skl::BusComp) {
         f.colour=0xff242db3;f.light=false;
