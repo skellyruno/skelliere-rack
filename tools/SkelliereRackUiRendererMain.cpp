@@ -56,16 +56,16 @@ int main(int argc, char** argv) {
     const auto editorMs=ms(startEditor);
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::kNumRackTypes-1)+" Skell effects";
-    options.scenes={{"catalog_1",1260,790,0,1},{"catalog_2",1260,790,1,1},{"catalog_3",1260,790,2,1},{"catalog_4",1260,790,3,1},{"catalog_5",1260,790,4,1},{"catalog_6",1260,790,5,1},{"catalog_7",1260,790,6,1},
-      {"catalog_80",1008,632,0,1},{"catalog_125",1575,988,3,1},{"catalog_150",1890,1185,4,1},{"catalog_min",1260,790,6,1},{"catalog_max",1260,790,6,1},{"catalog_silver",1260,790,0,2},{"catalog_empty",1260,790,7,1},{"approved_studio",1260,790,8,1},{"approved_studio_150",1890,1185,8,1},{"approved_bypass",1260,790,9,1},{"studio_graphite",1260,790,8,0},{"studio_midnight",1260,790,8,3},{"studio_80",1008,632,8,1},{"full_rack",1260,790,10,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"library_hidden_edit",1260,790,10,1},{"library_hidden_80",1008,632,10,1},{"library_hidden_150",1890,1185,10,1},{"library_restored",1260,790,8,1},{"rack_last_slots",1260,790,10,1},{"rack_last_hidden",1260,790,10,1},{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1},{"engine_modules",1260,790,12,1},{"engine_modules_edit",1260,790,12,1},{"engine_modules_80",1008,632,12,1},{"engine_modules_150",1890,1185,12,1}};
+    options.scenes={{"catalog_1",1260,870,0,1},{"catalog_2",1260,870,1,1},{"catalog_3",1260,870,2,1},{"catalog_4",1260,870,3,1},{"catalog_5",1260,870,4,1},{"catalog_6",1260,870,5,1},{"catalog_7",1260,870,6,1},
+      {"catalog_80",1008,696,0,1},{"catalog_125",1575,1088,3,1},{"catalog_150",1890,1305,4,1},{"catalog_min",1260,870,6,1},{"catalog_max",1260,870,6,1},{"catalog_silver",1260,870,0,2},{"catalog_empty",1260,870,7,1},{"approved_studio",1260,870,8,1},{"approved_studio_150",1890,1305,8,1},{"approved_bypass",1260,870,9,1},{"studio_graphite",1260,870,8,0},{"studio_midnight",1260,870,8,3},{"studio_80",1008,696,8,1},{"full_rack",1260,870,10,1},{"studio_edit",1260,870,8,1},{"library_hidden",1260,870,10,1},{"library_hidden_edit",1260,870,10,1},{"library_hidden_80",1008,696,10,1},{"library_hidden_150",1890,1305,10,1},{"library_restored",1260,870,8,1},{"rack_last_slots",1260,870,10,1},{"rack_last_hidden",1260,870,10,1},{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1},{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1}};
     options.mustDiffer={{"catalog_min","catalog_max"},{"catalog_1","catalog_silver"},{"approved_studio","approved_bypass"},{"studio_graphite","studio_midnight"},{"approved_studio","studio_edit"},{"full_rack","library_hidden"},{"library_hidden","library_hidden_edit"},{"full_rack","rack_last_slots"},{"library_hidden","rack_last_hidden"}};
     if(!args.full){
-        options.scenes={{"approved_studio",1260,790,8,1},{"studio_edit",1260,790,8,1},{"library_hidden",1260,790,10,1},{"studio_midnight",1260,790,8,3}};
+        options.scenes={{"approved_studio",1260,870,8,1},{"studio_edit",1260,870,8,1},{"library_hidden",1260,870,10,1},{"studio_midnight",1260,870,8,3}};
         options.mustDiffer={{"approved_studio","studio_edit"},{"approved_studio","studio_midnight"}};
     }
-    if(args.engines){options.scenes={{"engine_modules",1260,790,12,1},{"engine_modules_edit",1260,790,12,1},{"engine_modules_80",1008,632,12,1},{"engine_modules_150",1890,1185,12,1}};options.mustDiffer={{"engine_modules","engine_modules_edit"}};}
-    if(args.colors){options.scenes={{"color_modules",1260,790,11,1},{"color_modules_edit",1260,790,11,1},{"color_modules_80",1008,632,11,1},{"color_modules_150",1890,1185,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
-    int expectedWidth=1260,expectedHeight=790,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
+    if(args.engines){options.scenes={{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1}};options.mustDiffer={{"engine_modules","engine_modules_edit"}};}
+    if(args.colors){options.scenes={{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
+    int expectedWidth=1260,expectedHeight=870,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;navOK=true;processor.clearRack();
         expectedLast=scene.id=="rack_last_slots"||scene.id=="rack_last_hidden";
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
         if(count!=expectedCount)errors.add("Unexpected slot count");return errors;
     };
     const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));
-    options.configure({"approved_studio",1260,790,8,1});
+    options.configure({"approved_studio",1260,870,8,1});
     skl::ui::SlotComponent* tape=nullptr;
     visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c))if(slot->currentType()==skl::Delay)tape=slot;});
     if(!tape)return 1;
@@ -171,11 +171,11 @@ int main(int argc, char** argv) {
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);
     if(!args.full){
         if(!result.passed()||result.captured!=4)return 1;
-        juce::Image sheet(juce::Image::RGB,1260,790,true);juce::Graphics g(sheet);
+        juce::Image sheet(juce::Image::RGB,1260,870,true);juce::Graphics g(sheet);
         int i=0;for(const auto& scene:options.scenes){
             const auto im=juce::ImageFileFormat::loadFrom(output.getChildFile(juce::String(scene.id)+".png"));
             if(!im.isValid())return 1;
-            g.drawImage(im,juce::Rectangle<float>(float((i%2)*630),float((i/2)*395),630.f,395.f));++i;
+            g.drawImage(im,juce::Rectangle<float>(float((i%2)*630),float((i/2)*435),630.f,435.f));++i;
         }
         auto file=output.getChildFile("contact-sheet.png");file.deleteFile();juce::FileOutputStream stream(file);juce::PNGImageFormat png;
         if(!stream.openedOk()||!png.writeImageToStream(sheet,stream))return 1;

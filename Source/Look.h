@@ -130,8 +130,8 @@ inline void paintAnalogWear(Graphics& g,juce::Rectangle<float> r,bool light,int 
     for(int i=0;i<count;++i){
         const float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight();
         const float len=1.5f+rng.nextFloat()*9.f,dy=(rng.nextFloat()-.5f)*1.8f;
-        g.setColour(dark.withAlpha(amount*(light?.23f:.25f)*(.3f+rng.nextFloat()*.7f)));g.drawLine(x,y,x+len,y+dy,.45f);
-        g.setColour(exposed.withAlpha(amount*(light?.33f:.18f)));g.drawLine(x,y+.55f,x+len,y+dy+.55f,.45f);
+        g.setColour(dark.withAlpha(amount*(light?.26f:.28f)*(.3f+rng.nextFloat()*.7f)));g.drawLine(x,y,x+len,y+dy,.45f);
+        g.setColour(exposed.withAlpha(amount*(light?.35f:.22f)));g.drawLine(x,y+.55f,x+len,y+dy+.55f,.45f);
     }
     for(int side=0;side<4;++side)for(int i=0;i<15;++i){
         const float t=rng.nextFloat(),len=1.1f+rng.nextFloat()*5.f,off=.35f+rng.nextFloat()*1.9f;

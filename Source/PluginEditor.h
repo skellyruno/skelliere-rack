@@ -65,7 +65,7 @@ public:
 
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
-    static constexpr int kWidth = rackgeo::width(true), kHeight = 574;
+    static constexpr int kWidth = rackgeo::width(true), kHeight = 654;
     int preferredWidth() const { return getWidth()>0?getWidth():kWidth; }
     SlotComponent(SkellierProcessor&, int index);
     int currentType() const { return type; }
@@ -194,9 +194,9 @@ class RackUI final : public juce::Component,
                      private juce::AsyncUpdater,
                      private juce::Timer {
 public:
-    static constexpr int kW = 1260, kH = 790;
+    static constexpr int kW = 1260, kH = 870;
     // Logical geometry: zoom never alters parameter state.
-    static constexpr int rackY=110, rackH=586, libraryX=8, libraryY=108, libraryW=260, libraryH=588;
+    static constexpr int rackY=110, rackH=666, libraryX=8, libraryY=108, libraryW=260, libraryH=668;
     static constexpr int visibleRackX=rackgeo::left(true), hiddenRackX=rackgeo::left(false);
     bool fittedRackIsValid() const;
     explicit RackUI(SkellierProcessor&);

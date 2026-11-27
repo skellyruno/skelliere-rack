@@ -17,12 +17,12 @@ static void paintMixHeadPeak(Graphics& g,Rectangle<float> r,float db,bool plate)
         g.setColour(Colour(0xff10140f));g.fillRoundedRectangle(r.reduced(7),3.f);
         g.setColour(Colour(0xffceccb4));g.setFont(font(10.f,true));
         g.drawText("OUTPUT  /  PEAK",r.withY(r.getY()+11).withHeight(16).toNearestInt(),juce::Justification::centred,false);
-        const auto track=r.reduced(16,0).withY(r.getY()+39).withHeight(29);
+        const auto track=r.reduced(16,0).withY(r.getY()+36).withHeight(juce::jmax(29.f,r.getHeight()-88.f));
         for(int i=0;i<30;++i){const float step=track.getWidth()/30.f;g.setColour(Colour(0xff262b20));g.fillRoundedRectangle({track.getX()+i*step,track.getY(),step-1.f,track.getHeight()},.7f);}
         const char* labels[]={"-60","-40","-20","-6","0"};const float points[]={0.f,1.f/3.f,2.f/3.f,.9f,1.f};
         g.setFont(font(8.5f));for(int i=0;i<5;++i){const float x=track.getX()+track.getWidth()*points[i];g.setColour(Colour(0xffadac95));g.drawVerticalLine(int(x),track.getBottom()+2,track.getBottom()+6);g.drawText(labels[i],Rectangle<float>(x-12,track.getBottom()+7,24,12).toNearestInt(),juce::Justification::centred,false);}
     }else{
-        const auto track=r.reduced(16,0).withY(r.getY()+39).withHeight(29);
+        const auto track=r.reduced(16,0).withY(r.getY()+36).withHeight(juce::jmax(29.f,r.getHeight()-88.f));
         const int lit=juce::jlimit(0,30,int(std::ceil((db+60.f)*.5f)));
         for(int i=0;i<lit;++i){const float step=track.getWidth()/30.f;auto b=Rectangle<float>(track.getX()+i*step,track.getY(),step-1.f,track.getHeight());const auto c=i>=29?Colour(0xffef6252):i>=25?Colour(0xffffc362):Colour(0xff8ed456);g.setGradientFill(juce::ColourGradient::vertical(c.brighter(.35f),b.getY(),c.darker(.55f),b.getBottom()));g.fillRoundedRectangle(b,.7f);}
         g.setColour(Colour(0xffd0e7a1));g.setFont(font(12.f,true));g.drawText((db<=-60.f?juce::String("-INF"):juce::String(db,1))+" dBFS",r.withY(r.getBottom()-29).withHeight(18).toNearestInt(),juce::Justification::centred,false);
@@ -89,7 +89,7 @@ void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVertic
 
 void KnobCell::resized() {
     if(bool(slider.getProperties().getWithDefault("consoleCell",false))&&!compact_){
-        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-20,bool(slider.getProperties().getWithDefault("dopeRow",false))?68:47));
+        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-20,bool(slider.getProperties().getWithDefault("dopeRow",false))?72:43));
         slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-20)/2),size,size);return;
     }
     if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_){slider.setBounds(5,3,getWidth()-10,getHeight()-36);return;}
@@ -110,7 +110,7 @@ void KnobCell::resized() {
 bool KnobCell::controlGeometryValid() const noexcept {
     const auto b=slider.getBounds();
     if(b.isEmpty()||!getLocalBounds().contains(b))return false;
-    if(bool(slider.getProperties().getWithDefault("consoleCell",false)))return b.getWidth()==b.getHeight()&&b.getWidth()<=(bool(slider.getProperties().getWithDefault("dopeRow",false))?68:47)&&b.getBottom()+18<=getHeight();
+    if(bool(slider.getProperties().getWithDefault("consoleCell",false)))return b.getWidth()==b.getHeight()&&b.getWidth()<=(bool(slider.getProperties().getWithDefault("dopeRow",false))?72:43)&&b.getBottom()+18<=getHeight();
     if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_)return b.getBottom()+28<=getHeight();
     if(b.getWidth()!=b.getHeight())return false;
     if(compact_)return b.getWidth()<=48;
@@ -496,12 +496,12 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
         if(type==SkellSSL){
             const int lane=(w-30)/2;
-            pg.setColour(Colour(0xff242826));pg.fillRect(13,84,w-26,447);
-            paintPeened(pg,Rectangle<float>(13,84,float(w-26),447),.53f);
-            paintAnalogWear(pg,Rectangle<float>(13,84,float(w-26),447),false,4632,.48f);
-            pg.setColour(Colour(0xff292d2c));pg.drawVerticalLine(15+lane,84,531);
+            pg.setColour(Colour(0xff242826));pg.fillRect(13,84,w-26,tallPanelY(531)-84);
+            paintPeened(pg,Rectangle<float>(13,84,float(w-26),float(tallPanelY(531)-84)),.53f);
+            paintAnalogWear(pg,Rectangle<float>(13,84,float(w-26),float(tallPanelY(531)-84)),false,4632,.48f);
+            pg.setColour(Colour(0xff292d2c));pg.drawVerticalLine(15+lane,84,tallPanelY(531));
             auto section=[&](int x,int y,int ww,const char* label){
-                pg.setColour(Colour(0xff5c625e).withAlpha(.8f));pg.drawHorizontalLine(y,float(x),float(x+ww));
+                pg.setColour(Colour(0xff5c625e).withAlpha(.8f));y=tallPanelY(y);pg.drawHorizontalLine(y,float(x),float(x+ww));
                 pg.setColour(Colour(0xffdfdfd4));pg.setFont(font(9.f,true).withExtraKerningFactor(.025f));
                 pg.drawFittedText(label,Rectangle<int>(x+2,y+2,ww-4,15),juce::Justification::centredLeft,1);
             };
@@ -510,16 +510,18 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             paintSSLReduction(pg,layout.meter.toFloat(),0,-60,true);
         }
         else if(type==SkellDope){
-            auto plaque=Rectangle<float>(153,112,float(w-165),93);
-            paintHardwarePlate(pg,plaque,Colour(0xff31312e),true,3.f,2.2f);
-            paintRecessedWindow(pg,plaque.reduced(5.f),2.f);
-            paintMonogram(pg,plaque.withSizeKeepingCentre(16,20).translated(0,-23),Colour(0xffe1dfd2));
-            pg.setColour(Colour(0xffd8d8c9));pg.setFont(font(11.f,true));pg.drawFittedText("A-TYPE",plaque.withY(plaque.getY()+43).withHeight(17).toNearestInt(),juce::Justification::centred,1);
-            pg.setColour(Colour(0xffb6b5a9));pg.setFont(font(8.5f));pg.drawFittedText("SPECTRAL 4",plaque.withY(plaque.getY()+65).withHeight(15).toNearestInt(),juce::Justification::centred,1);
-            pg.setColour(ink.withAlpha(.24f));pg.drawVerticalLine(58,106,514);pg.drawVerticalLine(150,106,514);
-            // A small etched circuit legend occupies the switch lane, with no fake controls.
-            pg.setColour(ink.withAlpha(.65f));pg.setFont(font(8.f,true));pg.drawFittedText("CIRCUIT",9,226,50,14,juce::Justification::centred,1);
-            pg.setColour(ink.withAlpha(.48f));pg.setFont(font(8.f));pg.drawFittedText("361 / 180",9,242,50,14,juce::Justification::centred,1);
+            // Left-aligned horizontal nameplate, separate from the live meter.
+            auto plaque=Rectangle<float>(10,106,148,42);
+            paintHardwarePlate(pg,plaque,Colour(0xff343532),true,2.f,2.4f);
+            paintRecessedWindow(pg,plaque.reduced(4.f),1.5f);
+            auto brand=plaque.reduced(7.f).removeFromLeft(26.f);
+            pg.setColour(Colour(0xffc5c7bc));pg.fillRoundedRectangle(brand,1.f);
+            paintMonogram(pg,brand.reduced(5.f,3.f),Colour(0xff20231e));
+            pg.setColour(Colour(0xffdadbcf));pg.setFont(font(12.f,true));pg.drawFittedText("A-TYPE",plaque.withTrimmedLeft(37.f).withHeight(24.f).toNearestInt(),juce::Justification::centred,1);
+            pg.setColour(Colour(0xffa9aaa0));pg.setFont(font(8.f));pg.drawFittedText("SPECTRAL 4",plaque.withTrimmedLeft(37.f).withY(128.f).withHeight(12.f).toNearestInt(),juce::Justification::centred,1);
+            pg.setColour(ink.withAlpha(.24f));pg.drawVerticalLine(70,tallPanelY(155),tallPanelY(514));
+            pg.setColour(ink.withAlpha(.65f));pg.setFont(font(8.f,true));pg.drawFittedText("CIRCUIT",10,tallPanelY(263),54,14,juce::Justification::centred,1);
+            pg.setColour(ink.withAlpha(.48f));pg.setFont(font(8.f));pg.drawFittedText("361 / 180",10,tallPanelY(279),54,14,juce::Justification::centred,1);
             paintDopePeak(pg,layout.meter.toFloat(),-60,true);
         }
         else if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
@@ -1096,7 +1098,7 @@ void RackUI::resized() {
     const int rackLeft=libraryVisible?visibleRackX:hiddenRackX;
     strip.setLibraryMode(libraryVisible);
     viewport.setBounds(rackLeft,rackY,rackgeo::viewWidth(libraryVisible),rackH);
-    pathStrip.setBounds(25,704,1210,62);
+    pathStrip.setBounds(25,784,1210,62);
     refreshRackNavigation();
 }
 
@@ -1131,7 +1133,7 @@ void RackUI::paintChassis(Graphics& g) {
     g.setColour(Colour(0xffc8b99c).withAlpha(.52f));
     g.drawVerticalLine(54,14,49);g.drawVerticalLine(427,14,49);g.drawVerticalLine(754,14,49);
     const float railLeft=libraryVisible?269.f:8.f;
-    const auto frame=Rectangle<float>(railLeft,103,1252.f-railLeft,595);
+    const auto frame=Rectangle<float>(railLeft,103,1252.f-railLeft,675);
     g.setColour(juce::Colours::black.withAlpha(.9f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,2.f),11);
     paintHardwarePlate(g,frame,Colour(0xff262827),true,8.f,4.5f);
     g.setColour(Colour(0xff070605));g.fillRoundedRectangle(frame.reduced(3.5f),6);
@@ -1140,13 +1142,13 @@ void RackUI::paintChassis(Graphics& g) {
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff756f63),rail.getY(),Colour(0xff080807),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
     rail=rail.withY(frame.getBottom()-6.f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff090908),rail.getY(),Colour(0xff746a59),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
     g.setColour(Colour(0xff0e0c0a));g.drawRoundedRectangle(frame.reduced(4),7,1.7f);
-    paintScrew(g,1245,117,4.5f,.6f);paintScrew(g,1245,685,4.5f,1.5f);
-    if(!libraryVisible){paintScrew(g,14,117,4.2f,.9f);paintScrew(g,14,685,4.2f,1.3f);}
-    const auto foot=Rectangle<float>(8,700,1244,72);
+    paintScrew(g,1245,117,4.5f,.6f);paintScrew(g,1245,765,4.5f,1.5f);
+    if(!libraryVisible){paintScrew(g,14,117,4.2f,.9f);paintScrew(g,14,765,4.2f,1.3f);}
+    const auto foot=Rectangle<float>(8,780,1244,72);
     g.setColour(juce::Colours::black.withAlpha(.72f));g.fillRoundedRectangle(foot.translated(0,2),10);
     paintHardwarePlate(g,foot,Colour(0xff10100e),true,12.f,4.5f);
     g.setColour(Colour(0xff100f0e).withAlpha(.22f));g.fillRoundedRectangle(foot.reduced(5.f),7.f);
-    paintScrew(g,25,736,6.f,.8f);paintScrew(g,1235,736,6.f,1.4f);
+    paintScrew(g,25,816,6.f,.8f);paintScrew(g,1235,816,6.f,1.4f);
 }
 
 // =================================================================== editor window

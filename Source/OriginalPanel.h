@@ -32,16 +32,16 @@ struct OriginalLayout {
 };
 // Reference proportions: the tall 650px panels are replaced by a compact
 // hardware panel of 574px. Preserve every knob, including Bell's four real controls.
-inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
+inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) {
     OriginalLayout l;const auto& mi=info(type);const int n=mi.numKnobs;
     const int half=(width-24)/2,mid=width/2;
     if(mi.hasVU||hasOutputPeak(type))l.meter={15,106,width-30,120};
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==SkellDemon){
-        l.detail={7,101,width-14,255};
-        const int cw=(width-24)/3,rh=(editing?519:547)-360;
-        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,360+(k/3)*(rh/2),cw,rh/2-3};
+        l.detail={7,101,width-14,272};
+        const int cw=(width-24)/3,rh=(editing?519:547)-376;
+        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,376+(k/3)*(rh/2),cw,rh/2-3};
         return l;
     }
     if(type==SkellSSL){
@@ -66,9 +66,9 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     if(type==SkellDope){
         // Vertical rack adaptation of the two-mode hardware. All four
         // existing APVTS attachments remain in their original order.
-        l.cells[0]={9,111,50,96};
-        for(int k=1;k<=4;++k)l.cells[k]={60,106+(k-1)*103,88,100};
-        l.meter={153,225,width-165,289};return l;
+        l.cells[0]={10,164,54,80};
+        for(int k=1;k<=4;++k)l.cells[k]={76,155+(k-1)*90,82,88};
+        l.meter={164,154,width-176,360};return l;
     }
     if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -98,6 +98,20 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     }else{
         const int rows=std::max(1,(n+1)/2),rh=available/rows;
         for(int k=0;k<n;++k)l.cells[k]={n%2==1&&k==n-1?mid-half/2:12+(k%2)*half,top+(k/2)*rh,half,rh-4};
+    }
+    return l;
+}
+// Enlarge the usable panel area while preserving fixed top/bottom hardware.
+// Use one coordinate map for layout, engraved labels and meter windows.
+inline int tallPanelY(int y) { return 100 + juce::roundToInt(float(y-100)*1.17f); }
+inline OriginalLayout originalLayout(int type,int width,bool editing=false){
+    auto l=originalLayoutBase(type,width,editing);
+    auto stretch=[](juce::Rectangle<int>& r){if(!r.isEmpty()){const int top=tallPanelY(r.getY()),bottom=tallPanelY(r.getBottom());r.setY(top);r.setHeight(bottom-top);}};
+    for(auto& c:l.cells)stretch(c);stretch(l.meter);stretch(l.detail);
+    if(type==SkellDope){
+        // Do not round individual rows: all four controls use an exact pitch.
+        const int top=tallPanelY(155),pitch=105,height=103;
+        for(int k=1;k<=4;++k)l.cells[k].setY(top+(k-1)*pitch),l.cells[k].setHeight(height);
     }
     return l;
 }
@@ -389,7 +403,7 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
     // The tape mechanism is decorative; its live controls are below the window.
 }
 inline void paintDemonVectorFallback(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
-    const auto win=r.withTrimmedBottom(23.f);
+    const auto win=r.withTrimmedBottom(30.f);
     if(frame)paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);
     auto a=win.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff69120d),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
@@ -457,7 +471,7 @@ inline const juce::Image& demonReliefAtlas(){
 inline bool demonReliefIsValid(){const auto& a=demonReliefAtlas();return a.isValid()&&a.hasAlphaChannel()&&a.getWidth()==1296&&a.getHeight()==1488;}
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
-    const auto win=r.withTrimmedBottom(23.f);const auto a=win.reduced(5.f);
+    const auto win=r.withTrimmedBottom(30.f);const auto a=win.reduced(5.f);
     if(frame){paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);return;}
     juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff5b140f),a.getCentreX(),a.getY()+a.getHeight()*.53f,Colour(0xff090306),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4.f);
@@ -466,7 +480,7 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
         for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
     }
     const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
-    const auto& atlas=demonReliefAtlas();const auto dst=r.reduced(0.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
+    const auto& atlas=demonReliefAtlas();const auto dst=r.expanded(5.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
     g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
@@ -481,7 +495,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(r.reduced(4.f),4.f,.85f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
-    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.f);
+    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.15f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {

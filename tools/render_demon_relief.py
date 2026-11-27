@@ -83,7 +83,7 @@ def skull_mesh(mesh):
         s=union(s,e((side*.235,.405,.35),(.267,.096,.155),side*.24),.025)
         s=union(s,e((side*.365,.29,.09),(.145,.24,.24)),.03)
         # Outer edge of the orbit higher, inner lower: threatening brow.
-        s=np.maximum(s,-e((side*.238,.305,.445),(.225,.145,.36),side*.31))
+        s=np.maximum(s,-e((side*.238,.305,.445),(.235,.158,.38),side*.31))
         s=np.maximum(s,-e((side*.365,-.015,.415),(.139,.113,.235),side*.30))
         s=np.maximum(s,-e((side*.048,.105,.487),(.062,.12,.205),-side*.24))
     s=np.maximum(s,-e((0,-.188,.53),(.29,.138,.27)))
@@ -137,8 +137,8 @@ def build_static():
         # Small hot eyes deep inside true sockets.
         # Sharply angled heavy brows and thin molten slits, not round pupils.
         tube(m,[(side*.055,.342,.438),(side*.18,.386,.445),(side*.315,.435,.375),(side*.435,.412,.25)],[.048,.071,.077,.031],0,25,18)
-        ellipsoid(m,(side*.222,.300,.275),(.095,.025,.034),1,side*.30)
-        ellipsoid(m,(side*.217,.299,.302),(.052,.012,.014),4,side*.30)
+        ellipsoid(m,(side*.222,.300,.275),(.105,.030,.038),1,side*.30)
+        ellipsoid(m,(side*.217,.299,.302),(.059,.015,.014),4,side*.30)
         # Sharper zygomatic spurs and brow ridge, receding in the temple.
         tube(m,[(side*.27,.135,.36),(side*.41,.11,.37),(side*.48,.06,.22)],[.059,.071,.009],0,20,16)
         tube(m,[(side*.11,.73,.25),(side*.24,.79,.19),(side*.34,.86,.10)],[.056,.065,.009],3,18,16)
@@ -147,7 +147,7 @@ def build_static():
     # Upper teeth along a curved dental arch; long outer canines.
     for i in range(10):
         x=(i-4.5)*.050;z=.520-.095*(abs(x)/.225)**1.5;y=-.106+.014*abs(i-4.5)
-        l=.165 if i in (0,9) else .086+.014*(i%2)
+        l=.185 if i in (0,9) else .086+.014*(i%2)
         tube(m,[(x,y,z),(x,y-l*.53,z+.014),(x*.98,y-l,z+.002)],[.027,.022,.004],2,10,12)
     # Bring the skull toward the listener; keep the horns anchored to the cranium.
     for k in range(head_start,len(m.v)):
@@ -159,7 +159,7 @@ def add_jaw(m,open_amt):
     # Hinge-driven 3D jaw, rotating the chin forward and down, not a flat mouth overlay.
     # Y displacement grows toward the front of the mandible.
     def pose(p):
-        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.25,.27+(y-open_amt*.34*w-.27)*1.15,z+open_amt*.055*w+.07)
+        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.25,.27+(y-open_amt*.40*w-.27)*1.15,z+open_amt*.083*w+.07)
     for side in (-1,1):
         X=lambda x:side*x
         points=[(X(.36),.015,.09),(X(.34),-.235,.17),(X(.235),-.36,.36),(X(.13),-.414,.49),(0,-.435,.53)]
@@ -173,7 +173,7 @@ def add_jaw(m,open_amt):
 def add_hands(m,amt):
     # Foreground joints and claws reach past the window frame in perspective.
     for side in (-1,1):
-        X=lambda x:side*x;reach=amt*.11
+        X=lambda x:side*x;reach=amt*.16
         ellipsoid(m,(X(.69),-.935,.86+reach),(.205,.137,.114),3)
         for i in range(4):
             x=.49+i*.112;y=-.93+(.012*abs(i-1));z=.875+.015*(3-i)+reach
@@ -227,13 +227,13 @@ def render(mesh):
     vis/=9
     N=nn;D=np.maximum(N@L,0);rimdir=np.array([.71,.14,-.68]);rimdir/=np.linalg.norm(rimdir);rim=np.maximum(N@rimdir,0)
     camera=np.array([0.,0.,CAM]);view=camera-pp;view/=np.maximum(1e-6,np.linalg.norm(view,axis=1,keepdims=True));half=L+view;half/=np.linalg.norm(half,axis=1,keepdims=True)
-    spec=np.maximum(np.sum(N*half,axis=1),0)**32 * vis
+    spec=np.maximum(np.sum(N*half,axis=1),0)**24 * vis
     fres=(1-np.maximum(np.sum(N*view,axis=1),0))**2
     texture=.91+.045*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.033*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.019*np.sin(pp[:,2]*140+pp[:,0]*97)
     colors=np.array([[.53,.071,.052],[1.0,.14,.008],[.70,.145,.085],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
-    rgb=colors*texture[:,None]*(.10+1.42*D[:,None]*vis[:,None])
+    rgb=colors*texture[:,None]*(.075+1.48*D[:,None]*vis[:,None])
     rgb+=np.array([.61,.065,.030])*rim[:,None]*(.50+.50*fres[:,None])
-    rgb+=np.array([.86,.42,.30])*spec[:,None]*.60
+    rgb+=np.array([.93,.46,.29])*spec[:,None]*.78
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.
     rgb+=np.array([.12,.014,.007])*np.maximum(-N[:,1],0)[:,None]
     emissive=mat[mask]==1;hot=mat[mask]==4
