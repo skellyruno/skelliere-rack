@@ -142,7 +142,7 @@ void KnobCell::resized() {
     }else{
         // VMR-style control proportions. At 100% a paired metal face is
         // roughly 62px, not 85px; single controls can be slightly larger.
-        const int limit=bool(slider.getProperties().getWithDefault("dopeSwitch",false))?76:getWidth()<90?58:getWidth()<125?76:96;
+        const int limit=bool(slider.getProperties().getWithDefault("tapeSelector",false))?70:bool(slider.getProperties().getWithDefault("dopeSwitch",false))?76:getWidth()<90?58:getWidth()<125?76:96;
         const int size=juce::jmax(1,juce::jmin(getWidth()-4,getHeight()-32,limit));
         slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-32)/2),size,size);
     }
@@ -158,7 +158,7 @@ bool KnobCell::controlGeometryValid() const noexcept {
     if(b.getWidth()!=b.getHeight())return false;
     if(compact_)return b.getWidth()<=48;
     if(sideReadout_)return b.getWidth()<=88&&b.getRight()+12<getWidth();
-    const int limit=bool(slider.getProperties().getWithDefault("dopeSwitch",false))?76:getWidth()<90?58:getWidth()<125?76:96;
+    const int limit=bool(slider.getProperties().getWithDefault("tapeSelector",false))?70:bool(slider.getProperties().getWithDefault("dopeSwitch",false))?76:getWidth()<90?58:getWidth()<125?76:96;
     return b.getWidth()<=limit&&b.getBottom()+28<=getHeight();
 }
 
@@ -356,7 +356,7 @@ void SlotComponent::rebuild() {
                 auto previous=cell->slider.onValueChange;
                 cell->slider.onValueChange=[this,previous]{if(previous)previous();repaint(mixHeadBadgeBounds(getWidth()));};
             }
-            if(type==SkellNoise&&j==1)cell->slider.setTooltip("Maximum tracked noise level in dB. Raise for louder background noise; lower to protect quiet vocal detail. Amount sets suppression strength.");
+            if(type==SkellNoise&&j==1)cell->slider.setTooltip("Adaptive noise threshold: maximum tracked noise level in dB. Raise for louder background noise; lower to protect quiet vocal detail. Amount sets suppression strength.");
             if(type==SkellNoise&&j==2)cell->slider.setTooltip("Recovery time of the attenuation as signal level changes.");
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
             if(type==SkellSSL){
@@ -488,7 +488,7 @@ void SlotComponent::resized() {
     if(type==Empty)return;
     powerBtn.setBounds(editing?Rectangle<int>(16,h-39,25,25):Rectangle<int>(25,h-24,17,17));soloBtn.setBounds(49,h-38,27,23);
     leftBtn.setBounds(82,h-38,21,23);rightBtn.setBounds(106,h-38,21,23);
-    artButton.setBounds(130,h-38,62,23);removeBtn.setBounds(w-35,h-38,20,23);
+    artButton.setBounds(130,h-38,juce::jmin(62,w-170),23);removeBtn.setBounds(w-35,h-38,20,23);
     const auto layout=originalLayout(type,w,editing);vuRect=layout.meter;
     for(size_t i=0;i<cells.size();++i)cells[i]->setBounds(layout.cells[i]);
 }
@@ -564,8 +564,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
         if(type==SkellSSL){
-            const int split=w*47/100,left=10,right=split+6,lw=split-15,rw=w-right-10;
-            const auto console=Rectangle<float>(8,75,float(w-16),float(tallPanelY(548)-75));
+            const int split=w*46/100,left=10,right=split+6,lw=split-15,rw=w-right-10;
+            const auto console=Rectangle<float>(11,75,float(w-22),float(tallPanelY(548)-75));
             pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff292c2d),console.getY(),Colour(0xff15191a),console.getBottom()));pg.fillRect(console);
             paintPeened(pg,console,.62f);
             paintAnalogWear(pg,console,false,4632,.42f);
@@ -580,8 +580,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
                 pg.drawFittedText(label,Rectangle<int>(x+2,y+2,ww-4,15),juce::Justification::centredLeft,1);
             };
             section(left,82,lw,"INPUT");section(left,158,lw,"FILTERS");section(left,232,lw,"COMPRESSOR");section(left,354,lw,"GATE / EXP");section(left,477,lw,"OUTPUT");
-            section(right,82,rw,"EQ / HF");section(right,168,rw,"HMF");section(right,254,rw,"LMF");section(right,340,rw,"LF");
-            section(right,425,rw,"CIRCUIT");section(right,466,rw,"DYNAMICS");
+            section(right,82,rw,"EQUALIZER / HF");section(right,168,rw,"HMF");section(right,254,rw,"LMF");section(right,340,rw,"LF");
+            section(right,425,rw,"CIRCUIT / E-G");section(right,466,rw,"DYNAMICS");
             paintSSLReduction(pg,layout.meter.toFloat(),0,-60,true);
         }
         else if(type==SkellDope){
@@ -735,7 +735,8 @@ void RackStrip::resized() {
     int x=kPad;
     for(auto& slot:slots) if(slot) {
         const int w=rackgeo::width(libraryMode);
-        slot->setBounds(x,2,w,SlotComponent::kHeight);
+        const int inset=slot->currentType()==SkellSSL?8:0;
+        slot->setBounds(x+inset,2,w-2*inset,SlotComponent::kHeight);
         x+=w+kGap;
     }
     const int total=x-kGap+kPad;
@@ -1056,6 +1057,7 @@ void RackUI::handleAsyncUpdate() {
         if(slot.currentType()!=proc.slotType(s))slot.rebuild();
         else slot.syncPowerVisual();
     }
+    strip.resized();
     pathStrip.repaint();
 }
 
@@ -1098,6 +1100,7 @@ void RackUI::setEditMode(bool enabled) {
 }
 void RackUI::revealSlot(int slot){
     if(slot<0||slot>=kNumSlots)return;
+    strip.resized();
     pathStrip.setFocusedSlot(slot);
     const int first=rackgeo::firstFromOffset(viewport.getViewPositionX(),libraryVisible);
     viewport.setViewPosition(rackgeo::offset(rackgeo::firstForSlot(first,slot,libraryVisible),libraryVisible),0);
@@ -1135,7 +1138,8 @@ bool RackUI::fittedRackIsValid() const {
     if(viewport.getRight()!=rackgeo::end(libraryVisible)||area.getWidth()!=rackgeo::viewWidth(libraryVisible))return false;
     for(int i=0;i<kNumSlots;++i){
         const auto b=strip.slots[static_cast<size_t>(i)]->getBounds();
-        if(b.getX()!=rackgeo::pad+i*(w+rackgeo::gap)||b.getWidth()!=w)return false;
+        const int inset=strip.slots[static_cast<size_t>(i)]->currentType()==SkellSSL?8:0;
+        if(b.getX()!=rackgeo::pad+i*(w+rackgeo::gap)+inset||b.getWidth()!=w-2*inset)return false;
     }
     return (1252-(viewport.getRight()-rackgeo::pad))==14;
 }

@@ -49,7 +49,7 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==SkellSSL){
         // Reference console proportions: a compact left dynamics lane and a
         // slightly wider four-band EQ lane. Preserve all 27 host attachments.
-        const int split=width*47/100,left=10,right=split+6;
+        const int split=width*46/100,left=10,right=split+6;
         const int lw=split-15,rw=width-right-10;
         auto row=[&](int x,int w,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size());int i=0;for(int j:ids){const int a=i*w/n,b=(i+1)*w/n;l.cells[j]={x+a,y,b-a,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
@@ -61,7 +61,7 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
         row(left,lw,426,46,{e(SslExpRelease),e(SslGate)});
         l.cells[e(SslOutput)]={left,491,lw,editing?38:45};
         auto band=[&](int y,int gain,int freq,int shape){
-            const int g=rw*51/100;
+            const int g=rw*52/100;
             l.cells[gain]={right,y+6,g,64};
             l.cells[freq]={right+g,y,rw-g,42};
             l.cells[shape]={right+g,y+42,rw-g,28};
@@ -570,7 +570,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
     paintIdentityFinish(g,f,type,p.light);
-    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.22f);
+    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.30f);
     g.setColour((p.light?Colour(0xfffcf2d7):Colour(0xffc2b49a)).withAlpha(.25f));g.drawRoundedRectangle(r.reduced(3.f),5.f,.55f);
     g.setColour(juce::Colours::black.withAlpha(.62f));g.drawRoundedRectangle(r.reduced(5.f),4.f,.65f);
     g.setColour(p.accent.withAlpha(p.light?.20f:.32f));g.drawRoundedRectangle(r.reduced(7.5f),3.5f,.55f);

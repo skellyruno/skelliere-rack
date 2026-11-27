@@ -664,19 +664,19 @@ public:
             // engraved detents are the real normalized host values.
             const bool on=p>=.5f;const float u=size/58.f;
             const auto names=juce::StringArray::fromTokens(s.getProperties().getWithDefault("switchLabels",juce::var("0,1")).toString(),",","");
-            auto plate=Rectangle<float>(cx-27*u,cy-25*u,54*u,50*u);
+            auto plate=Rectangle<float>(cx-28*u,cy-26*u,56*u,52*u);
             g.setColour(Colour(0xff210c08).withAlpha(.9f));g.fillRoundedRectangle(plate.translated(0,2*u),3*u);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff65534a),plate.getY(),Colour(0xff251916),plate.getBottom()));g.fillRoundedRectangle(plate,3*u);
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff49443e),plate.getY(),Colour(0xff211b18),plate.getBottom()));g.fillRoundedRectangle(plate,3*u);
             g.setColour(Colour(0xffd9b58b).withAlpha(.8f));g.drawRoundedRectangle(plate.reduced(.5f),3*u,.7f);
-            auto well=Rectangle<float>(cx-24*u,cy-21*u,25*u,42*u);
+            auto well=Rectangle<float>(cx-25*u,cy-22*u,27*u,44*u);
             g.setColour(Colour(0xff140f0d));g.fillRoundedRectangle(well,3*u);g.setColour(Colour(0xff726257));g.drawRoundedRectangle(well.reduced(.5f),3*u,.7f);
-            const float bx=cx-11*u,by=cy,tx=bx+(on?-3.f:3.f)*u,ty=by+(on?-15.f:15.f)*u;
+            const float bx=cx-11*u,by=cy,tx=bx+(on?-3.f:3.f)*u,ty=by+(on?-16.f:16.f)*u;
             juce::Path nut;for(int i=0;i<6;++i){const float a=juce::MathConstants<float>::twoPi*i/6.f+juce::MathConstants<float>::pi/6;const float x=bx+std::cos(a)*9*u,y=by+std::sin(a)*9*u;if(i==0)nut.startNewSubPath(x,y);else nut.lineTo(x,y);}nut.closeSubPath();
             g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe0d1b3),by-9*u,Colour(0xff665d4d),by+9*u));g.fillPath(nut);g.setColour(Colour(0xff241c17));g.strokePath(nut,juce::PathStrokeType(.8f));
             g.setColour(Colour(0xff171717));g.fillEllipse(bx-5*u,by-5*u,10*u,10*u);
             g.setColour(Colour(0xff0c0907).withAlpha(.9f));g.drawLine(bx+2*u,by+2*u,tx+2*u,ty+2*u,7.5f*u);
-            g.setColour(Colour(0xff80776b));g.drawLine(bx,by,tx,ty,6.5f*u);g.setColour(Colour(0xfff3e7cc));g.drawLine(bx-1.5f*u,by,tx-1.5f*u,ty,2*u);
-            auto tip=Rectangle<float>(tx-4*u,ty-3.5f*u,8*u,7*u);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff8ebd2),tip.getY(),Colour(0xff70675a),tip.getBottom()));g.fillRoundedRectangle(tip,2*u);g.setColour(Colour(0xfff6ead0).withAlpha(.8f));g.drawRoundedRectangle(tip.reduced(.4f),2*u,.5f);
+            g.setColour(Colour(0xff514c46));g.drawLine(bx,by,tx,ty,7.f*u);g.setColour(Colour(0xffb6b5ac));g.drawLine(bx-.8f*u,by,tx-.8f*u,ty,5.f*u);g.setColour(Colour(0xfff6f1de));g.drawLine(bx-2*u,by,tx-2*u,ty,1.4f*u);
+            auto tip=Rectangle<float>(tx-4.5f*u,ty-3.5f*u,9*u,7*u);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff8ebd2),tip.getY(),Colour(0xff70675a),tip.getBottom()));g.fillRoundedRectangle(tip,2*u);g.setColour(Colour(0xfff6ead0).withAlpha(.8f));g.drawRoundedRectangle(tip.reduced(.4f),2*u,.5f);
             for(int i=0;i<2;++i){const bool selected=(i==int(on));const float y=cy+(i==1?-13.f:13.f)*u;g.setColour(selected?Colour(0xffffb64d):Colour(0xff2a211c));g.fillEllipse(cx+4*u,y-6*u,4*u,4*u);g.setColour(selected?Colour(0xffffe2a6):Colour(0xffc8b7aa));g.setFont(font(8.5f*u,true));g.drawFittedText(names[i].toUpperCase(),Rectangle<float>(cx+2*u,y-1*u,24*u,10*u).toNearestInt(),juce::Justification::centred,1);}
             if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawRoundedRectangle(plate.expanded(1),3*u,.8f);}return;
         }

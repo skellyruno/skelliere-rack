@@ -140,6 +140,16 @@ def build_static():
             tube(m,[(X(.49+i*.075),-.22-i*.065,.16),(X(.68+i*.055),-.26-i*.075,.27),(X(.76+i*.035),-.34-i*.075,.23)],[.055,.075,.006],0,23,16)
         # Small horn roots join the cranium, avoiding floating cones.
         ellipsoid(m,(X(.37),.68,.04),(.16,.17,.14),0)
+    # Exposed lumbar spine below the last rib. Preserve the approved head,
+    # shoulders, rib cage and hands. Each vertebra has a body, disc and
+    # tapered transverse processes; no additional or stretched ribs.
+    for i in range(5):
+        yy=-.94-i*.062; zz=.045+.014*i; xx=.009*np.sin(i*.9)
+        ellipsoid(m,(xx,yy,zz),(.077-i*.003,.036,.063-i*.002),0)
+        ellipsoid(m,(xx,yy-.031,zz),(.054,.015,.048),3)
+        for side in (-1,1):
+            tube(m,[(xx+side*.035,yy,zz),(xx+side*.083,yy-.009,zz-.012),(xx+side*.105,yy-.023,zz-.026)],[.025,.020,.003],0,12,12,aspect=.76)
+        tube(m,[(xx,yy,zz-.028),(xx,yy-.018,zz-.073),(xx,yy-.037,zz-.091)],[.025,.018,.003],3,10,12)
     # Front sternum and rib anchors.
     tube(m,[(0,-.25,.28),(0,-.48,.32),(0,-.80,.31),(0,-.90,.26)],[.066,.078,.060,.024],0,40,18)
     for i in range(7):ellipsoid(m,(0,-.34-i*.091,.32),(.063,.050,.031),0)
@@ -274,11 +284,11 @@ def render(mesh):
                     acc+=(h.astype(np.float64)/4294967295.)*(f[:,0] if a else 1-f[:,0])*(f[:,1] if b else 1-f[:,1])*(f[:,2] if c else 1-f[:,2])
         return acc
     mottled=.55*grain(pp,18)+.30*grain(pp,47)+.15*grain(pp,102)
-    texture*=.75+.50*mottled
+    texture*=.70+.60*mottled
     colors*=np.column_stack((.86+.25*mottled,.73+.50*mottled,.73+.50*mottled))
-    rgb=colors*texture[:,None]*(.075+1.24*D[:,None]*vis[:,None])*ao[:,None]
+    rgb=colors*texture[:,None]*(.070+1.29*D[:,None]*vis[:,None])*ao[:,None]
     rgb+=np.array([.54,.067,.035])*rim[:,None]*(.45+.55*fres[:,None])
-    rgb+=np.array([.96,.56,.35])*spec[:,None]*(.075+.06*texture[:,None])*ao[:,None]
+    rgb+=np.array([.96,.64,.43])*spec[:,None]*(.065+.055*texture[:,None])*ao[:,None]
     # Subtle warm bounce from the crimson enclosure and cold upper-edge reflection.
     rgb+=np.array([.12,.038,.025])*np.maximum(N@np.array([-.38,-.26,.72]),0)[:,None]*(.45+.55*texture[:,None])
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.
