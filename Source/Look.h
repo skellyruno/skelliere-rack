@@ -648,6 +648,17 @@ public:
         const bool light=bool(s.getProperties().getWithDefault("lightFace",false));
         const bool utility=size<61.f;
         const float p=juce::jlimit(0.f,1.f,pos),angle=a0+p*(a1-a0);
+        if(bool(s.getProperties().getWithDefault("sslSwitch",false))){
+            // Console-style latching key: shows the actual selected state.
+            const auto names=juce::StringArray::fromTokens(s.getProperties().getWithDefault("switchLabels",juce::var("0,1")).toString(),",","");
+            auto key=juce::Rectangle<float>(cx-size*.44f,cy-size*.23f,size*.88f,size*.46f);
+            g.setColour(Colour(0xff0b0d0c));g.fillRoundedRectangle(key.expanded(2.f),2.f);
+            g.setColour(Colour(0xff666963));g.drawRoundedRectangle(key.expanded(1.f),2.f,.7f);
+            const auto top=p>=.5f?Colour(0xffe6b56a):Colour(0xffe1e0d6),bottom=p>=.5f?Colour(0xff97652c):Colour(0xff858b83);
+            g.setGradientFill(juce::ColourGradient::vertical(top,key.getY(),bottom,key.getBottom()));g.fillRoundedRectangle(key,1.3f);
+            g.setColour(Colour(0xfffbf7dd).withAlpha(.7f));g.drawHorizontalLine(int(key.getY()+1),key.getX()+2,key.getRight()-2);
+            g.setColour(Colour(0xff151b18));g.setFont(font(juce::jlimit(8.f,10.f,size*.23f),true));g.drawFittedText(names[p>=.5f?1:0],key.toNearestInt(),juce::Justification::centred,1);return;
+        }
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
             const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
             auto r=juce::Rectangle<float>(cx-size*(isDope?.38f:.31f),cy-size*(isDope?.40f:.35f),size*(isDope?.76f:.62f),size*(isDope?.80f:.70f));

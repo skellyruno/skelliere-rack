@@ -41,36 +41,35 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==SkellDemon){
-        l.detail={7,101,width-14,290};
-        const int cw=(width-24)/3,rh=(editing?519:547)-394;
-        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,394+(k/3)*(rh/2),cw,rh/2-3};
+        l.detail={7,101,width-14,258};
+        const int cw=(width-24)/3,rh=(editing?519:547)-366;
+        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,366+(k/3)*(rh/2),cw,rh/2-3};
         return l;
     }
     if(type==SkellSSL){
-        // Console proportions: compact input/filter/dynamics on the left,
-        // four full EQ bands on the right. The six original automation slots
-        // and the appended SSL controls are placed independently.
-        const int lane=(width-24)/2, left=10,right=14+lane;
+        // Staggered console topology: original control attachments unchanged.
+        const int lane=(width-22)/2, left=9,right=13+lane;
         auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
-        row(left,102,53,{e(SslInput),e(SslPhase),0});
-        row(left,174,53,{e(SslHP),e(SslLP)});
-        row(left,246,53,{e(SslThreshold),e(SslRatio),5});
-        row(left,300,49,{e(SslRelease),e(SslFast)});
-        row(left,368,51,{e(SslExpThreshold),e(SslExpRange)});
-        row(left,420,51,{e(SslExpRelease),e(SslGate)});
-        row(left,484,43,{e(SslOutput)});
-        // Console EQ: primary coloured gain at left, frequency and shape/Q
-        // stacked at right, like a physical channel strip rather than three
-        // equal-width knobs. Leave every original parameter attached.
-        auto band=[&](int y,int gain,int freq,int shape){const int a=lane/2,b=lane-a;
-            l.cells[gain]={right,y,a,71};
-            l.cells[freq]={right+a,y,b,35};
-            l.cells[shape]={right+a,y+36,b,35};};
-        band(103,4,e(SslHFFreq),e(SslHFBell));
-        band(193,3,e(SslHMFreq),e(SslHMQ));
-        band(283,2,e(SslLMFreq),e(SslLMQ));
-        band(373,1,e(SslLFFreq),e(SslLFBell));
+        const int a=lane/2,b=lane-a;
+        l.cells[e(SslInput)]={left,100,a,58};
+        l.cells[e(SslPhase)]={left+a,100,b,29};
+        l.cells[0]={left+a,129,b,29};
+        row(left,177,54,{e(SslHP),e(SslLP)});
+        row(left,250,50,{e(SslThreshold),e(SslRatio)});
+        row(left,302,48,{e(SslRelease),5,e(SslFast)});
+        row(left,373,50,{e(SslExpThreshold),e(SslExpRange)});
+        row(left,425,48,{e(SslExpRelease),e(SslGate)});
+        l.cells[e(SslOutput)]={left,489,lane,38};
+        // Diagonal mid-band layout: gain and Q on left, frequency on right.
+        auto shelf=[&](int y,int gain,int freq,int shape){
+            l.cells[gain]={right,y+3,a,65};l.cells[freq]={right+a,y,b,44};l.cells[shape]={right+a,y+45,b,27};};
+        auto midBand=[&](int y,int gain,int freq,int q){
+            l.cells[gain]={right,y,a,43};l.cells[q]={right,y+44,a,28};l.cells[freq]={right+a,y+8,b,62};};
+        shelf(100,4,e(SslHFFreq),e(SslHFBell));
+        midBand(191,3,e(SslHMFreq),e(SslHMQ));
+        midBand(282,2,e(SslLMFreq),e(SslLMQ));
+        shelf(373,1,e(SslLFFreq),e(SslLFBell));
         l.meter={right+1,463,lane-3,64};return l;
     }
     if(type==SkellDope){
@@ -483,7 +482,13 @@ inline const juce::Image& infernalBackdrop();
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
     const auto win=r.withTrimmedBottom(22.f);const auto a=win.reduced(5.f);
-    if(frame){paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);return;}
+    if(frame){
+        paintHardwarePlate(g,win,Colour(0xff381c16),false,6.f,3.f);
+        g.setColour(Colour(0xffbd8150).withAlpha(.78f));g.drawRoundedRectangle(win.reduced(2.f),4.f,.9f);
+        g.setColour(Colour(0xff080505));g.drawRoundedRectangle(win.reduced(4.f),3.5f,1.2f);
+        for(int k=0;k<4;++k)paintScrew(g,k%2?win.getRight()-4.5f:win.getX()+4.5f,k<2?win.getY()+4.5f:win.getBottom()-4.5f,2.7f,.7f*k);
+        return;
+    }
     juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff5b140f),a.getCentreX(),a.getY()+a.getHeight()*.53f,Colour(0xff090306),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4.f);
     {juce::Graphics::ScopedSaveState bg(g);g.reduceClipRegion(a.toNearestInt());
@@ -492,7 +497,7 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
         for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
     }
     const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
-    const auto& atlas=demonReliefAtlas();const auto dst=r.expanded(5.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
+    const auto& atlas=demonReliefAtlas();const float dw=r.getWidth()+27.f,dh=dw*496.f/432.f;const auto dst=juce::Rectangle<float>(r.getCentreX()-dw*.5f,r.getBottom()-dh+1.f,dw,dh);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
     g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
 }
 // Distinct patina/finish per module. Static faceplate cache only, no audio dependency.
@@ -555,7 +560,9 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
     paintIdentityFinish(g,f,type,p.light);
-    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.30f);
+    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.22f);
+    g.setColour((p.light?Colour(0xfffcf2d7):Colour(0xffc2b49a)).withAlpha(.25f));g.drawRoundedRectangle(r.reduced(3.f),5.f,.55f);
+    g.setColour(juce::Colours::black.withAlpha(.62f));g.drawRoundedRectangle(r.reduced(5.f),4.f,.65f);
     g.setColour(p.accent.withAlpha(p.light?.20f:.32f));g.drawRoundedRectangle(r.reduced(7.5f),3.5f,.55f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }

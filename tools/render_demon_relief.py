@@ -14,7 +14,7 @@ import argparse
 
 W,H=432,496
 FRAMES=9
-SCALE=155.0
+SCALE=157.0
 CAM=4.1
 
 class Mesh:
@@ -76,15 +76,15 @@ def skull_mesh(mesh):
         h=np.maximum(k-np.abs(a-b),0)/k;return np.minimum(a,b)-h*h*k*.25
     s=e((0,.47,.08),(.48,.415,.35))
     s=union(s,e((0,.20,.19),(.345,.29,.30)))
-    s=union(s,e((0,.77,.20),(.14,.13,.21)),.035)
+    s=union(s,e((0,.64,.19),(.115,.15,.16)),.035)
     s=union(s,e((0,-.018,.335),(.295,.145,.23)))
     for side in (-1,1):
-        s=union(s,e((side*.365,.095,.27),(.21,.095,.207),-side*.42))
+        s=union(s,e((side*.345,.095,.24),(.184,.081,.185),-side*.42))
         s=union(s,e((side*.235,.405,.35),(.267,.096,.155),side*.24),.025)
         s=union(s,e((side*.365,.29,.09),(.145,.24,.24)),.03)
         # Outer edge of the orbit higher, inner lower: threatening brow.
-        s=np.maximum(s,-e((side*.238,.305,.445),(.237,.172,.40),side*.31))
-        s=np.maximum(s,-e((side*.365,-.015,.415),(.139,.113,.235),side*.30))
+        s=np.maximum(s,-e((side*.228,.305,.445),(.196,.146,.40),side*.32))
+        s=np.maximum(s,-e((side*.345,-.015,.415),(.132,.104,.245),side*.30))
         s=np.maximum(s,-e((side*.048,.105,.487),(.062,.12,.205),-side*.24))
     s=np.maximum(s,-e((0,-.188,.53),(.29,.138,.27)))
     # Fine nonuniform erosion, subdued enough to keep a continuous skull.
@@ -107,17 +107,17 @@ def skull_mesh(mesh):
 def build_static():
     m=Mesh()
     # Back spine and six separate curved ribs, no flat diagram lines.
-    for i in range(16):ellipsoid(m,(0,-.20-i*.073,-.16),(.101,.052,.094),3)
+    for i in range(12):ellipsoid(m,(0,-.20-i*.073,-.16),(.093,.052,.084),3)
     for side in (-1,1):
         X=lambda x:side*x
-        for i in range(10):
-            y=-.255-i*.105;w=.70-i*.032
+        for i in range(7):
+            y=-.255-i*.104;w=.67-i*.040
             tube(m,[(X(.06),y+.04,-.17),(X(w*.72),y+.065,-.11),(X(w),y-.015,.10),(X(w*.72),y-.10,.27),(X(.07),y-.08,.30)], [.046,.051,.057,.042,.028],0,32,16)
         tube(m,[(X(.04),-.20,.22),(X(.34),-.14,.23),(X(.56),-.19,.12),(X(.68),-.14,.06)],[.065,.065,.074,.05],0,22)
         # Scapula spike and skeletal shoulder joint.
         tube(m,[(X(.45),-.23,-.02),(X(.64),-.15,-.02),(X(.87),.13,-.07)],[.14,.092,.002],3,18)
-        ellipsoid(m,(X(.70),-.245,.10),(.239,.186,.184),0)
-        tube(m,[(X(.70),-.25,.11),(X(.77),-.44,.20),(X(.87),-.64,.35)],[.123,.094,.105],0,22,18)
+        ellipsoid(m,(X(.70),-.245,.10),(.257,.201,.201),0)
+        tube(m,[(X(.70),-.25,.11),(X(.77),-.44,.20),(X(.87),-.64,.35)],[.144,.102,.112],0,22,18)
         ellipsoid(m,(X(.87),-.64,.35),(.105,.09,.095),0)
         tube(m,[(X(.85),-.65,.36),(X(.76),-.81,.60),(X(.66),-.91,.85)],[.082,.057,.062],0,22,18)
         tube(m,[(X(.93),-.65,.33),(X(.84),-.83,.59),(X(.74),-.93,.84)],[.050,.043,.049],3,18)
@@ -130,11 +130,11 @@ def build_static():
         # Small horn roots join the cranium, avoiding floating cones.
         ellipsoid(m,(X(.37),.68,.04),(.16,.17,.14),0)
     # Front sternum and rib anchors.
-    tube(m,[(0,-.25,.28),(0,-.48,.32),(0,-.80,.31),(0,-1.13,.26)],[.066,.078,.064,.024],0,40,18)
-    for i in range(10):ellipsoid(m,(0,-.34-i*.091,.32),(.063,.050,.031),0)
+    tube(m,[(0,-.25,.28),(0,-.48,.32),(0,-.80,.31),(0,-.90,.26)],[.066,.078,.060,.024],0,40,18)
+    for i in range(7):ellipsoid(m,(0,-.34-i*.091,.32),(.063,.050,.031),0)
     # Broaden the shoulder girdle, keep the ribs and sternum in perspective.
     for k in range(len(m.v)):
-        vv=m.v[k]; factor=1.0+.26*np.clip((-vv[:,1]+.12)/.65,0,1)*np.clip((vv[:,1]+1.18)/.40,0,1)
+        vv=m.v[k]; factor=1.0+.21*np.clip((-vv[:,1]+.12)/.65,0,1)*np.clip((vv[:,1]+1.18)/.40,0,1)
         vv[:,0]*=factor
         m.n[k][:,0]/=factor
         m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
@@ -147,7 +147,7 @@ def build_static():
         ellipsoid(m,(side*.222,.300,.275),(.098,.024,.028),1,side*.30)
         ellipsoid(m,(side*.217,.299,.302),(.046,.010,.013),4,side*.30)
         # Sharper zygomatic spurs and brow ridge, receding in the temple.
-        tube(m,[(side*.27,.135,.36),(side*.41,.11,.37),(side*.48,.06,.22)],[.059,.071,.009],0,20,16)
+        tube(m,[(side*.25,.135,.35),(side*.37,.11,.34),(side*.43,.06,.22)],[.047,.058,.009],0,20,16)
         tube(m,[(side*.11,.73,.25),(side*.24,.79,.19),(side*.34,.86,.10)],[.056,.065,.009],3,18,16)
         # Spiked cranial ridge, framing the angry face.
         tube(m,[(side*.30,.65,.14),(side*.39,.75,.15),(side*.43,.87,.08)],[.087,.055,.002],3,18,14)
@@ -158,19 +158,19 @@ def build_static():
         tube(m,[(x,y,z),(x,y-l*.53,z+.014),(x*.98,y-l,z+.002)],[.027,.022,.004],2,10,12)
     # Bring the skull toward the listener; keep the horns anchored to the cranium.
     for k in range(head_start,len(m.v)):
-        m.v[k][:,0]*=1.25;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.15;m.v[k][:,2]+=.07
-        m.n[k][:,0]/=1.25;m.n[k][:,1]/=1.15;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
+        m.v[k][:,0]*=1.18;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.10;m.v[k][:,2]+=.07
+        m.n[k][:,0]/=1.18;m.n[k][:,1]/=1.10;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
     return m
 
 def add_jaw(m,open_amt):
     # Hinge-driven 3D jaw, rotating the chin forward and down, not a flat mouth overlay.
     # Y displacement grows toward the front of the mandible.
     def pose(p):
-        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.25,.27+(y-open_amt*.40*w-.27)*1.15,z+open_amt*.083*w+.07)
+        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.18,.27+(y-open_amt*.33*w-.27)*1.10,z+open_amt*.083*w+.07)
     for side in (-1,1):
         X=lambda x:side*x
-        points=[(X(.36),.015,.09),(X(.34),-.235,.17),(X(.235),-.36,.36),(X(.13),-.414,.49),(0,-.435,.53)]
-        tube(m,[pose(p) for p in points],[.069,.067,.078,.070,.065],0,34,18)
+        points=[(X(.33),.015,.09),(X(.31),-.22,.17),(X(.226),-.35,.36),(X(.122),-.405,.49),(0,-.427,.53)]
+        tube(m,[pose(p) for p in points],[.062,.059,.068,.063,.059],0,34,18)
     ellipsoid(m,pose((0,-.423,.53)),(.10,.063,.059),0)
     for i in range(10):
         x=(i-4.5)*.047;z=.523-.085*(abs(x)/.22)**1.4;y=-.386+.018*abs(i-4.5)
@@ -181,7 +181,7 @@ def add_hands(m,amt):
     # Foreground joints and claws reach past the window frame in perspective.
     for side in (-1,1):
         X=lambda x:side*x;reach=amt*.16
-        ellipsoid(m,(X(.69),-.935,.86+reach),(.218,.143,.121),3)
+        ellipsoid(m,(X(.69),-.935,.86+reach),(.231,.142,.129),3)
         for i in range(4):
             x=.49+i*.112;y=-.93+(.012*abs(i-1));z=.875+.015*(3-i)+reach
             ellipsoid(m,(X(x),y,z),(.052,.045,.049),0)
@@ -239,11 +239,13 @@ def render(mesh):
     # Pitted, ridged bone rather than polished plastic. Multi-frequency material
     # variation is spatially stable over all nine animation frames.
     pore=np.sin(pp[:,0]*113+np.sin(pp[:,1]*57))*np.sin(pp[:,1]*127+np.sin(pp[:,2]*63))*np.sin(pp[:,2]*131+pp[:,0]*61)
-    texture=.79+.11*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.17*np.maximum(pore,0)**3
-    colors=np.array([[.48,.050,.037],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
+    texture=.83+.10*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.12*np.maximum(pore,0)**3
+    colors=np.array([[.52,.070,.051],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
     rgb=colors*texture[:,None]*(.049+1.43*D[:,None]*vis[:,None])
-    rgb+=np.array([.61,.065,.030])*rim[:,None]*(.50+.50*fres[:,None])
-    rgb+=np.array([.93,.46,.29])*spec[:,None]*(.19+.16*texture[:,None])
+    rgb+=np.array([.54,.067,.035])*rim[:,None]*(.45+.55*fres[:,None])
+    rgb+=np.array([.96,.56,.35])*spec[:,None]*(.28+.18*texture[:,None])
+    # Subtle warm bounce from the crimson enclosure and cold upper-edge reflection.
+    rgb+=np.array([.14,.052,.032])*np.maximum(N@np.array([-.38,-.26,.72]),0)[:,None]*(.45+.55*texture[:,None])
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.
     rgb+=np.array([.085,.010,.005])*np.maximum(-N[:,1],0)[:,None]
     emissive=mat[mask]==1;hot=mat[mask]==4
