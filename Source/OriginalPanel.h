@@ -17,7 +17,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==SkellDope)metal=Colour(0xffd2d3cc);
     if(finish==1&&type==SkellSSL)metal=Colour(0xff252827);
     if(finish==1&&type==SkellDemon)metal=Colour(0xff64120e);
-    if(finish==1&&type==SkellMixHead)metal=Colour(0xff514035);
+    if(finish==1&&type==SkellMixHead)metal=Colour(0xffa52b19);
     if(finish==1&&type==SkellRubyQ)metal=Colour(0xff661124);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
@@ -47,30 +47,32 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
         return l;
     }
     if(type==SkellSSL){
-        // Staggered console topology: original control attachments unchanged.
+        // Console topology: left input/dynamics, right EQ and circuit.
+        // Preserve each parameter attachment and normalized value.
         const int lane=(width-22)/2, left=9,right=13+lane;
         auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
         const int a=lane/2,b=lane-a;
         l.cells[e(SslInput)]={left,100,a,58};
-        l.cells[e(SslPhase)]={left+a,100,b,29};
-        l.cells[0]={left+a,129,b,29};
+        l.cells[e(SslPhase)]={left+a,105,b,48};
         row(left,177,54,{e(SslHP),e(SslLP)});
-        row(left,250,50,{e(SslThreshold),e(SslRatio)});
+        row(left,250,50,{e(SslRatio),e(SslThreshold)});
         row(left,302,48,{e(SslRelease),5,e(SslFast)});
         row(left,373,50,{e(SslExpThreshold),e(SslExpRange)});
         row(left,425,48,{e(SslExpRelease),e(SslGate)});
         l.cells[e(SslOutput)]={left,489,lane,38};
-        // Diagonal mid-band layout: gain and Q on left, frequency on right.
-        auto shelf=[&](int y,int gain,int freq,int shape){
-            l.cells[gain]={right,y+3,a,65};l.cells[freq]={right+a,y,b,44};l.cells[shape]={right+a,y+45,b,27};};
-        auto midBand=[&](int y,int gain,int freq,int q){
-            l.cells[gain]={right,y,a,43};l.cells[q]={right,y+44,a,28};l.cells[freq]={right+a,y+8,b,62};};
-        shelf(100,4,e(SslHFFreq),e(SslHFBell));
-        midBand(191,3,e(SslHMFreq),e(SslHMQ));
-        midBand(282,2,e(SslLMFreq),e(SslLMQ));
-        shelf(373,1,e(SslLFFreq),e(SslLFBell));
-        l.meter={right+1,463,lane-3,64};return l;
+        // Gain on the left, frequency and Q/shape stacked at right.
+        auto band=[&](int y,int gain,int freq,int shape){
+            l.cells[gain]={right,y+4,a,64};
+            l.cells[freq]={right+a,y,b,40};
+            l.cells[shape]={right+a,y+41,b,32};
+        };
+        band(100,4,e(SslHFFreq),e(SslHFBell));
+        band(184,3,e(SslHMFreq),e(SslHMQ));
+        band(268,2,e(SslLMFreq),e(SslLMQ));
+        band(352,1,e(SslLFFreq),e(SslLFBell));
+        l.cells[0]={right+lane-44,435,44,29};
+        l.meter={right+1,480,lane-3,55};return l;
     }
     if(type==SkellDope){
         // Vertical rack adaptation of the two-mode hardware. All four
@@ -78,6 +80,13 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
         l.cells[0]={mid-32,100,64,71};
         for(int k=1;k<=4;++k)l.cells[k]={mid-41,174+(k-1)*86,82,84};
         l.meter={width-69,174,57,340};return l;
+    }
+    if(type==SkellMixHead){
+        // Vertical adaptation of the reference transport hardware.
+        const int lane=width-80,cw=lane/2;
+        for(int k=0;k<4;++k)l.cells[k]={10+(k%2)*cw,176+(k/2)*105,cw,100};
+        l.cells[4]={10,394,cw,105};l.cells[5]={10+cw,394,lane-cw,105};
+        l.meter={width-62,176,50,323};return l;
     }
     if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -412,7 +421,8 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
     // The tape mechanism is decorative; its live controls are below the window.
 }
 inline void paintDemonVectorFallback(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
-    const auto win=r.withTrimmedBottom(22.f);
+    // Raise the lip to the lower chest rather than lengthening the rib cage.
+    const auto win=r.withTrimmedBottom(47.f);
     if(frame)paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);
     auto a=win.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff69120d),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
@@ -481,7 +491,8 @@ inline bool demonReliefIsValid(){const auto& a=demonReliefAtlas();return a.isVal
 inline const juce::Image& infernalBackdrop();
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
-    const auto win=r.withTrimmedBottom(22.f);const auto a=win.reduced(5.f);
+    // Raise the lip to the lower chest rather than lengthening the rib cage.
+    const auto win=r.withTrimmedBottom(47.f);const auto a=win.reduced(5.f);
     if(frame){
         paintHardwarePlate(g,win,Colour(0xff381c16),false,6.f,3.f);
         g.setColour(Colour(0xffbd8150).withAlpha(.78f));g.drawRoundedRectangle(win.reduced(2.f),4.f,.9f);
@@ -497,14 +508,14 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
         for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
     }
     const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
-    const auto& atlas=demonReliefAtlas();const float dw=r.getWidth()+27.f,dh=dw*496.f/432.f;const auto dst=juce::Rectangle<float>(r.getCentreX()-dw*.5f,r.getBottom()-dh+1.f,dw,dh);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
+    const auto& atlas=demonReliefAtlas();const float dw=r.getWidth()+23.f,dh=dw*496.f/432.f;const auto dst=juce::Rectangle<float>(r.getCentreX()-dw*.5f,r.getBottom()-dh-2.f,dw,dh);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
     g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
 }
 // Distinct patina/finish per module. Static faceplate cache only, no audio dependency.
 inline void paintIdentityFinish(Graphics& g,juce::Rectangle<float> r,int type,bool light){
     juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),4.f);g.reduceClipRegion(clip);
     const bool red=type==SkellDemon, ruby=type==SkellRubyQ, tape=type==SkellMixHead;
-    const auto tint=red?Colour(0xffe44319):ruby?Colour(0xffe94e75):tape?Colour(0xffc7a271):Colour(0xffe3d8bb);
+    const auto tint=red?Colour(0xffe44319):ruby?Colour(0xffe94e75):tape?Colour(0xffe0a47c):Colour(0xffe3d8bb);
     // Layered casting grain / lacquer clouding, generated with a local seed.
     juce::Random rng(0x7f124+type*937);
     for(int i=0;i<(red||ruby?240:90);++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight(),rr=6.f+rng.nextFloat()*(red?56.f:32.f);auto c=(i%3==0?tint:juce::Colours::black).withAlpha(red||ruby?.055f:.028f);g.setGradientFill(juce::ColourGradient(c,x,y,c.withAlpha(0.f),x+rr,y,true));g.fillEllipse(x-rr,y-rr,2*rr,2*rr);}
@@ -536,7 +547,7 @@ inline void paintIdentityFinish(Graphics& g,juce::Rectangle<float> r,int type,bo
         for(int i=0;i<3;++i){float y=r.getY()+r.getHeight()*(.33f+i*.247f);juce::Path f;f.startNewSubPath(r.getX()+13,y+25);f.quadraticTo(cx,y+53,r.getRight()-13,y+25);g.setColour(Colour(0xffd9b27c).withAlpha(.17f));g.strokePath(f,juce::PathStrokeType(.6f));}
         g.setColour(Colour(0xffd0a267).withAlpha(.65f));g.drawRoundedRectangle(r.reduced(5.f),3.f,.8f);g.setColour(Colour(0xff1f060e).withAlpha(.8f));g.drawRoundedRectangle(r.reduced(7.f),2.f,1.1f);
     }else if(tape){
-        auto band=r.reduced(8.f,0.f).withTrimmedTop(100.f).withTrimmedBottom(21.f);g.setGradientFill(juce::ColourGradient(Colour(0xff130e0a).withAlpha(.55f),band.getX(),band.getY(),Colour(0xff765b3d).withAlpha(.24f),band.getRight(),band.getY(),false));g.fillRoundedRectangle(band,3.f);g.setColour(Colour(0xffd7af79).withAlpha(.28f));g.drawRoundedRectangle(band,3.f,.9f);
+        auto band=r.reduced(8.f,0.f).withTrimmedTop(100.f).withTrimmedBottom(21.f);g.setGradientFill(juce::ColourGradient(Colour(0xff32120c).withAlpha(.28f),band.getX(),band.getY(),Colour(0xffc05b36).withAlpha(.16f),band.getRight(),band.getY(),false));g.fillRoundedRectangle(band,3.f);g.setColour(Colour(0xffd7af79).withAlpha(.28f));g.drawRoundedRectangle(band,3.f,.9f);
     }else if(red){g.setColour(Colour(0xffba7750).withAlpha(.48f));g.drawRoundedRectangle(r.reduced(4.f),4.f,.8f);g.setColour(Colour(0xff270509));g.drawRoundedRectangle(r.reduced(6.f),3.f,1.f);}
 }
 // Infernal background, baked once into a software image; animation only composites it.

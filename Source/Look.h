@@ -659,6 +659,20 @@ public:
             g.setColour(Colour(0xfffbf7dd).withAlpha(.7f));g.drawHorizontalLine(int(key.getY()+1),key.getX()+2,key.getRight()-2);
             g.setColour(Colour(0xff151b18));g.setFont(font(juce::jlimit(8.f,10.f,size*.23f),true));g.drawFittedText(names[p>=.5f?1:0],key.toNearestInt(),juce::Justification::centred,1);return;
         }
+        if(bool(s.getProperties().getWithDefault("tapeToggle",false))){
+            const bool on=p>=.5f;const float r=size*.25f;
+            auto disk=juce::Rectangle<float>(cx-r,cy-r,r*2,r*2);
+            g.setColour(juce::Colours::black.withAlpha(.8f));g.fillEllipse(disk.expanded(4.f).translated(1.f,2.f));
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb3a68f),disk.getY(),Colour(0xff413831),disk.getBottom()));g.fillEllipse(disk.expanded(2.f));
+            g.setColour(Colour(0xff181716));g.fillEllipse(disk.reduced(2.f));
+            juce::Graphics::ScopedSaveState leverState(g);
+            g.addTransform(juce::AffineTransform::rotation(on?.56f:-.56f,cx,cy));
+            auto shaft=juce::Rectangle<float>(cx-size*.115f,cy-size*.30f,size*.23f,size*.50f);
+            g.setColour(juce::Colours::black.withAlpha(.75f));g.fillRoundedRectangle(shaft.translated(1.7f,2.3f),3.f);
+            g.setGradientFill(juce::ColourGradient(Colour(0xff746a58),shaft.getX(),shaft.getY(),Colour(0xff231e18),shaft.getRight(),shaft.getY(),false));g.fillRoundedRectangle(shaft,2.5f);
+            auto tip=shaft.withHeight(size*.18f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffc6ad87),tip.getY(),Colour(0xff5b4a38),tip.getBottom()));g.fillRoundedRectangle(tip,2.5f);
+            g.setColour(Colour(0xfff6e0b0).withAlpha(.6f));g.drawRoundedRectangle(tip,2.5f,.65f);return;
+        }
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
             const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
             auto r=juce::Rectangle<float>(cx-size*(isDope?.38f:.31f),cy-size*(isDope?.40f:.35f),size*(isDope?.76f:.62f),size*(isDope?.80f:.70f));

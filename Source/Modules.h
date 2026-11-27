@@ -116,7 +116,7 @@ inline const ModuleInfo& info(int type) {
          {{"Pitch",-12,12,false,0,Unit::Scalar,0,nullptr},{"Formant",-12,12,false,0,Unit::Scalar,0,nullptr},{"Link",0,1,false,0,Unit::Steps,2,"Off,On"},{"Mode",0,2,false,0,Unit::Steps,3,"Shift,Quant,Robot"},{"Drive",0,10,false,0,Unit::Scalar,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},3,{{"Voice",0,2},{"Mode",2,2},{"Color",4,2}},false},
         {"SSL Strip","Measured E/G channel","Recovered E/G console: variable four-band EQ, filters, gain, compressor and gate/expander. COMP retains the original macro.",CatTone,6,
          {{"Circuit",0,1,false,0,Unit::Steps,2,"E,G"},{"LF",-12,12,false,0,Unit::Db,0,nullptr},{"LM",-12,12,false,0,Unit::Db,0,nullptr},{"HM",-12,12,false,0,Unit::Db,0,nullptr},{"HF",-12,12,false,0,Unit::Db,0,nullptr},{"Comp",0,1,false,0,Unit::Pct,0,nullptr}},3,{{"Circuit",0,1},{"EQ",1,4},{"Dyn",5,1}},true},
-        {"Hush","Adaptive noise reduction","Original four-band downward attenuation with a tracked noise floor, not NS1 emulation.",CatUtility,3,
+        {"Hush","Adaptive noise reduction","Adaptive four-band suppression. Floor sets the upper bound of the tracked noise estimate; Release controls recovery.",CatUtility,3,
          {{"Amount",0,1,false,.35f,Unit::Pct,0,nullptr},{"Floor",-72,-24,false,-48,Unit::Db,0,nullptr},{"Release",25,500,true,120,Unit::Ms,0,nullptr}},2,{{"Suppress",0,1},{"Control",1,2}},true}
     };
     return table[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
@@ -124,7 +124,7 @@ inline const ModuleInfo& info(int type) {
 // User-facing branding is separate from the legacy host choice strings.
 // Preserve host choice names and all normalized automation/state identities.
 inline const char* displayName(int type) noexcept {
-    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air","Skell De-Esser","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Hush"};
+    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C","Skell Sibilant","Skell Warm Drive","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo","Skell Plate Room","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage","Skell Fast C","Skell Bus C","Skell Program Opto","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air","Skell De-Esser","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Silence"};
     return names[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 inline float toNorm(const Knob& k,float v) {

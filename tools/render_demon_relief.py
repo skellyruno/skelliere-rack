@@ -116,17 +116,20 @@ def build_static():
         tube(m,[(X(.04),-.20,.22),(X(.34),-.14,.23),(X(.56),-.19,.12),(X(.68),-.14,.06)],[.065,.065,.074,.05],0,22)
         # Scapula spike and skeletal shoulder joint.
         tube(m,[(X(.45),-.23,-.02),(X(.64),-.15,-.02),(X(.87),.13,-.07)],[.14,.092,.002],3,18)
-        ellipsoid(m,(X(.70),-.245,.10),(.257,.201,.201),0)
+        ellipsoid(m,(X(.70),-.245,.10),(.29,.22,.23),0)
         tube(m,[(X(.70),-.25,.11),(X(.77),-.44,.20),(X(.87),-.64,.35)],[.144,.102,.112],0,22,18)
         ellipsoid(m,(X(.87),-.64,.35),(.105,.09,.095),0)
         tube(m,[(X(.85),-.65,.36),(X(.76),-.81,.60),(X(.66),-.91,.85)],[.082,.057,.062],0,22,18)
         tube(m,[(X(.93),-.65,.33),(X(.84),-.83,.59),(X(.74),-.93,.84)],[.050,.043,.049],3,18)
         # Massive bone horns, curved and segmented, with dark growth bands.
-        tube(m,[(X(.34),.68,-.015),(X(.57),.75,.015),(X(.78),.88,.04),(X(.94),1.04,.05),(X(.95),1.20,-.01),(X(.86),1.32,-.04)], [.177,.165,.139,.096,.040,.001],3,96,22,.105)
+        tube(m,[(X(.34),.68,-.015),(X(.57),.75,.015),(X(.78),.88,.04),(X(.94),1.04,.05),(X(.87),1.20,-.01),(X(.70),1.30,.02)], [.177,.165,.139,.096,.040,.001],3,96,22,.105)
         # Overlapping scapular ridges and clavicle spurs broaden the silhouette.
         tube(m,[(X(.26),-.18,.20),(X(.50),-.08,.22),(X(.75),-.08,.15),(X(.83),.07,.05)],[.060,.081,.074,.005],0,24,18)
         tube(m,[(X(.58),-.26,.19),(X(.75),-.20,.24),(X(.84),-.13,.18)],[.071,.093,.003],3,18,16)
         tube(m,[(X(.70),-.31,.19),(X(.81),-.47,.28),(X(.89),-.58,.36)],[.035,.040,.049],0,20,16)
+        # Layered shoulder armour, without extending the rib cage.
+        for i in range(3):
+            tube(m,[(X(.49+i*.075),-.22-i*.065,.16),(X(.68+i*.055),-.26-i*.075,.27),(X(.76+i*.035),-.34-i*.075,.23)],[.055,.075,.006],0,23,16)
         # Small horn roots join the cranium, avoiding floating cones.
         ellipsoid(m,(X(.37),.68,.04),(.16,.17,.14),0)
     # Front sternum and rib anchors.
@@ -158,15 +161,15 @@ def build_static():
         tube(m,[(x,y,z),(x,y-l*.53,z+.014),(x*.98,y-l,z+.002)],[.027,.022,.004],2,10,12)
     # Bring the skull toward the listener; keep the horns anchored to the cranium.
     for k in range(head_start,len(m.v)):
-        m.v[k][:,0]*=1.18;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.10;m.v[k][:,2]+=.07
-        m.n[k][:,0]/=1.18;m.n[k][:,1]/=1.10;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
+        m.v[k][:,0]*=1.08;m.v[k][:,1]=.27+(m.v[k][:,1]-.27)*1.06;m.v[k][:,2]+=.07
+        m.n[k][:,0]/=1.08;m.n[k][:,1]/=1.06;m.n[k]/=np.maximum(np.linalg.norm(m.n[k],axis=1,keepdims=True),1e-8)
     return m
 
 def add_jaw(m,open_amt):
     # Hinge-driven 3D jaw, rotating the chin forward and down, not a flat mouth overlay.
     # Y displacement grows toward the front of the mandible.
     def pose(p):
-        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.18,.27+(y-open_amt*.33*w-.27)*1.10,z+open_amt*.083*w+.07)
+        x,y,z=p;w=np.clip((z-.11)/.44,0,1);return (x*1.08,.27+(y-open_amt*.33*w-.27)*1.06,z+open_amt*.083*w+.07)
     for side in (-1,1):
         X=lambda x:side*x
         points=[(X(.33),.015,.09),(X(.31),-.22,.17),(X(.226),-.35,.36),(X(.122),-.405,.49),(0,-.427,.53)]
@@ -241,9 +244,9 @@ def render(mesh):
     pore=np.sin(pp[:,0]*113+np.sin(pp[:,1]*57))*np.sin(pp[:,1]*127+np.sin(pp[:,2]*63))*np.sin(pp[:,2]*131+pp[:,0]*61)
     texture=.83+.10*np.sin(pp[:,0]*39+2*np.sin(pp[:,1]*31)+np.sin(pp[:,2]*45))+.065*np.sin(pp[:,1]*59+2*np.sin(pp[:,2]*36+pp[:,0]*23))+.046*np.sin(pp[:,2]*140+pp[:,0]*97)-.12*np.maximum(pore,0)**3
     colors=np.array([[.52,.070,.051],[1.0,.14,.008],[.66,.108,.064],[.24,.025,.020],[1.,.58,.12]])[mat[mask]]
-    rgb=colors*texture[:,None]*(.049+1.43*D[:,None]*vis[:,None])
+    rgb=colors*texture[:,None]*(.052+1.22*D[:,None]*vis[:,None])
     rgb+=np.array([.54,.067,.035])*rim[:,None]*(.45+.55*fres[:,None])
-    rgb+=np.array([.96,.56,.35])*spec[:,None]*(.28+.18*texture[:,None])
+    rgb+=np.array([.96,.56,.35])*spec[:,None]*(.18+.12*texture[:,None])
     # Subtle warm bounce from the crimson enclosure and cold upper-edge reflection.
     rgb+=np.array([.14,.052,.032])*np.maximum(N@np.array([-.38,-.26,.72]),0)[:,None]*(.45+.55*texture[:,None])
     # Subtle red up-light, keeps shadows deep rather than flattening into orange.

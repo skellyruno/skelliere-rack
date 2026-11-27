@@ -11,12 +11,49 @@ static int textWidth(const juce::Font& f, const juce::String& s) { return juce::
 
 // A single measured aggregate output peak, not invented stereo channels.
 static void paintMixHeadPeak(Graphics& g,Rectangle<float> r,float db,bool plate){
-    auto dial=r.reduced(6.f,7.f).withTrimmedBottom(18.f);
-    if(plate){paintHardwarePlate(g,r,Colour(0xff4c3926),false,5.f,3.f);paintVU(g,dial,0.f,true,MeterLayer::plate);g.setColour(Colour(0xfff0d5ab));g.setFont(font(9.f,true).withExtraKerningFactor(.13f));g.drawFittedText("OXIDE  /  PEAK",r.withY(r.getBottom()-18.f).withHeight(15.f).toNearestInt(),juce::Justification::centred,1);}
-    else paintVU(g,dial,db,true,MeterLayer::needle);
+    const auto track=r.reduced(7.f,0.f).withTrimmedTop(31.f).withTrimmedBottom(31.f);
+    constexpr int n=32;const float step=track.getHeight()/n;
+    if(plate){
+        paintHardwarePlate(g,r,Colour(0xff312521),false,3.f,2.5f);
+        paintRecessedWindow(g,r.reduced(4.f),2.f);
+        g.setColour(Colour(0xffe1cfb0));g.setFont(font(9.f,true));
+        g.drawText("OUT",r.withTrimmedTop(8).withHeight(14),juce::Justification::centred);
+        g.setFont(font(7.2f));
+        for(int i=0;i<=5;++i){float y=track.getY()+i*track.getHeight()/5.f;g.drawText(juce::String(-i*12),Rectangle<float>(track.getRight()-13,y-5,15,10),juce::Justification::centred);}
+        return;
+    }
+    const int lit=juce::jlimit(0,n,int(std::ceil((db+60.f)*n/60.f)));
+    for(int i=0;i<n;++i){
+        auto b=Rectangle<float>(track.getX(),track.getBottom()-(i+1)*step,track.getWidth()-15.f,step-1.2f);
+        auto c=i>=29?Colour(0xffff4b25):i>=23?Colour(0xffffc45c):Colour(0xffd9b65a);
+        if(i>=lit)c=Colour(0xff35291d);
+        g.setGradientFill(juce::ColourGradient::vertical(c.brighter(.28f),b.getY(),c.darker(.46f),b.getBottom()));g.fillRoundedRectangle(b,.6f);
+    }
+    g.setColour(Colour(0xffe6d1a4));g.setFont(font(9.f,true));g.drawText(db<=-60.f?juce::String("-INF"):juce::String(db,1),r.withY(r.getBottom()-27).withHeight(13),juce::Justification::centred);
+    g.setFont(font(7.5f));g.drawText("dBFS",r.withY(r.getBottom()-14).withHeight(10),juce::Justification::centred);
 }
 
-static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
+static void paintMixHeadBadge(Graphics& g,Rectangle<float> r){
+    paintHardwarePlate(g,r,Colour(0xff372a22),false,4.f,3.f);
+    const auto glass=r.reduced(5.f);paintRecessedWindow(g,glass,2.f);
+    auto lcd=glass.reduced(4.f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff5b6025),lcd.getY(),Colour(0xff202b0f),lcd.getBottom()));g.fillRoundedRectangle(lcd,1.2f);
+    g.setColour(Colour(0xffbbc96a).withAlpha(.20f));for(int y=int(lcd.getY()+1);y<int(lcd.getBottom());y+=3)g.drawHorizontalLine(y,lcd.getX()+2,lcd.getRight()-2);
+    g.setColour(Colour(0xffa9b976));g.setFont(font(8.f,true).withExtraKerningFactor(.07f));g.drawFittedText("4X TAPE  /  12 SAMPLES",lcd.withY(lcd.getBottom()-12.f).withHeight(11.f).toNearestInt(),juce::Justification::centred,1);
+    g.setColour(Colour(0xffe8ecd0).withAlpha(.13f));g.fillRect(lcd.reduced(1.f).withHeight(2.f));
+}
+
+static Rectangle<int> mixHeadBadgeBounds(int width){return {12,tallPanelY(100),width-24,tallPanelY(162)-tallPanelY(100)};}
+static void paintMixHeadReadout(Graphics& g,Rectangle<float> r,float input,float drive,float output){
+    auto lcd=r.reduced(9.f);const float cw=lcd.getWidth()/3.f;
+    const juce::String labels[]={"IN dB","DRIVE %","OUT dB"};
+    const juce::String vals[]={juce::String(input,1),juce::String(drive*100.f,0),juce::String(output,1)};
+    for(int i=0;i<3;++i){auto col=lcd.withX(lcd.getX()+i*cw).withWidth(cw);g.setColour(Colour(0xffa9b976));g.setFont(font(8.f,true));g.drawFittedText(labels[i],col.withHeight(12.f).toNearestInt(),juce::Justification::centred,1);
+        g.setColour(Colour(0xffe7f4a2));g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),17.f,juce::Font::bold)));g.drawFittedText(vals[i],col.withY(col.getY()+13.f).withHeight(22.f).toNearestInt(),juce::Justification::centred,1);
+        if(i<2){g.setColour(Colour(0xffa9b976).withAlpha(.22f));g.drawVerticalLine(int(col.getRight()),col.getY()+3.f,col.getY()+34.f);}
+    }
+}
+
+static void paintSilenceMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
     auto track=r.reduced(12,0).withTrimmedTop(27).withTrimmedBottom(22);track.setWidth(16.f);
     if(plate){paintHardwarePlate(g,r,Colour(0xff29343a),false,5.f,3.f);paintRecessedWindow(g,track,2);g.setFont(font(9.5f,true));g.setColour(Colour(0xffcbd5cf));g.drawText("GR dB",r.withHeight(24),juce::Justification::centred);for(int i=0;i<=4;++i){float y=track.getY()+track.getHeight()*i*.25f;g.setColour(Colour(0xff80908d));g.drawHorizontalLine(int(y),track.getRight()+3,track.getRight()+8);g.drawText(juce::String(i*6),Rectangle<float>(track.getRight()+10,y-7,22,14),juce::Justification::centredLeft);}}
     else {const float v=juce::jlimit(0.f,1.f,std::abs(db)/24.f);auto bar=track.reduced(2).withHeight(track.reduced(2).getHeight()*v);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdcffb5),bar.getY(),Colour(0xff2a986b),bar.getBottom()));g.fillRoundedRectangle(bar,1);}
@@ -33,7 +70,7 @@ static void paintSSLReduction(Graphics& g,Rectangle<float> r,float db,float peak
             g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.32f):Colour(0xff30342a),v.getY(),on?c.darker(.42f):Colour(0xff161915),v.getBottom()));g.fillEllipse(v);}
     };
     line(r.getY()+7,"GR dB",std::abs(db)<.05f?0.f:-std::abs(db),juce::jlimit(0,n,int(std::ceil(std::abs(db)*n/20.f))),false);
-    line(r.getY()+34,"OUT dBFS",peak,juce::jlimit(0,n,int(std::ceil((peak+60.f)*n/60.f))),true);
+    line(r.getY()+30,"OUT dBFS",peak,juce::jlimit(0,n,int(std::ceil((peak+60.f)*n/60.f))),true);
 }
 // Real post-effect aggregate peak, red LED ladder like the rack hardware.
 static void paintDopePeak(Graphics& g,Rectangle<float> r,float db,bool plate){
@@ -296,11 +333,18 @@ void SlotComponent::rebuild() {
             if((type==SkellDope||type==SkellMixHead||type==SkellDemon||type==SkellSSL)&&k.steps==2){
                 cell->slider.getProperties().set("colorSwitch",true);
                 cell->slider.getProperties().set("dopeSwitch",type==SkellDope);
+                if(type==SkellMixHead)cell->slider.getProperties().set("tapeToggle",true);
                 cell->slider.getProperties().set("switchLabels",juce::String(k.names));
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
             if(type==SkellDope&&j>0){cell->slider.getProperties().set("consoleCell",true);cell->slider.getProperties().set("dopeRow",true);}
+            if(type==SkellMixHead&&(j==0||j==1||j==3)){
+                auto previous=cell->slider.onValueChange;
+                cell->slider.onValueChange=[this,previous]{if(previous)previous();repaint(mixHeadBadgeBounds(getWidth()));};
+            }
+            if(type==SkellNoise&&j==1)cell->slider.setTooltip("Noise-floor ceiling: higher values suppress louder background noise; lower values preserve quieter detail. Amount sets reduction strength.");
+            if(type==SkellNoise&&j==2)cell->slider.setTooltip("Recovery time of the attenuation as signal level changes.");
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
             if(type==SkellSSL){
                 cell->slider.getProperties().set("consoleCell",true);
@@ -309,12 +353,10 @@ void SlotComponent::rebuild() {
                 // Restore shared rotating Skelliere skull cap; keep compact console geometry.
                 static const unsigned caps[]={0xffa5a79e,0xffa16b3e,0xff32698f,0xff3b7650,0xffa92c31,0xffbb393b};
                 unsigned cap=ext?0xffa5a6a0:caps[j];
-                if(extIndex==SslInput||extIndex==SslOutput)cap=0xffb6443c;
+                if(extIndex==SslInput)cap=0xffb6443c;
+                if(extIndex==SslOutput)cap=0xffa9aaa5;
                 if(extIndex==SslHP||extIndex==SslLP)cap=0xff51865d;
-                if(extIndex==SslHFFreq)cap=0xffa92c31;
-                if(extIndex==SslHMFreq||extIndex==SslHMQ)cap=0xff3b7650;
-                if(extIndex==SslLMFreq||extIndex==SslLMQ)cap=0xff32698f;
-                if(extIndex==SslLFFreq)cap=0xffa16b3e;
+                if(extIndex==SslHFFreq||extIndex==SslHMFreq||extIndex==SslHMQ||extIndex==SslLMFreq||extIndex==SslLMQ||extIndex==SslLFFreq)cap=0xffa9aaa5;
                 if(extIndex==SslExpThreshold)cap=0xff41865b;
                 if(extIndex==SslThreshold)cap=0xffb63a33;
                 cell->slider.getProperties().set("houseTint",juce::String::toHexString(int(cap)));
@@ -509,7 +551,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         if(type==SkellSSL){
             const int lane=(w-22)/2;
             const auto console=Rectangle<float>(8,75,float(w-16),float(tallPanelY(548)-75));
-            pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff343836),console.getY(),Colour(0xff212422),console.getBottom()));pg.fillRect(console);
+            pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff292c2d),console.getY(),Colour(0xff15191a),console.getBottom()));pg.fillRect(console);
             paintPeened(pg,console,.62f);
             paintAnalogWear(pg,console,false,4632,.42f);
             pg.setColour(Colour(0xff121715));pg.drawVerticalLine(10+lane,75,tallPanelY(548));
@@ -521,7 +563,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
                 pg.drawFittedText(label,Rectangle<int>(x+2,y+2,ww-4,15),juce::Justification::centredLeft,1);
             };
             section(9,84,lane-2,"INPUT");section(9,160,lane-2,"FILTERS");section(9,233,lane-2,"COMPRESSOR");section(9,355,lane-2,"GATE / EXP");section(9,474,lane-2,"OUTPUT");
-            section(13+lane,84,lane-2,"EQUALIZER / HF");section(13+lane,174,lane-2,"HMF");section(13+lane,265,lane-2,"LMF");section(13+lane,356,lane-2,"LF");section(13+lane,452,lane-2,"DYNAMICS / OUT");
+            section(13+lane,84,lane-2,"EQUALIZER / HF");section(13+lane,170,lane-2,"HMF");section(13+lane,254,lane-2,"LMF");section(13+lane,338,lane-2,"LF");
+            section(13+lane,422,lane-2,"CIRCUIT");section(13+lane,466,lane-2,"DYNAMICS / OUT");
             paintSSLReduction(pg,layout.meter.toFloat(),0,-60,true);
         }
         else if(type==SkellDope){
@@ -538,8 +581,13 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.setColour(Colour(0xffbcb6a7));pg.setFont(font(8.f,true));pg.drawFittedText("SPECTRAL",plaque.withY(plaque.getBottom()-40.f).withHeight(16.f).toNearestInt(),juce::Justification::centred,1);pg.drawFittedText("4",plaque.withY(plaque.getBottom()-24.f).withHeight(14.f).toNearestInt(),juce::Justification::centred,1);
             paintDopePeak(pg,layout.meter.toFloat(),-60,true);
         }
-        else if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
-        else if(type==SkellMixHead&&!layout.meter.isEmpty())paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
+        else if(type==SkellNoise&&!layout.meter.isEmpty())paintSilenceMeter(pg,layout.meter.toFloat(),0,true);
+        else if(type==SkellMixHead&&!layout.meter.isEmpty()){
+            paintMixHeadBadge(pg,mixHeadBadgeBounds(w).toFloat());
+            paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
+            pg.setColour(ink.withAlpha(.62f));pg.setFont(font(8.4f,true).withExtraKerningFactor(.11f));
+            pg.drawFittedText("DIGITAL TAPE SATURATION",Rectangle<int>(12,tallPanelY(518),w-24,18),juce::Justification::centred,1);
+        }
         else if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
         if(type!=SkellDope&&mi.numKnobs==5&&!layout.meter.isEmpty()){
@@ -558,6 +606,10 @@ void SlotComponent::paintNativeFace(Graphics& g) {
             pg.drawText(slotLetter(index)+"  /  "+p.series,14,h-49,w-28,8,juce::Justification::centred,false);}
     }
     g.setOpacity(1.f);g.drawImage(panelCache,getLocalBounds().toFloat());
+    if(type==SkellMixHead&&cells.size()>=4&&g.clipRegionIntersects(mixHeadBadgeBounds(w))){
+        auto value=[&](int j){return toReal(info(type).knobs[j],float(cells[size_t(j)]->slider.getValue()));};
+        paintMixHeadReadout(g,mixHeadBadgeBounds(w).toFloat(),value(0),value(1),value(3));
+    }
     const auto detail=originalLayout(type,w,editing).detail;
     if(!detail.isEmpty()&&g.clipRegionIntersects(detail)){
         // Repaint only the optical scene; the heavy chassis/faceplate stays cached.
@@ -574,7 +626,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
     if(type==SkellSSL&&!vuRect.isEmpty()){paintSSLReduction(g,vuRect.toFloat(),needle,outputDb,false);}
     else if(type==SkellDope&&!vuRect.isEmpty()){paintDopePeak(g,vuRect.toFloat(),outputDb,false);}
-    else if(type==SkellNoise&&!vuRect.isEmpty()){paintHushMeter(g,vuRect.toFloat(),needle,false);}
+    else if(type==SkellNoise&&!vuRect.isEmpty()){paintSilenceMeter(g,vuRect.toFloat(),needle,false);}
     else if(type==SkellMixHead&&!vuRect.isEmpty()){
         paintMixHeadPeak(g,vuRect.toFloat(),outputDb,false);
     }else if(hasOutputPeak(type)&&!vuRect.isEmpty()){
