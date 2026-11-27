@@ -16,7 +16,9 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==Chorus)metal=Colour(0xff29454a);
     if(finish==1&&type==SkellDope)metal=Colour(0xffd2d3cc);
     if(finish==1&&type==SkellSSL)metal=Colour(0xff252827);
-    if(finish==1&&type==SkellDemon)metal=Colour(0xff591014);
+    if(finish==1&&type==SkellDemon)metal=Colour(0xff64120e);
+    if(finish==1&&type==SkellMixHead)metal=Colour(0xff514035);
+    if(finish==1&&type==SkellRubyQ)metal=Colour(0xff661124);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
@@ -51,12 +53,13 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
         const int lane=(width-30)/2, left=14,right=16+lane;
         auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
         auto e=[](int i){return kMaxKnobs+i;};
-        row(left,103,63,{e(SslInput),e(SslOutput),e(SslPhase)});
-        row(left,185,63,{e(SslHP),e(SslLP),0});
-        row(left,267,63,{5,e(SslThreshold),e(SslRatio)});
-        row(left,330,54,{e(SslRelease),e(SslFast)});
-        row(left,403,55,{e(SslExpThreshold),e(SslExpRange)});
-        row(left,458,57,{e(SslExpRelease),e(SslGate)});
+        row(left,102,53,{e(SslInput),e(SslPhase),0});
+        row(left,174,53,{e(SslHP),e(SslLP)});
+        row(left,246,53,{5,e(SslThreshold),e(SslRatio)});
+        row(left,300,49,{e(SslRelease),e(SslFast)});
+        row(left,368,51,{e(SslExpThreshold),e(SslExpRange)});
+        row(left,420,51,{e(SslExpRelease),e(SslGate)});
+        row(left,484,43,{e(SslOutput)});
         row(right,103,71,{4,e(SslHFFreq),e(SslHFBell)});
         row(right,193,71,{3,e(SslHMFreq),e(SslHMQ)});
         row(right,283,71,{2,e(SslLMFreq),e(SslLMQ)});
@@ -66,9 +69,9 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==SkellDope){
         // Vertical rack adaptation of the two-mode hardware. All four
         // existing APVTS attachments remain in their original order.
-        l.cells[0]={10,164,54,80};
-        for(int k=1;k<=4;++k)l.cells[k]={76,155+(k-1)*90,82,88};
-        l.meter={164,154,width-176,360};return l;
+        l.cells[0]={mid-32,100,64,71};
+        for(int k=1;k<=4;++k)l.cells[k]={mid-41,174+(k-1)*86,82,84};
+        l.meter={width-69,174,57,340};return l;
     }
     if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -110,7 +113,7 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false){
     for(auto& c:l.cells)stretch(c);stretch(l.meter);stretch(l.detail);
     if(type==SkellDope){
         // Do not round individual rows: all four controls use an exact pitch.
-        const int top=tallPanelY(155),pitch=105,height=103;
+        const int top=tallPanelY(174),pitch=101,height=98;
         for(int k=1;k<=4;++k)l.cells[k].setY(top+(k-1)*pitch),l.cells[k].setHeight(height);
     }
     return l;
@@ -469,6 +472,7 @@ inline const juce::Image& demonReliefAtlas(){
     return atlas;
 }
 inline bool demonReliefIsValid(){const auto& a=demonReliefAtlas();return a.isValid()&&a.hasAlphaChannel()&&a.getWidth()==1296&&a.getHeight()==1488;}
+inline const juce::Image& infernalBackdrop();
 inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
     if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
     const auto win=r.withTrimmedBottom(30.f);const auto a=win.reduced(5.f);
@@ -476,12 +480,45 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
     juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
     g.setGradientFill(juce::ColourGradient(Colour(0xff5b140f),a.getCentreX(),a.getY()+a.getHeight()*.53f,Colour(0xff090306),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4.f);
     {juce::Graphics::ScopedSaveState bg(g);g.reduceClipRegion(a.toNearestInt());
+        g.setOpacity(1.f);g.drawImage(infernalBackdrop(),a);
         for(int i=0;i<21;++i){float x=a.getX()+a.getWidth()*float((i*47)%100)/100.f,y=a.getY()+a.getHeight()*float((i*37)%100)/100.f,rad=15.f+(i%5)*7.f;g.setGradientFill(juce::ColourGradient(Colour(0xffc32613).withAlpha(.07f+.025f*level),x,y,juce::Colours::transparentBlack,x+rad,y,true));g.fillEllipse(x-rad,y-rad,rad*2,rad*2);}
         for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
     }
     const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
     const auto& atlas=demonReliefAtlas();const auto dst=r.expanded(5.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
     g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
+}
+// Distinct patina/finish per module. Static faceplate cache only, no audio dependency.
+inline void paintIdentityFinish(Graphics& g,juce::Rectangle<float> r,int type,bool light){
+    juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(r.getX(),r.getY(),r.getWidth(),r.getHeight(),4.f);g.reduceClipRegion(clip);
+    const bool red=type==SkellDemon, ruby=type==SkellRubyQ, tape=type==SkellMixHead;
+    const auto tint=red?Colour(0xffe44319):ruby?Colour(0xffe94e75):tape?Colour(0xffc7a271):Colour(0xffe3d8bb);
+    // Layered casting grain / lacquer clouding, generated with a local seed.
+    juce::Random rng(0x7f124+type*937);
+    for(int i=0;i<(red||ruby?240:90);++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight(),rr=6.f+rng.nextFloat()*(red?56.f:32.f);auto c=(i%3==0?tint:juce::Colours::black).withAlpha(red||ruby?.055f:.028f);g.setGradientFill(juce::ColourGradient(c,x,y,c.withAlpha(0.f),x+rr,y,true));g.fillEllipse(x-rr,y-rr,2*rr,2*rr);}
+    for(int i=0;i<(red?1750:ruby?1050:420);++i){float x=r.getX()+rng.nextFloat()*r.getWidth(),y=r.getY()+rng.nextFloat()*r.getHeight();g.setColour((i%3==0?tint:juce::Colours::black).withAlpha(red?.19f:ruby?.13f:light?.09f:.08f));g.fillEllipse(x,y,.35f+rng.nextFloat()*1.5f,.35f+rng.nextFloat()*1.3f);}
+    if(ruby){
+        // Deep lacquer with a single sculpted ruby cartouche; leave the legends clear.
+        const float cx=r.getCentreX(),cy=r.getY()+107.f;const float rw=25.f,rh=14.f;
+        juce::Path jewel;jewel.startNewSubPath(cx-rw,cy);jewel.lineTo(cx-rw*.57f,cy-rh);jewel.lineTo(cx+rw*.57f,cy-rh);jewel.lineTo(cx+rw,cy);jewel.lineTo(cx+rw*.57f,cy+rh);jewel.lineTo(cx-rw*.57f,cy+rh);jewel.closeSubPath();
+        g.setColour(juce::Colours::black.withAlpha(.7f));g.fillPath(jewel,juce::AffineTransform::translation(0,2.f));
+        g.setGradientFill(juce::ColourGradient(Colour(0xfff48b97),cx-rw,cy-rh,Colour(0xff2c0015),cx+rw,cy+rh,false));g.fillPath(jewel);
+        for(int k=0;k<6;++k){const juce::Point<float> v[]={{cx-rw,cy},{cx-rw*.57f,cy-rh},{cx+rw*.57f,cy-rh},{cx+rw,cy},{cx+rw*.57f,cy+rh},{cx-rw*.57f,cy+rh}};juce::Path facet;facet.startNewSubPath(cx+3,cy-3);facet.lineTo(v[k]);facet.lineTo(v[(k+1)%6]);facet.closeSubPath();g.setColour((k%2==0?Colour(0xfffcbac0):Colour(0xff1b0610)).withAlpha(k==1?.26f:.13f));g.fillPath(facet);}
+        g.setColour(Colour(0xffedc58d).withAlpha(.9f));g.strokePath(jewel,juce::PathStrokeType(.9f));g.setColour(Colour(0xffe2ba82).withAlpha(.37f));g.drawHorizontalLine(int(cy),r.getX()+15,cx-rw-8);g.drawHorizontalLine(int(cy),cx+rw+8,r.getRight()-15);
+        // Sparse engraved medallion pattern, away from the hardware controls.
+        for(int i=0;i<3;++i){float y=r.getY()+r.getHeight()*(.33f+i*.247f);juce::Path f;f.startNewSubPath(r.getX()+13,y+25);f.quadraticTo(cx,y+53,r.getRight()-13,y+25);g.setColour(Colour(0xffd9b27c).withAlpha(.17f));g.strokePath(f,juce::PathStrokeType(.6f));}
+        g.setColour(Colour(0xffd0a267).withAlpha(.65f));g.drawRoundedRectangle(r.reduced(5.f),3.f,.8f);g.setColour(Colour(0xff1f060e).withAlpha(.8f));g.drawRoundedRectangle(r.reduced(7.f),2.f,1.1f);
+    }else if(tape){
+        auto band=r.reduced(8.f,0.f).withTrimmedTop(100.f).withTrimmedBottom(21.f);g.setGradientFill(juce::ColourGradient(Colour(0xff130e0a).withAlpha(.55f),band.getX(),band.getY(),Colour(0xff765b3d).withAlpha(.24f),band.getRight(),band.getY(),false));g.fillRoundedRectangle(band,3.f);g.setColour(Colour(0xffd7af79).withAlpha(.28f));g.drawRoundedRectangle(band,3.f,.9f);
+    }else if(red){g.setColour(Colour(0xffba7750).withAlpha(.48f));g.drawRoundedRectangle(r.reduced(4.f),4.f,.8f);g.setColour(Colour(0xff270509));g.drawRoundedRectangle(r.reduced(6.f),3.f,1.f);}
+}
+// Infernal background, baked once into a software image; animation only composites it.
+inline const juce::Image& infernalBackdrop(){
+    static const auto image=[] {constexpr int w=384,h=512;juce::Image im(juce::Image::ARGB,w,h,true,juce::SoftwareImageType());
+        auto hash=[](int x,int y){unsigned v=unsigned(x)*0x9e3779b9u+unsigned(y)*0x85ebca6bu+0xf41e2u;v^=v>>16;v*=0x7feb352du;v^=v>>15;return float(v&65535u)/65535.f;};
+        auto field=[&](float x,float y){const int i=int(std::floor(x)),j=int(std::floor(y));float a=x-i,b=y-j;a=a*a*(3-2*a);b=b*b*(3-2*b);return (hash(i,j)*(1-a)+hash(i+1,j)*a)*(1-b)+(hash(i,j+1)*(1-a)+hash(i+1,j+1)*a)*b;};
+        auto fbm=[&](float x,float y){float n=0,amp=.54f;for(int k=0;k<7;++k){n+=amp*field(x,y);x=x*2.04f+17.f;y=y*2.03f+5.f;amp*=.49f;}return n;};
+        juce::Image::BitmapData px(im,juce::Image::BitmapData::writeOnly);for(int y=0;y<h;++y)for(int x=0;x<w;++x){const float u=float(x)/w,v=float(y)/h,warp=fbm(u*4+12,v*5+3);const float n=fbm(u*6+warp*2,v*8+warp*3),n2=fbm(u*17+warp*4,v*19+warp*4);float light=metal::sat((n-.28f)*1.65f);float fissure=std::exp(-80.f*std::abs(n2-.51f));float halo=std::exp(-4.2f*((u-.5f)*(u-.5f)+(v-.5f)*(v-.5f)));auto c=Colour(0xff100205).interpolatedWith(Colour(0xffb7210b),metal::sat(light*halo+.16f*fissure));c=c.interpolatedWith(Colour(0xffe86c20),fissure*.16f*halo);px.setPixelColour(x,y,c);}return im;}();return image;
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
@@ -495,7 +532,8 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(r.reduced(4.f),4.f,.85f);
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
-    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.15f);
+    paintIdentityFinish(g,f,type,p.light);
+    paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.22f);
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {

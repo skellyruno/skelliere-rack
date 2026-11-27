@@ -11,22 +11,9 @@ static int textWidth(const juce::Font& f, const juce::String& s) { return juce::
 
 // A single measured aggregate output peak, not invented stereo channels.
 static void paintMixHeadPeak(Graphics& g,Rectangle<float> r,float db,bool plate){
-    if(plate){
-        g.setColour(Colour(0xff291813));g.fillRoundedRectangle(r,5.f);
-        g.setColour(Colour(0xffc48c59));g.drawRoundedRectangle(r.reduced(1),4.f,1.f);
-        g.setColour(Colour(0xff10140f));g.fillRoundedRectangle(r.reduced(7),3.f);
-        g.setColour(Colour(0xffceccb4));g.setFont(font(10.f,true));
-        g.drawText("OUTPUT  /  PEAK",r.withY(r.getY()+11).withHeight(16).toNearestInt(),juce::Justification::centred,false);
-        const auto track=r.reduced(16,0).withY(r.getY()+36).withHeight(juce::jmax(29.f,r.getHeight()-88.f));
-        for(int i=0;i<30;++i){const float step=track.getWidth()/30.f;g.setColour(Colour(0xff262b20));g.fillRoundedRectangle({track.getX()+i*step,track.getY(),step-1.f,track.getHeight()},.7f);}
-        const char* labels[]={"-60","-40","-20","-6","0"};const float points[]={0.f,1.f/3.f,2.f/3.f,.9f,1.f};
-        g.setFont(font(8.5f));for(int i=0;i<5;++i){const float x=track.getX()+track.getWidth()*points[i];g.setColour(Colour(0xffadac95));g.drawVerticalLine(int(x),track.getBottom()+2,track.getBottom()+6);g.drawText(labels[i],Rectangle<float>(x-12,track.getBottom()+7,24,12).toNearestInt(),juce::Justification::centred,false);}
-    }else{
-        const auto track=r.reduced(16,0).withY(r.getY()+36).withHeight(juce::jmax(29.f,r.getHeight()-88.f));
-        const int lit=juce::jlimit(0,30,int(std::ceil((db+60.f)*.5f)));
-        for(int i=0;i<lit;++i){const float step=track.getWidth()/30.f;auto b=Rectangle<float>(track.getX()+i*step,track.getY(),step-1.f,track.getHeight());const auto c=i>=29?Colour(0xffef6252):i>=25?Colour(0xffffc362):Colour(0xff8ed456);g.setGradientFill(juce::ColourGradient::vertical(c.brighter(.35f),b.getY(),c.darker(.55f),b.getBottom()));g.fillRoundedRectangle(b,.7f);}
-        g.setColour(Colour(0xffd0e7a1));g.setFont(font(12.f,true));g.drawText((db<=-60.f?juce::String("-INF"):juce::String(db,1))+" dBFS",r.withY(r.getBottom()-29).withHeight(18).toNearestInt(),juce::Justification::centred,false);
-    }
+    auto dial=r.reduced(6.f,7.f).withTrimmedBottom(18.f);
+    if(plate){paintHardwarePlate(g,r,Colour(0xff4c3926),false,5.f,3.f);paintVU(g,dial,0.f,true,MeterLayer::plate);g.setColour(Colour(0xfff0d5ab));g.setFont(font(9.f,true).withExtraKerningFactor(.13f));g.drawFittedText("OXIDE  /  PEAK",r.withY(r.getBottom()-18.f).withHeight(15.f).toNearestInt(),juce::Justification::centred,1);}
+    else paintVU(g,dial,db,true,MeterLayer::needle);
 }
 
 static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
@@ -295,10 +282,11 @@ void SlotComponent::rebuild() {
                 cell->slider.setWantsKeyboardFocus(true);
             }
             if(type==SkellDope){cell->slider.getProperties().set("houseTint",juce::String("ff353431"));if(j>0){cell->slider.getProperties().set("consoleCell",true);cell->slider.getProperties().set("dopeRow",true);}}
+            if(type==SkellRubyQ)cell->slider.getProperties().set("houseTint",juce::String("ff665444"));
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
             if(type==SkellSSL){
                 cell->slider.getProperties().set("consoleCell",true);
-                cell->slider.getProperties().set("sslConsoleCap",true);
+                // Restore shared rotating Skelliere skull cap; keep compact console geometry.
                 static const unsigned caps[]={0xffa5a79e,0xffa16b3e,0xff32698f,0xff3b7650,0xffa92c31,0xffbb393b};
                 unsigned cap=ext?0xffa5a6a0:caps[j];
                 if(extIndex==SslInput||extIndex==SslOutput)cap=0xffb6443c;
@@ -363,7 +351,7 @@ bool SlotComponent::artworkLayoutIsValid() const {
         if(!safe.contains(c.getBounds())||!c.controlGeometryValid()||c.getBounds().intersects(vuRect)||c.getBounds().intersects(footRect)||c.getBounds().intersects(originalLayout(type,getWidth(),editing).detail))return false;
         for(size_t j=0;j<i;++j)if(c.getBounds().intersects(cells[j]->getBounds()))return false;
     }
-    if(type==SkellDope){for(int j=2;j<=4;++j){if(cells[j]->getBounds().getCentreX()!=cells[1]->getBounds().getCentreX()||cells[j]->getBounds().getCentreY()-cells[j-1]->getBounds().getCentreY()!=cells[2]->getBounds().getCentreY()-cells[1]->getBounds().getCentreY())return false;}}
+    if(type==SkellDope){if(cells[0]->getBounds().getCentreX()!=cells[1]->getBounds().getCentreX()||cells[0]->getBounds().getBottom()>cells[1]->getBounds().getY())return false;for(int j=2;j<=4;++j){if(cells[j]->getBounds().getCentreX()!=cells[1]->getBounds().getCentreX()||cells[j]->getBounds().getCentreY()-cells[j-1]->getBounds().getCentreY()!=cells[2]->getBounds().getCentreY()-cells[1]->getBounds().getCentreY())return false;}}
     return true;
 }
 
@@ -505,23 +493,22 @@ void SlotComponent::paintNativeFace(Graphics& g) {
                 pg.setColour(Colour(0xffdfdfd4));pg.setFont(font(9.f,true).withExtraKerningFactor(.025f));
                 pg.drawFittedText(label,Rectangle<int>(x+2,y+2,ww-4,15),juce::Justification::centredLeft,1);
             };
-            section(14,85,lane-2,"INPUT / OUTPUT");section(14,167,lane-2,"FILTER / CIRCUIT");section(14,249,lane-2,"COMPRESSOR");section(14,385,lane-2,"GATE / EXP");
-            section(16+lane,85,lane-2,"HF");section(16+lane,175,lane-2,"HMF");section(16+lane,265,lane-2,"LMF");section(16+lane,355,lane-2,"LF");section(16+lane,445,lane-2,"DYNAMICS / OUT");
+            section(14,85,lane-2,"INPUT");section(14,157,lane-2,"FILTERS");section(14,229,lane-2,"COMPRESSOR");section(14,351,lane-2,"GATE / EXP");section(14,473,lane-2,"OUTPUT");
+            section(16+lane,85,lane-2,"EQ / HF");section(16+lane,175,lane-2,"HMF");section(16+lane,265,lane-2,"LMF");section(16+lane,355,lane-2,"LF");section(16+lane,445,lane-2,"DYNAMICS / OUT");
             paintSSLReduction(pg,layout.meter.toFloat(),0,-60,true);
         }
         else if(type==SkellDope){
-            // Left-aligned horizontal nameplate, separate from the live meter.
-            auto plaque=Rectangle<float>(10,106,148,42);
-            paintHardwarePlate(pg,plaque,Colour(0xff343532),true,2.f,2.4f);
-            paintRecessedWindow(pg,plaque.reduced(4.f),1.5f);
-            auto brand=plaque.reduced(7.f).removeFromLeft(26.f);
-            pg.setColour(Colour(0xffc5c7bc));pg.fillRoundedRectangle(brand,1.f);
-            paintMonogram(pg,brand.reduced(5.f,3.f),Colour(0xff20231e));
-            pg.setColour(Colour(0xffdadbcf));pg.setFont(font(12.f,true));pg.drawFittedText("A-TYPE",plaque.withTrimmedLeft(37.f).withHeight(24.f).toNearestInt(),juce::Justification::centred,1);
-            pg.setColour(Colour(0xffa9aaa0));pg.setFont(font(8.f));pg.drawFittedText("SPECTRAL 4",plaque.withTrimmedLeft(37.f).withY(128.f).withHeight(12.f).toNearestInt(),juce::Justification::centred,1);
-            pg.setColour(ink.withAlpha(.24f));pg.drawVerticalLine(70,tallPanelY(155),tallPanelY(514));
-            pg.setColour(ink.withAlpha(.65f));pg.setFont(font(8.f,true));pg.drawFittedText("CIRCUIT",10,tallPanelY(263),54,14,juce::Justification::centred,1);
-            pg.setColour(ink.withAlpha(.48f));pg.setFont(font(8.f));pg.drawFittedText("361 / 180",10,tallPanelY(279),54,14,juce::Justification::centred,1);
+            // Matching recessed vertical housings flank the control column.
+            auto plaque=layout.meter.toFloat().withX(12.f);
+            paintHardwarePlate(pg,plaque,Colour(0xff35322d),false,3.f,2.f);
+            paintRecessedWindow(pg,plaque.reduced(4.f),2.f);
+            auto brand=plaque.withY(plaque.getY()+10.f).withHeight(28.f).reduced(11.f,2.f);
+            pg.setColour(Colour(0xffc5c7bc));pg.fillRoundedRectangle(brand,1.5f);paintMonogram(pg,brand.reduced(6.f,2.f),Colour(0xff20231e));
+            {juce::Graphics::ScopedSaveState label(pg);pg.addTransform(juce::AffineTransform::rotation(-juce::MathConstants<float>::halfPi,plaque.getCentreX(),plaque.getCentreY()));
+             auto words=Rectangle<float>(plaque.getCentreX()-plaque.getHeight()*.34f,plaque.getCentreY()-17,plaque.getHeight()*.68f,34.f);
+             pg.setColour(Colour(0xffe6dfc9));pg.setFont(font(23.f,true).withExtraKerningFactor(.16f));pg.drawFittedText("A-TYPE",words.toNearestInt(),juce::Justification::centred,1);}
+            pg.setColour(Colour(0xffbcb6a7).withAlpha(.27f));pg.drawRoundedRectangle(plaque.reduced(8.f,43.f),2.f,.65f);
+            pg.setColour(Colour(0xffbcb6a7));pg.setFont(font(8.f,true));pg.drawFittedText("SPECTRAL",plaque.withY(plaque.getBottom()-40.f).withHeight(16.f).toNearestInt(),juce::Justification::centred,1);pg.drawFittedText("4",plaque.withY(plaque.getBottom()-24.f).withHeight(14.f).toNearestInt(),juce::Justification::centred,1);
             paintDopePeak(pg,layout.meter.toFloat(),-60,true);
         }
         else if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
