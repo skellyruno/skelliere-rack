@@ -362,24 +362,6 @@ void SlotComponent::rebuild() {
                 cell->slider.onValueChange=[this,previous]{if(previous)previous();repaint(mixHeadBadgeBounds(getWidth()));};
             }
             if(identityMeter(type)||identityArt(type)){auto previous=cell->slider.onValueChange;cell->slider.onValueChange=[this,previous]{if(previous)previous();auto l=originalLayout(type,getWidth(),editing);repaint(l.meter.getUnion(l.detail).expanded(2));};}
-            int hardware=0;
-            switch(type){
-                case Tune:hardware=j==0?1:j==5?5:0;break;
-                case Trim:hardware=j==0?6:3;break;
-                case DualFilter:hardware=j<2?2:4;break;
-                case Limiter:hardware=j==1?7:1;break;
-                case FastComp:hardware=j==1?3:1;break;
-                case BusComp:hardware=j==1||j==2||j==3?3:4;break;
-                case DynamicEQ:hardware=j<2?2:4;break;
-                case Multiband:hardware=j==0||j==2?6:j==1?3:4;break;
-                case Resonance:hardware=j==2||j==3?8:1;break;
-                case VoxRider:hardware=j==0?6:4;break;
-                case StereoUnified:hardware=j==0?8:3;break;
-                case Exciter:hardware=j==1?6:2;break;
-                case Doubler:hardware=j==0||j==2?2:4;break;
-                default:break;
-            }
-            if(hardware)cell->slider.getProperties().set("physicalControl",hardware);
             if(type==SkellNoise&&j==1)cell->slider.setTooltip("Adaptive noise threshold: maximum tracked noise level in dB. Raise for louder background noise; lower to protect quiet vocal detail. Amount sets suppression strength.");
             if(type==SkellNoise&&j==2)cell->slider.setTooltip("Recovery time of the attenuation as signal level changes.");
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
@@ -438,24 +420,9 @@ void SlotComponent::syncArtwork() {
         c->slider.getProperties().set("ptr",(int)Colour(0xff191510).getARGB());
         c->slider.getProperties().set("silverCap",choice==2);
         if(type==SkellDope)c->slider.getProperties().remove("houseTint");
-        const int j=int(&c-&cells.front());
-        if(choice==1){unsigned tint=0;
-            switch(type){
-            case SkellRubyQ:c->slider.getProperties().remove("houseTint");break;
-            case FastComp:tint=j==0?0xffd0a15f:j==1?0xff7b8582:0xff89847a;break;
-            case BusComp:tint=j==0||j==4?0xffc0a778:0xff789aa7;break;
-            case Limiter:tint=j==1?0xffbb6d58:0xff9fa4a3;break;
-            case Trim:tint=j==0?0xffd4c5a2:0xff959e98;break;
-            case Tune:tint=j==0?0xffa9c6a9:0xff667b70;break;
-            case DualFilter:tint=j==0?0xffb8b393:j==1?0xff8caa89:0xffafb4a1;break;
-            case Multiband:tint=j<2?0xffd1b47e:j<4?0xff9c9e83:0xff777f74;break;
-            case DynamicEQ:tint=j<2?0xff83abb7:j<4?0xffccb88e:0xff9aaca9;break;
-            case Resonance:tint=j<2?0xffb6a0ba:j<4?0xff8c849e:0xff9c9b9e;break;
-            case Doubler:tint=j==0||j==2?0xff8facb3:0xffc1ae90;break;
-            case Exciter:tint=j==1||j==2?0xffc7a66a:0xff94958e;break;
-            default:break;}
-            if(tint)c->slider.getProperties().set("houseTint",juce::String::toHexString(int(tint)));
-        }else if(type!=SkellSSL)c->slider.getProperties().remove("houseTint");
+        // Restore the shared rotating skull cap for all standard effects.
+        // SSL retains its established console-specific cap colours.
+        if(type!=SkellSSL)c->slider.getProperties().remove("houseTint");
         c->slider.repaint();
     }
     resized();repaint();
@@ -473,7 +440,8 @@ bool SlotComponent::artworkLayoutIsValid() const {
         // body, but not into the side fasteners or real power-button bounds.
         const bool makeupBay=!body.contains(c.getBounds())&&!editing&&i==4&&cells.size()==5&&info(type).hasVU&&!vuRect.isEmpty();
         const auto safe=makeupBay?getLocalBounds().reduced(24,0).withTrimmedTop(100).withTrimmedBottom(10):body;
-        if(!safe.contains(c.getBounds())||!c.controlGeometryValid()||c.getBounds().intersects(vuRect)||c.getBounds().intersects(footRect)||c.getBounds().intersects(originalLayout(type,getWidth(),editing).detail))return false;
+        if(!safe.contains(c.getBounds())||!c.controlGeometryValid()||c.getBounds().intersects(vuRect)||c.getBounds().intersects(footRect)||(type!=Tune&&c.getBounds().intersects(originalLayout(type,getWidth(),editing).detail)))return false;
+        if(type==Tune){const auto d=originalLayout(type,getWidth(),editing).detail.toFloat();for(const auto b:{tuneOrbBounds(d),tuneRootBounds(d),tuneScaleBounds(d),tunePianoBounds(d)})if(c.getBounds().intersects(b.toNearestInt()))return false;}
         for(size_t j=0;j<i;++j)if(cells[j]->isVisible()&&c.getBounds().intersects(cells[j]->getBounds()))return false;
     }
     if(type==SkellDope){if(cells[0]->getBounds().getCentreX()!=cells[1]->getBounds().getCentreX()||cells[0]->getBounds().getBottom()>cells[1]->getBounds().getY())return false;for(int j=2;j<=4;++j){if(cells[j]->getBounds().getCentreX()!=cells[1]->getBounds().getCentreX()||cells[j]->getBounds().getCentreY()-cells[j-1]->getBounds().getCentreY()!=cells[2]->getBounds().getCentreY()-cells[1]->getBounds().getCentreY())return false;}}
@@ -496,6 +464,7 @@ bool SlotComponent::exerciseSpriteBindings() {
         const int white[]={0,2,4,5,7,9,11},black[]={1,3,6,8,10},after[]={0,1,3,4,5};const float kw=keys.getWidth()/7.f;
         for(int j=0;j<7;++j){const juce::Point<float> point(keys.getX()+(j+.5f)*kw,keys.getBottom()-3);const float before=key->getValue();ok=selectTuneKey(point,false)&&ok&&key->getValue()==before;ok=selectTuneKey(point,true)&&ok&&std::abs(key->getValue()-white[j]/11.f)<1e-5f;}
         for(int j=0;j<5;++j){const juce::Point<float> point(keys.getX()+(after[j]+1)*kw,keys.getY()+3);ok=selectTuneKey(point,true)&&ok&&std::abs(key->getValue()-black[j]/11.f)<1e-5f;}
+        const auto roots=tuneRootBounds(detail);for(int j=0;j<12;++j){const juce::Point<float> p(roots.getX()+(j%6+.5f)*roots.getWidth()/6,roots.getY()+(j/6+.5f)*roots.getHeight()/2);const float before=key->getValue();ok=selectTuneKey(p,false)&&ok&&key->getValue()==before;ok=selectTuneKey(p,true)&&ok&&std::abs(key->getValue()-j/11.f)<1e-5f;}
         for(int j=0;j<3;++j){ok=selectTuneKey({modes.getX()+(j+.5f)*modes.getWidth()/3,modes.getCentreY()},true)&&ok&&std::abs(scale->getValue()-j*.5f)<1e-5f;}
         key->setValueNotifyingHost(oldKey);scale->setValueNotifyingHost(oldScale);tuneHover=-1;
     }
@@ -579,7 +548,8 @@ juce::Rectangle<int> SlotComponent::artworkMotionBounds() const {
     if(type==DeEss&&!editing)return {16,434,38,62};
     if(type==SkellDeEsserFX)return {24,32,24,29};
     if(type==Empty||type==Trim||type==DualFilter||type==ClipUnified)return {};
-    return originalLayout(type,getWidth(),editing).detail;
+    const auto detail=originalLayout(type,getWidth(),editing).detail;
+    return type==Tune?tuneOrbBounds(detail.toFloat()).toNearestInt():detail;
 }
 void SlotComponent::advanceArtworkMotion(float seconds,bool visible,bool enabled,float signal){
     const auto bounds=artworkMotionBounds();
@@ -618,7 +588,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         }
         const auto layout=originalLayout(type,w,editing);
-        if(nativeChoice==1&&(type==FastComp||type==BusComp||type==Limiter||type==Multiband||type==DynamicEQ||type==Resonance||type==Exciter||type==Doubler||type==Trim||type==Tune||type==DualFilter)){
+        if(nativeChoice==1&&(type==FastComp||type==BusComp||type==Limiter||type==Multiband||type==DynamicEQ||type==Resonance||type==Exciter||type==Doubler||type==Trim||type==DualFilter)){
             // Recessed control bays and mechanical trim, never covering labels/knobs.
             const int top=(type==Limiter?layout.cells[1]:layout.cells[0]).getY()-5, bottom=editing?h-54:h-23;
             if(bottom>top+15){auto bay=Rectangle<float>(10.f,float(top),float(w-20),float(bottom-top));

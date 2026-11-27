@@ -106,28 +106,37 @@ inline void paintSignedInstrument(Graphics& g,juce::Rectangle<float> r,int t,flo
 // A cached spherical dielectric material, original procedural art. The glow
 // responds to aggregate audio level only, never represents a detected note.
 inline const juce::Image& tuneOrbMaterial(){static const auto im=[](){constexpr int n=256;juce::Image out(juce::Image::ARGB,n,n,true);juce::Image::BitmapData px(out,juce::Image::BitmapData::writeOnly);for(int y=0;y<n;++y)for(int x=0;x<n;++x){const float u=(x-n*.5f)/(n*.49f),v=(y-n*.5f)/(n*.49f),d=u*u+v*v;if(d>=1)continue;const float z=std::sqrt(1-d);const float diffuse=std::max(0.f,-u*.45f-v*.65f+z*.48f),fresnel=std::pow(1-z,2.8f);const float veins=std::pow(.5f+.5f*std::sin(26*u+8*std::sin(7*v+3*z)+5*std::sin(12*z)),8.f)*(.28f+.72f*z);const float nebula=.5f+.5f*std::sin(9*u+3*v+2*std::sin(8*v+z));auto c=Colour(0xff020906).interpolatedWith(Colour(0xff244d31),std::clamp(diffuse*.70f+nebula*.12f,0.f,1.f));c=c.interpolatedWith(Colour(0xff80cda0),std::clamp(veins*.25f+fresnel*.40f,0.f,1.f));const float spec=std::exp(-((u+.33f)*(u+.33f)+(v+.49f)*(v+.49f))*22.f);c=c.interpolatedWith(Colour(0xffd1e9c8),spec*.84f);px.setPixelColour(x,y,c.withAlpha(std::clamp((1-d)*35.f,0.f,1.f)));}return out;}();return im;}
-inline juce::Rectangle<float> tunePianoBounds(juce::Rectangle<float> detail){auto a=detail.reduced(10);return a.withY(a.getBottom()-58).withHeight(38).reduced(8,0);}
-inline juce::Rectangle<float> tuneScaleBounds(juce::Rectangle<float> detail){auto a=detail.reduced(10);return a.withY(a.getBottom()-17).withHeight(17);}
+inline juce::Rectangle<float> tuneOrbBounds(juce::Rectangle<float> detail){return detail.withHeight(216.f);}
+inline juce::Rectangle<float> tuneRootBounds(juce::Rectangle<float> detail){return detail.reduced(6,0).withY(detail.getY()+229.f).withHeight(38.f);}
+inline juce::Rectangle<float> tuneScaleBounds(juce::Rectangle<float> detail){return detail.reduced(6,0).withY(detail.getY()+281.f).withHeight(22.f);}
+inline juce::Rectangle<float> tunePianoBounds(juce::Rectangle<float> detail){return detail.reduced(6,0).withY(detail.getBottom()-57.f).withHeight(52.f);}
+inline int tuneRootAt(juce::Rectangle<float> detail,juce::Point<float> p){const auto r=tuneRootBounds(detail);if(!r.contains(p))return -1;return juce::jlimit(0,5,int((p.x-r.getX())*6/r.getWidth()))+6*juce::jlimit(0,1,int((p.y-r.getY())*2/r.getHeight()));}
 inline int tuneKeyAt(juce::Rectangle<float> detail,juce::Point<float> p){
+    const int root=tuneRootAt(detail,p);if(root>=0)return root;
     const auto keys=tunePianoBounds(detail);if(!keys.contains(p))return -1;
     const float kw=keys.getWidth()/7.f;const int black[]={1,3,6,8,10},after[]={0,1,3,4,5},white[]={0,2,4,5,7,9,11};
     for(int j=0;j<5;++j)if(juce::Rectangle<float>(keys.getX()+(after[j]+1)*kw-kw*.30f,keys.getY(),kw*.59f,keys.getHeight()*.58f).contains(p))return black[j];
     return white[juce::jlimit(0,6,int((p.x-keys.getX())/kw))];
 }
+// Reuse the original sculpted Demon relief geometry, not a flat icon. The
+// neutral bone variant removes the outer horns and foreground hands and is
+// tinted once per decoded frame; the orb glass supplies the green lighting.
+inline const std::array<juce::Image,9>& tuneSkeletonFrames(){
+    static const auto frames=[](){std::array<juce::Image,9> result{};if(!demonReliefIsValid())return result;
+        const auto& atlas=demonReliefAtlas();
+        for(int i=0;i<9;++i){auto& im=result[i];im=juce::Image(juce::Image::ARGB,352,360,true);juce::Image::BitmapData dst(im,juce::Image::BitmapData::writeOnly);
+            for(int y=0;y<360;++y)for(int x=0;x<352;++x){const int sx=x+40,sy=y+62;const auto c=atlas.getPixelAt((i%3)*432+sx,(i/3)*496+sy);if(c.getAlpha()==0)continue;
+                const float d=std::abs(float(sx)-216.f);const float edge=sy<150?82.f+std::clamp((sy-90.f)/60.f,0.f,1.f)*29.f:190.f;
+                const float mask=std::clamp((edge-d)/9.f,0.f,1.f);const float tone=std::clamp((c.getFloatRed()*.78f+c.getFloatGreen()*.22f)*1.38f,0.f,1.f);
+                const auto bone=Colour(0xff102018).interpolatedWith(Colour(0xffe1dfc5),std::pow(tone,.90f));dst.setPixelColour(x,y,bone.withAlpha(c.getFloatAlpha()*mask));}
+        }return result;}();return frames;
+}
 inline void paintOrbSkeleton(Graphics& g,juce::Rectangle<float> r,float phase,float humanize){
-    juce::Graphics::ScopedSaveState state(g);const float s=std::min(r.getWidth()/100.f,r.getHeight()/146.f);
-    g.addTransform(juce::AffineTransform::scale(s).translated(r.getCentreX()-50*s,r.getCentreY()-73*s));
-    const auto lit=Colour(0xffe9e7d0).interpolatedWith(Colour(0xffc1d0b0),humanize*.3f), shade=Colour(0xff526c57);
-    auto shape=[&](juce::Path p){g.setColour(Colour(0xff09160f).withAlpha(.9f));g.strokePath(p,juce::PathStrokeType(2.2f));juce::ColourGradient ivory(lit,29,19,shade,76,70,false);ivory.addColour(.45,Colour(0xffaaa992));ivory.addColour(.68,Colour(0xff71806a));g.setGradientFill(ivory);g.fillPath(p);};
-    auto bone=[&](float x,float y,float xx,float yy,float width){juce::Path p;p.startNewSubPath(x,y);p.lineTo(xx,yy);g.setColour(Colour(0xff15291d));g.strokePath(p,juce::PathStrokeType(width+1.4f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setColour(shade);g.strokePath(p,juce::PathStrokeType(width,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setColour(lit);g.drawLine(x-.5f,y,xx-.5f,yy,width*.43f);g.fillEllipse(x-width*.52f,y-width*.52f,width,width);};
-    juce::Path skull;skull.startNewSubPath(50,6);skull.cubicTo(26,5,21,22,24,39);skull.cubicTo(25,50,32,53,34,57);skull.lineTo(36,67);skull.quadraticTo(50,76,64,67);skull.lineTo(66,57);skull.cubicTo(68,53,75,50,76,39);skull.cubicTo(79,22,74,5,50,6);skull.closeSubPath();shape(skull);
-    for(int side:{-1,1}){juce::Path socket;socket.startNewSubPath(50+side*4,37);socket.cubicTo(50+side*5,26,50+side*24,27,50+side*21,42);socket.quadraticTo(50+side*15,52,50+side*4,37);socket.closeSubPath();g.setGradientFill(juce::ColourGradient(Colour(0xff06120b),50+side*11,32,Colour(0xff243e28),50+side*17,46,false));g.fillPath(socket);g.setColour(Colour(0xffb8e4a9).withAlpha(.78f));g.fillEllipse(50+side*12-1.6f,38,3.2f,3.2f);}
-    juce::Path nasal;nasal.startNewSubPath(50,42);nasal.lineTo(44,54);nasal.lineTo(50,57);nasal.lineTo(56,54);nasal.closeSubPath();g.setColour(Colour(0xff183121));g.fillPath(nasal);g.drawHorizontalLine(60,38,62);
-    for(int i=0;i<7;++i){g.setColour(Colour(0xff324936));g.drawVerticalLine(40+i*3,59,66);}
-    for(int i=0;i<12;++i){const float y=74+i*5.1f;g.setColour(shade);g.fillRoundedRectangle(47,y,6,4.5f,1.2f);g.setColour(lit);g.fillRoundedRectangle(48,y,3,3,1);}
-    const float sway=std::sin(phase)*2.f;bone(50,81,29,87,5);bone(50,81,71,87,5);bone(29,87,20+sway,112,5);bone(71,87,80-sway,112,5);bone(20+sway,112,13+sway,134,3.8f);bone(80-sway,112,87-sway,134,3.8f);
-    for(int j=0;j<7;++j){const float y=88+j*6.f,w=23.f-j*1.8f;for(int side:{-1,1}){juce::Path rib;rib.startNewSubPath(50,y);rib.cubicTo(50+side*w,y-7,50+side*(w+5),y+7,50+side*5,y+9);g.setColour(Colour(0xff142b1d));g.strokePath(rib,juce::PathStrokeType(4.1f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setColour(lit.interpolatedWith(shade,j*.065f));g.strokePath(rib,juce::PathStrokeType(2.5f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));}}
-    bone(50,83,50,122,3.6f);
+    const auto& frames=tuneSkeletonFrames();const int index=juce::jlimit(0,8,int(std::round(2.f+1.4f*std::sin(phase*1.7f))));const auto& frame=frames[index];
+    if(!frame.isValid())return;const float w=std::min(r.getWidth(),r.getHeight()*352.f/360.f),h=w*360.f/352.f;
+    const auto dst=juce::Rectangle<float>(r.getCentreX()-w*.5f,r.getCentreY()-h*.5f,w,h);
+    juce::Graphics::ScopedSaveState save(g);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);g.drawImage(frame,dst);
+    if(humanize>0){g.setGradientFill(juce::ColourGradient(Colour(0xffd9e0ae).withAlpha(humanize*.07f),dst.getCentreX(),dst.getY(),juce::Colours::transparentWhite,dst.getCentreX(),dst.getBottom(),false));g.fillEllipse(dst.reduced(w*.12f,h*.08f));}
 }
 inline void paintTuneOrb(Graphics& g,juce::Rectangle<float> r,float phase,float level,float humanize=0.f){
     const float rad=std::min(r.getHeight()*.45f,r.getWidth()*.455f),cx=r.getCentreX(),cy=r.getCentreY();const auto sphere=juce::Rectangle<float>(cx-rad,cy-rad,rad*2,rad*2);
@@ -136,14 +145,14 @@ inline void paintTuneOrb(Graphics& g,juce::Rectangle<float> r,float phase,float 
     g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.drawImage(tuneOrbMaterial(),sphere);g.setColour(Colour(0xff9bd6a1).withAlpha(.38f));g.drawEllipse(sphere,.7f);
     {juce::Graphics::ScopedSaveState clip(g);juce::Path mask;mask.addEllipse(sphere.reduced(2));g.reduceClipRegion(mask);for(int b=0;b<3;++b){juce::Path bolt;const float t=phase*.6f+b*2.094f;const float sx=cx+std::cos(t)*rad*.88f,sy=cy+std::sin(t)*rad*.88f;bolt.startNewSubPath(sx,sy);for(int i=1;i<=9;++i){float a=float(i)/9;float dx=(1-a)*(sx-cx),dy=(1-a)*(sy-cy);float jitter=std::sin(i*7.31f+b*11.3f+phase*.5f)*rad*.105f*std::sin(a*3.14159f);bolt.lineTo(cx+dx+jitter,cy+dy-jitter*.4f);}g.setColour(Colour(0xff76d28a).withAlpha(.13f+level*.12f));g.strokePath(bolt,juce::PathStrokeType(3.2f));g.setColour(Colour(0xffc3efc3).withAlpha(.62f+level*.22f));g.strokePath(bolt,juce::PathStrokeType(.75f));}}
     {juce::Graphics::ScopedSaveState clip(g);juce::Path mask;mask.addEllipse(sphere.reduced(3));g.reduceClipRegion(mask);
-        paintOrbSkeleton(g,sphere.reduced(rad*.24f,rad*.12f),phase,humanize);
+        paintOrbSkeleton(g,sphere.reduced(rad*.07f,rad*.08f),phase,humanize);
         juce::Path glass;glass.addEllipse(cx-rad*.73f,cy-rad*.81f,rad*.96f,rad*.35f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe1ffdc).withAlpha(.21f),cy-rad,juce::Colours::transparentWhite,cy-rad*.35f));g.fillPath(glass);
         juce::Path rim;rim.addCentredArc(cx,cy,rad*.92f,rad*.92f,0,-1.02f,.32f,true);g.setColour(Colour(0xffd8f3d9).withAlpha(.60f));g.strokePath(rim,juce::PathStrokeType(1.5f));
     }
     for(int i=0;i<12;++i){const float a=i*juce::MathConstants<float>::twoPi/12;const float rr=rad+8;g.setColour(Colour(0xffb9ad80).withAlpha(i%3==0?.68f:.28f));g.drawLine(cx+std::sin(a)*rr,cy+std::cos(a)*rr,cx+std::sin(a)*(rr+3),cy+std::cos(a)*(rr+3),.75f);}
 }
 inline void paintIdentityArt(Graphics& g,juce::Rectangle<float> r,int type,float phase,float level,int mode,bool frame,const std::array<float,6>& values={},int hoverNote=-1){
-    auto ink=identityInk(type);if(type==Trim)ink=Colour(0xff3d4a42);if(frame){identityFrame(g,r,ink,type);return;}auto a=r.reduced(10);juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion(a.toNearestInt());
+    auto ink=identityInk(type);if(type==Trim)ink=Colour(0xff3d4a42);if(frame){if(type!=Tune)identityFrame(g,r,ink,type);return;}auto a=r.reduced(10);juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion((type==Tune?r:a).toNearestInt());
     auto chart=a.withTrimmedTop(18).withTrimmedBottom(18);const float x=chart.getX(),y=chart.getY(),w=chart.getWidth(),h=chart.getHeight();
     identityLabel(g,a.withHeight(16),type==Exciter?"HARMONIC CELL":type==Doubler?"DUAL VOICE":type==Trim?"GAIN / PAN":type==Tune?"":type==DualFilter?"FILTER WINDOW":"PEAK SHAPER",ink,11);
     if(type==Trim){const float v=std::clamp(values[1],-1.f,1.f);auto line=chart.reduced(8,chart.getHeight()*.33f);g.setColour(Colour(0xff8f8066));g.drawRoundedRectangle(line.expanded(1),3,1);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff635b49),line.getY(),Colour(0xffbbae90),line.getBottom()));g.fillRoundedRectangle(line,2);g.setColour(Colour(0xff302c24));g.drawHorizontalLine(int(line.getCentreY()),line.getX()+4,line.getRight()-4);
@@ -152,11 +161,15 @@ inline void paintIdentityArt(Graphics& g,juce::Rectangle<float> r,int type,float
         identityLabel(g,chart.withHeight(17),juce::String(values[0]>0?"+":"")+juce::String(values[0],1)+" dB",ink,15);identityLabel(g,a.withY(a.getBottom()-15).withHeight(14),"L      "+(std::abs(v)<.02f?juce::String("CENTER"):juce::String(v<0?"L ":"R ")+juce::String(int(std::abs(v)*100)))+"      R",ink,9);
     }else if(type==Tune){
         const int key=std::clamp(int(std::lround(values[3])),0,11),scale=std::clamp(int(std::lround(values[4])),0,2);const int white[]={0,2,4,5,7,9,11};const int black[]={1,3,6,8,10};const int after[]={0,1,3,4,5};auto enabled=[&](int n){int i=(n-key+12)%12;return scale==0||(scale==1?(i==0||i==2||i==4||i==5||i==7||i==9||i==11):(i==0||i==2||i==3||i==5||i==7||i==8||i==10));};
-        auto orb=chart.withTrimmedBottom(52);paintTuneOrb(g,orb,phase,level,values[5]);const auto keys=tunePianoBounds(r);const float kw=keys.getWidth()/7.f;
+        paintTuneOrb(g,tuneOrbBounds(r),phase,level,values[5]);const auto keys=tunePianoBounds(r);const float kw=keys.getWidth()/7.f;
         for(int j=0;j<7;++j){auto b=juce::Rectangle<float>(keys.getX()+j*kw,keys.getY(),kw-1,keys.getHeight());const auto c=white[j]==hoverNote?Colour(0xffc7f57e):white[j]==key?ink:enabled(white[j])?Colour(0xffded9c7):Colour(0xff5b605c);g.setGradientFill(juce::ColourGradient::vertical(c.brighter(.15f),b.getY(),c.darker(.18f),b.getBottom()));g.fillRoundedRectangle(b,1.5f);}
         for(int j=0;j<5;++j){auto b=juce::Rectangle<float>(keys.getX()+(after[j]+1)*kw-kw*.30f,keys.getY(),kw*.59f,keys.getHeight()*.58f);g.setColour(black[j]==hoverNote?Colour(0xffc7f57e):black[j]==key?ink:enabled(black[j])?Colour(0xff304c40):Colour(0xff111513));g.fillRoundedRectangle(b,1.5f);}
-        const char* notes[]={"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};const auto scales=tuneScaleBounds(r);const char* modes[]={"CHROM","MAJOR","MINOR"};for(int j=0;j<3;++j){auto b=scales.withX(scales.getX()+j*scales.getWidth()/3).withWidth(scales.getWidth()/3-2);g.setColour(j==scale?Colour(0xff43664b):Colour(0xff111b15));g.fillRoundedRectangle(b,2);identityLabel(g,b,modes[j],j==scale?Colour(0xffd5f3b5):ink,8.5f);}
-        identityLabel(g,a.withHeight(16),juce::String("KEY  ")+notes[hoverNote>=0?hoverNote:key]+(hoverNote>=0?" / SELECT":""),ink,11);
+        const char* notes[]={"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};const auto root=tuneRootBounds(r);const float rw=root.getWidth()/6.f,rh=root.getHeight()/2.f;
+        identityLabel(g,root.withY(root.getY()-17).withHeight(15),juce::String("KEY  ")+notes[hoverNote>=0?hoverNote:key],ink,11);
+        for(int j=0;j<12;++j){auto b=juce::Rectangle<float>(root.getX()+(j%6)*rw,root.getY()+(j/6)*rh,rw-2,rh-2);const bool selected=j==key,hover=j==hoverNote;g.setColour(selected?Colour(0xff3e6c4d):Colour(0xff111914).withAlpha(.65f));g.fillRoundedRectangle(b,2);if(hover){g.setColour(ink.withAlpha(.65f));g.drawRoundedRectangle(b,2,1);}identityLabel(g,b,notes[j],selected||hover?Colour(0xffe0f4d0):ink,10);}
+        const auto scales=tuneScaleBounds(r);const char* modes[]={"CHROM","MAJOR","MINOR"};identityLabel(g,scales.withY(scales.getY()-14).withHeight(13),"SCALE",ink,9);
+        for(int j=0;j<3;++j){auto b=scales.withX(scales.getX()+j*scales.getWidth()/3).withWidth(scales.getWidth()/3-2);g.setColour(j==scale?Colour(0xff43664b):Colour(0xff111b15));g.fillRoundedRectangle(b,2);identityLabel(g,b,modes[j],j==scale?Colour(0xffd5f3b5):ink,9);}
+
     }else if(type==DualFilter){
         auto fx=[&](float f){return x+w*std::clamp(std::log(std::max(20.f,f)/20.f)/std::log(1000.f),0.f,1.f);};const float hp=fx(values[0]),lp=fx(values[1]);g.setColour(ink.withAlpha(.19f));for(int i=0;i<5;++i)g.drawVerticalLine(int(x+i*w*.25f),y,y+h);juce::Path p;for(int i=0;i<=80;++i){const float px=x+i*w/80;const float f=std::pow(1000.f,i/80.f)*20;const float hpf=values[0]<=22?1.f:1/std::sqrt(1+std::pow(values[0]/f,4.f));const float lpf=values[1]>=19999?1.f:1/std::sqrt(1+std::pow(f/std::max(200.f,values[1]),4.f));float py=y+h*(.88f-.72f*hpf*lpf);if(!i)p.startNewSubPath(px,py);else p.lineTo(px,py);}g.setColour(ink);g.strokePath(p,juce::PathStrokeType(1.4f));g.setColour(ink.withAlpha(.6f));g.drawVerticalLine(int(hp),y,y+h);g.drawVerticalLine(int(lp),y,y+h);identityLabel(g,a.withY(a.getBottom()-15).withHeight(14),"HP / LP  |  SHAPE",ink,9);
     }else if(type==Exciter){

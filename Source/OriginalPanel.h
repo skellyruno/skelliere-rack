@@ -54,7 +54,7 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(type==EchoUnified||type==RoomUnified||type==DriveUnified||type==ClipUnified||type==AirUnified||type==Doubler||type==Exciter||type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==Trim||type==Tune||type==DualFilter)l.detail={16,106,width-32,type==Trim?120:90};
-    if(type==Tune){l.detail={12,100,width-24,312};const int top=425,bottom=editing?520:548;l.cells[0]={12,top,half,bottom-top-4};l.cells[5]={12+half,top,half,bottom-top-4};return l;}
+    if(type==Tune){const int bottom=editing?520:548;l.detail={12,100,width-24,bottom-100};const int top=editing?365:374,knobBottom=editing?465:480;l.cells[0]={12,top,half,knobBottom-top};l.cells[5]={12+half,top,half,knobBottom-top};return l;}
     if(type==Trim){l.detail.setHeight(117);const int bottom=editing?520:548;l.cells[0]={mid-86,240,172,156};l.cells[1]={mid-65,402,130,bottom-406};return l;}
     if(type==Limiter){const int top=239,bottom=editing?520:548,hero=161;l.cells[1]={mid-73,top,146,hero};l.cells[0]={12,top+hero+4,half,bottom-top-hero-8};l.cells[2]={12+half,top+hero+4,half,bottom-top-hero-8};return l;}
     if(type==StereoUnified){const int top=242,bottom=editing?520:548,lane=width*60/100,row=(bottom-top)/2;l.cells[0]={12,top,lane-12,row-4};l.cells[3]={lane,top,width-lane-12,row-4};l.cells[1]={12,top+row,half,bottom-top-row-4};l.cells[2]={12+half,top+row,half,bottom-top-row-4};return l;}
