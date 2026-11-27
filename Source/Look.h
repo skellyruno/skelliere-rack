@@ -650,7 +650,8 @@ public:
         const float cx=x+w*.5f,top=y+9.f,bottom=y+h-9.f;auto track=juce::Rectangle<float>(cx-5,top,10,bottom-top);
         g.setColour(Colour(0xff0c0e10));g.fillRoundedRectangle(track.expanded(3),4);g.setColour(Colour(0xff727c80));g.drawRoundedRectangle(track.expanded(2),3,.8f);g.setColour(Colour(0xff181b1b));g.fillRoundedRectangle(track,2);
         for(int i=0;i<=10;++i){float yy=top+(bottom-top)*i/10.f;g.setColour(Colour(0xffc8d4cc).withAlpha(.65f));g.drawHorizontalLine(int(yy),cx+11,cx+(i%5==0?22:17));}
-        const float cy=juce::jlimit(top,bottom,sliderPos);auto cap=juce::Rectangle<float>(cx-22,cy-13,44,26);g.setColour(juce::Colours::black.withAlpha(.8f));g.fillRoundedRectangle(cap.translated(1,4).expanded(2),4);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe1dfd1),cap.getY(),Colour(0xff514d45),cap.getBottom()));g.fillRoundedRectangle(cap,3);g.setColour(Colour(0xffeee4c8));g.drawRoundedRectangle(cap.reduced(.5f),3,.8f);g.setColour(Colour(0xff252322));for(int i=-2;i<=2;++i)g.drawHorizontalLine(int(cy+i*3),cx-16,cx+16);g.setColour(Colour(0xffa8ffda));g.drawHorizontalLine(int(cy),cx-16,cx+16);
+        const float cy=juce::jlimit(top,bottom,sliderPos);auto cap=juce::Rectangle<float>(cx-22,cy-13,44,26);g.setColour(juce::Colours::black.withAlpha(.8f));g.fillRoundedRectangle(cap.translated(1,4).expanded(2),4);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe1dfd1),cap.getY(),Colour(0xff514d45),cap.getBottom()));g.fillRoundedRectangle(cap,3);g.setColour(Colour(0xffeee4c8));g.drawRoundedRectangle(cap.reduced(.5f),3,.8f);g.setColour(Colour(0xff252322));for(int i=-2;i<=2;++i)g.drawHorizontalLine(int(cy+i*3),cx-16,cx+16);g.setColour(Colour(0xffd1ffa2));g.drawHorizontalLine(int(cy),cx-16,cx+16);
+        g.setColour(Colour(0xffbaff8f).withAlpha(.34f));g.fillRoundedRectangle(Rectangle<float>(cx-16,cy-2,32,4),1.f);
     }
     void drawRotarySlider(Graphics& g,int x,int y,int w,int h,float pos,float a0,float a1,juce::Slider& s) override {
         const float size=float(juce::jmin(w,h)),cx=x+w*.5f,cy=y+h*.5f;
@@ -772,7 +773,8 @@ public:
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(1.f);
         g.drawImage(capMount(),juce::Rectangle<float>(cx-shadowR,cy-shadowR,2*shadowR,2*shadowR));
-        const auto tint=s.getProperties().getWithDefault("houseTint",juce::var(juce::String())).toString();
+        const bool fetDark=s.getProperties().contains("fetDarkCap");
+        const auto tint=fetDark?juce::String("ff34383a"):s.getProperties().getWithDefault("houseTint",juce::var(juce::String())).toString();
         paintNecromancerCap(g,cx,cy,capR,p,bool(s.getProperties().getWithDefault("silverCap",false)),tint.isEmpty()?juce::Colours::transparentBlack:Colour(unsigned(tint.getHexValue32())));
         // Fixed reflected studio light; the original cap itself still rotates.
         {juce::Graphics::ScopedSaveState save(g);
@@ -806,8 +808,8 @@ public:
         const float start=capR*.51f,end=capR*.94f;
         g.setColour(Colour(0xff10100f));
         g.drawLine(cx+sn*start,cy+cs*start,cx+sn*end,cy+cs*end,juce::jmax(2.f,capR*.082f));
-        g.setColour(Colour(0xfff8e8c9).withAlpha(.46f));
-        g.drawLine(cx+sn*start+.65f,cy+cs*start+.65f,cx+sn*end+.65f,cy+cs*end+.65f,juce::jmax(.55f,capR*.023f));
+        g.setColour((fetDark?Colour(0xffe9edf0):Colour(0xfff8e8c9)).withAlpha(fetDark?.94f:.46f));
+        g.drawLine(cx+sn*start+.65f,cy+cs*start+.65f,cx+sn*end+.65f,cy+cs*end+.65f,juce::jmax(.55f,capR*(fetDark?.048f:.023f)));
         if(s.isMouseOverOrDragging()||s.hasKeyboardFocus(false)){
             g.setColour(pal::amber.withAlpha(s.hasKeyboardFocus(false)?.94f:.55f));
             g.fillEllipse(cx+sn*capR*1.16f-1.7f,cy+cs*capR*1.16f-1.7f,3.4f,3.4f);

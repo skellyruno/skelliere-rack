@@ -15,7 +15,7 @@ static std::vector<float> render(const std::vector<float>& dry,double sr,float s
 }
 int main(int argc,char** argv){
     for(double sr:{44100.,48000.,96000.}){std::vector<float> dry(int(sr*2));double phase=0;for(int i=0;i<int(dry.size());++i){phase+=2*kPi*(225+3*std::sin(2*kPi*5*i/sr))/sr;dry[i]=.22f*std::sin(phase)+.09f*std::sin(2*phase);}
-        for(float speed:{0.f,25.f,100.f,200.f})for(bool active:{false,true}){auto ref=render(dry,sr,speed,0,257,active,true);auto now=render(dry,sr,speed,0,257,active,false);require(now==ref,"Humanize zero not sample-identical to old backend");}
+        for(float speed:{0.f,25.f,50.f,100.f})for(bool active:{false,true}){auto ref=render(dry,sr,speed,0,257,active,true);auto now=render(dry,sr,speed,0,257,active,false);require(now==ref,"Humanize zero not sample-identical to old backend");}
         auto hard=render(dry,sr,0,0,333,true,false), human=render(dry,sr,0,1,333,true,false);double delta=0;for(size_t i=0;i<hard.size();++i)delta+=std::pow(double(hard[i])-human[i],2);require(delta>1e-5,"Humanize did not affect audio");
     }
     std::puts("24 sample-identical legacy Tune comparisons; Humanize active and latency unchanged across 3 sample rates");

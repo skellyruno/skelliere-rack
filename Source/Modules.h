@@ -20,7 +20,7 @@ inline int resolveRackType(float legacy, float extension) noexcept {
 inline bool hasOutputPeak(int type) noexcept { return type==Flanger || type==SkellMixHead || type==SkellSSL || type==SkellDope; }
 enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps, Scalar };
 enum Category : int { CatNone=0, CatDynamics, CatTone, CatSpace, CatUtility };
-struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; };
+struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; bool reverse=false; };
 struct Section { const char* legend; int first,count; };
 struct ModuleInfo {
     const char* name; const char* sub; const char* desc;
@@ -61,7 +61,7 @@ inline const ModuleInfo& info(int type) {
         {"Trim","Gain staging and pan","Clean gain and pan for balancing levels between modules.",CatUtility,2,
          {{"Gain",-24,24,false,0,Unit::Db,0,nullptr},{"Pan",-1,1,false,0,Unit::Pan,0,nullptr}},1,{{"Level",0,2}},false},
         {"Skelly Tune","Real-time pitch correction","SkellyTune pitch correction. Pick a key and scale, then set how fast notes snap. Adds a fixed latency the host compensates.",CatTone,5,
-         {{"Retune",0,200,false,25,Unit::Ms,0,nullptr},{"Amount",0,1,false,1,Unit::Pct,0,nullptr},
+         {{"Retune",0,100,false,25,Unit::Ms,0,nullptr,true},{"Amount",0,1,false,1,Unit::Pct,0,nullptr},
           {"Mix",0,1,false,1,Unit::Pct,0,nullptr},{"Key",0,11,false,0,Unit::Steps,12,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"},
           {"Scale",0,2,false,0,Unit::Steps,3,"Chromatic,Major,Minor"}},2,{{"Correction",0,3},{"Scale",3,2}},false},
         {"Tilt Tone","Broad complementary shelves","Turn toward bright or warm around the pivot. Complementary shelves with smoothed controls and output trim.",CatTone,3,
@@ -153,14 +153,20 @@ inline float toNorm(const Knob& k,float v) {
     if (k.steps>0) return k.steps>1 ? std::clamp(v/static_cast<float>(k.steps-1),0.0f,1.0f) : 0.0f;
     v=std::clamp(v,k.lo,k.hi);
     if(k.log) return std::log(v/k.lo)/std::log(k.hi/k.lo);
-    return (v-k.lo)/(k.hi-k.lo);
+    const float n=(v-k.lo)/(k.hi-k.lo);
+    return k.reverse?1.f-n:n;
 }
 inline float toReal(const Knob& k,float n) {
     n=std::isfinite(n) ? std::clamp(n,0.0f,1.0f) : toNorm(k,k.def);
     if(k.steps>0) return static_cast<float>(std::lround(n*(k.steps-1)));
     if(k.log) return k.lo*std::pow(k.hi/k.lo,n);
-    return k.lo+(k.hi-k.lo)*n;
+    return k.lo+(k.hi-k.lo)*(k.reverse?1.f-n:n);
 }
+// Version 2 maps a clockwise turn to faster retuning and a direct A4 frequency.
+inline constexpr int tuneControlVersion=2;
+inline float tuneReferenceHz(float n) noexcept {return 400.f+80.f*std::clamp(std::isfinite(n)?n:.5f,0.f,1.f);}
+inline float migrateTuneRetune(float n) noexcept {return 1.f-std::clamp((std::isfinite(n)?n:.125f)*2.f,0.f,1.f);}
+inline float migrateTuneReference(float n) noexcept {const float cents=(std::clamp(std::isfinite(n)?n:.5f,0.f,1.f)-.5f)*100.f;return (440.f*std::exp2(cents/1200.f)-400.f)/80.f;}
 inline float defaultNorm(int type,int knob) { return toNorm(info(type).knobs[knob],info(type).knobs[knob].def); }
 inline float realOf(int type,int knob,const float* norm) { return toReal(info(type).knobs[knob],norm[knob]); }
 // Fixed extension IDs are appended after the original 75 host parameters.

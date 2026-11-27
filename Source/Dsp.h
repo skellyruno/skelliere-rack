@@ -407,7 +407,7 @@ public:
     }
     void reset() override { tuner.reset(); lastValid = false; }
     int latency() const override { return lat; }
-    void setDetune(float cents) noexcept { referenceA=440.f*std::exp2(std::clamp(std::isfinite(cents)?cents:0.f,-50.f,50.f)/1200.f); }
+    void setReferenceA(float hz) noexcept { referenceA=std::clamp(std::isfinite(hz)?hz:440.f,400.f,480.f); }
     void setHumanize(float v) noexcept { humanize=std::isfinite(v)?std::clamp(v,0.f,1.f):0.f; }
     void process(juce::AudioBuffer<float>& b, const float* k, bool active) override {
         const int ch = std::min(ch_, b.getNumChannels());

@@ -58,7 +58,7 @@ static void paintMixHeadReadout(Graphics& g,Rectangle<float> r,float input,float
 static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
     auto track=r.reduced(12,0).withTrimmedTop(27).withTrimmedBottom(22);track.setWidth(16.f);
     if(plate){paintHardwarePlate(g,r,Colour(0xff29343a),false,5.f,3.f);paintRecessedWindow(g,track,2);g.setFont(font(9.5f,true));g.setColour(Colour(0xffcbd5cf));g.drawText("GR dB",r.withHeight(24),juce::Justification::centred);for(int i=0;i<=4;++i){float y=track.getY()+track.getHeight()*i*.25f;g.setColour(Colour(0xff80908d));g.drawHorizontalLine(int(y),track.getRight()+3,track.getRight()+8);g.drawText(juce::String(i*6),Rectangle<float>(track.getRight()+10,y-7,22,14),juce::Justification::centredLeft);}}
-    else {const float v=juce::jlimit(0.f,1.f,std::abs(db)/24.f);auto bar=track.reduced(2).withHeight(track.reduced(2).getHeight()*v);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdcffb5),bar.getY(),Colour(0xff2a986b),bar.getBottom()));g.fillRoundedRectangle(bar,1);}
+    else {const float v=juce::jlimit(0.f,1.f,std::abs(db)/24.f);auto bar=track.reduced(2).withHeight(track.reduced(2).getHeight()*v);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe0ffad),bar.getY(),Colour(0xffa3d86b),bar.getBottom()));g.fillRoundedRectangle(bar,1);}
 }
 // Two independent real meter scales: gain reduction in dB and output peak in dBFS.
 static void paintSSLReduction(Graphics& g,Rectangle<float> r,float db,float peak,bool plate){
@@ -118,7 +118,7 @@ void KnobCell::setLightFace(bool light) {
 void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVerticalDrag); }
 
 void KnobCell::resized() {
-    if(slider.getProperties().contains("tuneDetune")){slider.setBounds(getLocalBounds().withTrimmedLeft(57).withTrimmedRight(49).reduced(2,1));return;}
+    if(slider.getProperties().contains("tuneDetune")){slider.setBounds(getLocalBounds().withTrimmedLeft(35).withTrimmedRight(65).reduced(2,1));return;}
     if(bool(slider.getProperties().getWithDefault("sslAux",false))&&!compact_){
         const int size=juce::jmax(1,juce::jmin(getWidth()/2,getHeight()-3,43));
         slider.setBounds(1,(getHeight()-size)/2,size,size);return;
@@ -167,7 +167,7 @@ bool KnobCell::controlGeometryValid() const noexcept {
 }
 
 void KnobCell::paint(Graphics& g) {
-    if(slider.getProperties().contains("tuneDetune")){auto b=getLocalBounds().toFloat();paintRecessedWindow(g,b,3);g.setColour(Colour(0xffb3d2ba));g.setFont(font(10.f,true));g.drawText("DETUNE",3,0,54,getHeight(),juce::Justification::centred);g.drawText(text_,getWidth()-49,0,47,getHeight(),juce::Justification::centred);return;}
+    if(slider.getProperties().contains("tuneDetune")){auto b=getLocalBounds().toFloat();paintRecessedWindow(g,b,3);g.setColour(Colour(0xffc7f59a));g.setFont(font(10.f,true));g.drawText("A4",3,0,30,getHeight(),juce::Justification::centred);g.drawText(text_,getWidth()-65,0,63,getHeight(),juce::Justification::centred);return;}
     // The slider clips its own paint to its square. Render only the matching
     // outside portion of the cached knob shadow here, behind the child.
     // This keeps the original cap size while allowing a real cast shadow.
@@ -337,12 +337,12 @@ void SlotComponent::rebuild() {
             const bool ext=type==SkellSSL&&j>=kMaxKnobs;
             const int extIndex=ext?j-kMaxKnobs:-1;
             const bool human=type==Tune&&j==5,detune=type==Tune&&j==6;
-            Knob k=detune?Knob{"Detune",-50,50,false,0,Unit::Scalar,0,nullptr}:human?Knob{"Humanize",0,1,false,0,Unit::Pct,0,nullptr}:ext?sslControl(extIndex).knob:mi.knobs[j];
+            Knob k=detune?Knob{"A4",400,480,false,440,Unit::Hz,0,nullptr}:human?Knob{"Humanize",0,1,false,0,Unit::Pct,0,nullptr}:ext?sslControl(extIndex).knob:mi.knobs[j];
             if(type==SkellSSL){if(j==0)k.label="E/G";if(extIndex==SslThreshold)k.label="THRESH";if(extIndex==SslRatio)k.label="RATIO";}
             auto* param=proc.apvts.getParameter(human?SkellierProcessor::humanizeId(index):ext?SkellierProcessor::sslId(index,extIndex):SkellierProcessor::knobId(index,detune?5:j));
             auto cell=std::make_unique<KnobCell>(k.label,*param,[k,extIndex,type=type](double n){
                 if(type==EchoUnified&&extIndex<0&&juce::String(k.label)=="Time / Sync")return knobText(k,float(n))+" / "+juce::StringArray{"1/16","1/8","1/8 D","1/4","1/4 D","1/2"}[juce::jlimit(0,5,int(std::lround(n*5)))];
-                if(juce::String(k.label)=="Detune")return juce::String(n>=.5?"+":"")+juce::String((n-.5)*100,0)+" ct";
+                if(type==Tune&&juce::String(k.label)=="A4")return juce::String(tuneReferenceHz(float(n)),1)+" Hz";
                 if(type==FastComp&&juce::String(k.label)=="Attack")return juce::String(int(std::lround(toReal(k,float(n))*1000)))+" us";
                 if(type!=SkellSSL)return knobText(k,float(n));
                 const float v=extIndex>=0?sslReal(extIndex,float(n)):toReal(k,float(n));
@@ -362,7 +362,7 @@ void SlotComponent::rebuild() {
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
-            if(detune){cell->slider.getProperties().set("tuneDetune",true);cell->slider.setSliderStyle(juce::Slider::LinearHorizontal);cell->slider.setTooltip("Shift the pitch reference by +/-50 cents (0 = A440)");}
+            if(detune){cell->slider.getProperties().set("tuneDetune",true);cell->slider.setSliderStyle(juce::Slider::LinearHorizontal);cell->slider.setTooltip("A4 tuning reference, 400–480 Hz. Double-click to restore 440 Hz.");}
             if(type==FastComp&&j==1){cell->slider.getProperties().set("fetRatio",true);cell->slider.setTooltip("Select ratio: 4, 8, 12, 20 or ALL");}
             if(type==FastComp&&j==5){cell->slider.getProperties().set("fetRevision",true);auto previous=cell->slider.onValueChange;cell->slider.onValueChange=[this,previous]{if(previous)previous();syncArtwork();};}
             if(type==SkellDope&&j>0){cell->slider.getProperties().set("consoleCell",true);cell->slider.getProperties().set("dopeRow",true);}
@@ -396,7 +396,7 @@ void SlotComponent::rebuild() {
             }
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
-            if(type==Tune){cell->setVisible(j==0||j==5||j==6);if(j==0)cell->slider.setTooltip("0 ms hard tune; higher values slow pitch correction. Existing 0-200 ms automation preserved.");if(j==5)cell->slider.setTooltip("Preserve fast pitch expression and soften correction near the target note");}
+            if(type==Tune){cell->setVisible(j==0||j==5||j==6);if(j==0)cell->slider.setTooltip("Clockwise = faster pitch correction. 100 ms at minimum, 0 ms at maximum.");if(j==5)cell->slider.setTooltip("Preserve fast pitch expression and soften correction near the target note");}
             cells.push_back(std::move(cell));
         }
     }
@@ -429,6 +429,7 @@ void SlotComponent::syncArtwork() {
         c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
         c->slider.getProperties().set("ptr",(int)Colour(0xff191510).getARGB());
         c->slider.getProperties().set("silverCap",choice==2);
+        if(type==FastComp)c->slider.getProperties().set("fetDarkCap",true);
         if(type==SkellDope)c->slider.getProperties().remove("houseTint");
         // Restore the shared rotating skull cap for all standard effects.
         // SSL retains its established console-specific cap colours.
@@ -608,8 +609,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         }
         const auto layout=originalLayout(type,w,editing);
-        if(type==FastComp){auto collar=layout.meter.toFloat().expanded(8.f,9.f);const auto metal=nativeChoice==3?Colour(0xff262b2d):Colour(0xff276d94);pg.setGradientFill(juce::ColourGradient::vertical(metal.brighter(.25f),collar.getY(),metal.darker(.55f),collar.getBottom()));pg.fillRoundedRectangle(collar,4);paintAnalogWear(pg,collar,false,763,.65f);pg.setColour(Colour(0xffb8c0b6).withAlpha(.6f));pg.drawRoundedRectangle(collar,4,.8f);}
-        if(nativeChoice==1&&(type==FastComp||type==BusComp||type==Limiter||type==Multiband||type==DynamicEQ||type==Resonance||type==Exciter||type==Doubler||type==Trim||type==DualFilter)){
+        if(type==FastComp){auto collar=layout.meter.toFloat().expanded(8.f,9.f);const auto metal=nativeChoice==3?Colour(0xff222324):Colour(0xff227ca8);pg.setGradientFill(juce::ColourGradient::vertical(metal.brighter(.25f),collar.getY(),metal.darker(.55f),collar.getBottom()));pg.fillRoundedRectangle(collar,4);paintAnalogWear(pg,collar,false,763,.65f);pg.setColour(Colour(0xffb8c0b6).withAlpha(.6f));pg.drawRoundedRectangle(collar,4,.8f);}
+        if(nativeChoice==1&&(type==BusComp||type==Limiter||type==Multiband||type==DynamicEQ||type==Resonance||type==Exciter||type==Doubler||type==Trim||type==DualFilter)){
             // Recessed control bays and mechanical trim, never covering labels/knobs.
             const int top=(type==Limiter?layout.cells[1]:layout.cells[0]).getY()-5, bottom=editing?h-54:h-23;
             if(bottom>top+15){auto bay=Rectangle<float>(10.f,float(top),float(w-20),float(bottom-top));

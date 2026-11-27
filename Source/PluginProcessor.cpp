@@ -241,7 +241,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
             if(type==SkellSSL){std::array<float,kSslExtraCount> ext{};for(int j=0;j<kSslExtraCount;++j)ext[j]=sslRaw[s][j]->load(std::memory_order_relaxed);static_cast<RecoveredSSL*>(m)->setExtended(ext);}
             if(hasAdvancedEngine(type)){AdvancedValues ext{};for(int j=0;j<kAdvancedCount;++j)ext[j]=advancedRaw[s][j]->load(std::memory_order_relaxed);static_cast<AdvancedRackModule*>(m)->setExtended(ext,bandSolo[size_t(s)].load(std::memory_order_relaxed));}
-            if(type==Tune){auto* tune=static_cast<skl::SkellyTune*>(m);tune->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));tune->setDetune((std::clamp(k[5],0.f,1.f)-.5f)*100.f);}
+            if(type==Tune){auto* tune=static_cast<skl::SkellyTune*>(m);tune->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));tune->setReferenceA(tuneReferenceHz(k[5]));}
             if(type==EchoUnified)m->setTempo(bpm);
             m->process(chunk,k,active);
             // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,
@@ -413,6 +413,7 @@ void SkellierProcessor::applyFactory(int index) {
 // ------------------------------------------------------------------ undo, snapshots, strips
 juce::String SkellierProcessor::captureRack() const {
     juce::XmlElement root("RACK");
+    root.setAttribute("tuneControlVersion",tuneControlVersion);
     for (int s = 0; s < kNumSlots; ++s) {
         const auto v = readSlot(s);
         auto* e = root.createNewChildElement("SLOT");
@@ -438,6 +439,10 @@ void SkellierProcessor::restoreRack(const juce::String& text) {
         // Older dream strips have no finish field: preserve the receiving slot finish.
         vals[i].artwork = juce::jlimit(-1,3,e->getIntAttribute("art",-1));
         for (int k = 0; k < kMaxKnobs; ++k) vals[i].k[k] = juce::jlimit(0.0f, 1.0f, (float) e->getDoubleAttribute("k" + juce::String(k), 0.5));
+        if(vals[i].type==Tune&&xml->getIntAttribute("tuneControlVersion",0)<tuneControlVersion){
+            vals[i].k[0]=migrateTuneRetune(float(e->getDoubleAttribute("k0",.125)));
+            vals[i].k[5]=migrateTuneReference(float(e->getDoubleAttribute("k5",.5)));
+        }
         for(int k=0;k<kSslExtraCount;++k){const float v=float(e->getDoubleAttribute("ssl_"+juce::String(sslControl(k).id),sslDefault(k)));vals[i].ssl[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):sslDefault(k);}
         const float h=float(e->getDoubleAttribute("humanize",0.));vals[i].humanize=std::isfinite(h)?std::clamp(h,0.f,1.f):0.f;
         for(int k=0;k<kAdvancedCount;++k){const float v=float(e->getDoubleAttribute("adv_"+juce::String(k),advancedDefault(k)));vals[i].advanced[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):advancedDefault(k);}
@@ -505,6 +510,7 @@ void SkellierProcessor::getStateInformation(juce::MemoryBlock& dest) {
     for (int s = 0; s < kNumSlots; ++s)
         state.setProperty("art" + juce::String(s), artworkChoices[(size_t) s].load(), nullptr);
     state.setProperty("tuneFlats", tuneFlats.load(std::memory_order_relaxed), nullptr);
+    state.setProperty("tuneControlVersion",tuneControlVersion,nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 void SkellierProcessor::setStateInformation(const void* data, int size) {
@@ -526,12 +532,23 @@ void SkellierProcessor::setStateInformation(const void* data, int size) {
                 for(int i=0;i<kAdvancedCount;++i){const auto id=advancedId(s,i);if(!state.getChildWithProperty("id",id).isValid()){
                     juce::ValueTree parameter("PARAM");parameter.setProperty("id",id,nullptr);parameter.setProperty("value",advancedDefault(i),nullptr);state.appendChild(parameter,nullptr);
                 }}
+                if(int(state.getProperty("tuneControlVersion",0))<tuneControlVersion){
+                    const auto typeParam=state.getChildWithProperty("id",typeId(s));
+                    if(typeParam.isValid()&&int(typeParam.getProperty("value",0))==Tune){
+                        for(int k:{0,5}){const auto id=knobId(s,k);auto param=state.getChildWithProperty("id",id);
+                            const float oldValue=param.isValid()?float(param.getProperty("value",k==0?.125f:.5f)):(k==0?.125f:.5f);
+                            if(!param.isValid()){param=juce::ValueTree("PARAM");param.setProperty("id",id,nullptr);state.appendChild(param,nullptr);}
+                            param.setProperty("value",k==0?migrateTuneRetune(oldValue):migrateTuneReference(oldValue),nullptr);
+                        }
+                    }
+                }
                 const auto hid=humanizeId(s);if(!state.getChildWithProperty("id",hid).isValid()){juce::ValueTree parameter("PARAM");parameter.setProperty("id",hid,nullptr);parameter.setProperty("value",0.f,nullptr);state.appendChild(parameter,nullptr);}
                 bandSolo[size_t(s)].store(-1,std::memory_order_relaxed);
                 artworkChoices[(size_t) s] = juce::jlimit(0, 3,
                     (int) state.getProperty("art" + juce::String(s), 1));
             }
             tuneFlats.store(bool(state.getProperty("tuneFlats",false)),std::memory_order_relaxed);
+            state.setProperty("tuneControlVersion",tuneControlVersion,nullptr);
             apvts.replaceState(state);
         }
     latencyUpdater.triggerAsyncUpdate();

@@ -20,6 +20,25 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
     p.clearRack();require(p.addModule(skl::Tune,0),"Tune missing");
+    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.75f)<1e-6f&&skl::tuneReferenceHz(p.apvts.getRawParameterValue(p.knobId(0,5))->load())==440.f,"Tune defaults");
+    // A saved normalized value originally represented 0..200 ms or +/-50 cents.
+    const auto oldReference=skl::migrateTuneReference(.82f);
+    auto legacyTuneState=p.apvts.copyState();legacyTuneState.removeProperty("tuneControlVersion",nullptr);
+    legacyTuneState.getChildWithProperty("id",p.knobId(0,0)).setProperty("value",.125f,nullptr);
+    legacyTuneState.getChildWithProperty("id",p.knobId(0,5)).setProperty("value",.82f,nullptr);
+    juce::MemoryBlock legacyBinary;juce::AudioProcessor::copyXmlToBinary(*legacyTuneState.createXml(),legacyBinary);
+    p.setStateInformation(legacyBinary.getData(),int(legacyBinary.getSize()));
+    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.75f)<1e-6f&&std::abs(p.apvts.getRawParameterValue(p.knobId(0,5))->load()-oldReference)<1e-6f,"Legacy Tune migration");
+    juce::MemoryBlock migrated;p.getStateInformation(migrated);p.setStateInformation(migrated.getData(),int(migrated.getSize()));
+    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.75f)<1e-6f&&std::abs(p.apvts.getRawParameterValue(p.knobId(0,5))->load()-oldReference)<1e-6f,"Tune migration repeated on recall");
+    const auto fixtureName="RetuneMigrationTest-"+juce::Uuid().toString();
+    const auto strips=SkellierProcessor::stripsFolder();
+    require(strips.createDirectory().wasOk(),"Cannot create strip test directory");
+    const auto fixture=strips.getChildFile(fixtureName+".xml");
+    require(fixture.replaceWithText("<RACK><SLOT i=\"0\" type=\"11\" k0=\"0.125\" k5=\"0.82\"/></RACK>"),"Cannot write legacy strip fixture");
+    const bool loaded=p.loadStrip(fixtureName);p.deleteStrip(fixtureName);
+    require(loaded,"Cannot load legacy strip fixture");
+    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.75f)<1e-6f&&std::abs(p.apvts.getRawParameterValue(p.knobId(0,5))->load()-oldReference)<1e-6f,"Legacy strip migration");
     set(p.humanizeId(0),.64f);set(p.knobId(0,5),.82f);set(p.knobId(0,1),.71f);set(p.knobId(0,2),.42f);
     p.moveSlot(0,1,false);require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(1))->load()-.64f)<1e-6f,"Humanize lost on move");require(std::abs(p.apvts.getRawParameterValue(p.knobId(1,5))->load()-.82f)<1e-6f,"Detune lost on move");
     p.undo();require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(0))->load()-.64f)<1e-6f,"Humanize lost on undo");
