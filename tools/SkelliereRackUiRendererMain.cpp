@@ -106,6 +106,8 @@ int main(int argc, char** argv) {
         }});
         // Check the current models in both layouts, then restore requested screenshot mode.
         visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->setEditMode(true);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(false);bindings=slot->artworkLayoutIsValid()&&bindings;slot->setEditMode(edit);}});
+        // Exercise the alternate Dope face and the same live parameter binding.
+        if(scene.id=="color_modules_150")processor.apvts.getParameter(SkellierProcessor::knobId(0,0))->setValueNotifyingHost(1.f);
         if(scene.id=="catalog_min"||scene.id=="catalog_max")for(int s=0;s<expectedCount;++s)
             for(int k=0;k<skl::info(processor.slotType(s)).numKnobs;++k)
                 processor.apvts.getParameter(SkellierProcessor::knobId(s,k))->setValueNotifyingHost(scene.id=="catalog_max"?1.f:0.f);

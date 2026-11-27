@@ -421,7 +421,7 @@ GateLaw gateOf (const Settings& s) noexcept { return s.model == 1 ? k4GateLaw (s
 double micPre (double x, double drive, double inv) noexcept
 {
     constexpr double c = 3.901, p = 23.49, b = 0.0264, a = 0.0230;
-    auto curve = [] (double u) { const double v = u + a * u * u * u; return v / std::pow (1.0 + std::pow (std::abs (v / c), p), 1.0 / p); };
+    auto curve = [=] (double u) { const double v = u + a * u * u * u; return v / std::pow (1.0 + std::pow (std::abs (v / c), p), 1.0 / p); };
     static const double off = curve (b);
     return 0.96939 * (curve (x * drive + b) - off) * inv; // 0.96939 = −0.27 dB
 }

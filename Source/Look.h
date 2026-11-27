@@ -319,11 +319,17 @@ inline const juce::Image& necroEngraving(bool highlight=false){
     return image;
 }
 // Preserve original ReanimateDial rotation and unmodified Silver asset.
-inline void paintNecromancerCap(Graphics& g,float cx,float cy,float radius,float p,bool silver){
+inline void paintNecromancerCap(Graphics& g,float cx,float cy,float radius,float p,bool silver,Colour tint=juce::Colours::transparentBlack){
     juce::Graphics::ScopedSaveState save(g);g.setOpacity(1.f);
     const juce::Rectangle<float> dest(cx-radius,cy-radius,2*radius,2*radius);
     if(!necroCap().isValid()){g.drawImage(machinedCap(Colour(0xffb4aea4)),dest);return;}
-    if(!silver)g.drawImage(litNecroCap(),dest);
+    if(!silver){
+        g.drawImage(litNecroCap(),dest);
+        if(tint.getAlpha()>0){
+            juce::Graphics::ScopedSaveState tinted(g);juce::Path face;face.addEllipse(dest.reduced(radius*.035f));g.reduceClipRegion(face);
+            g.setGradientFill(juce::ColourGradient(tint.withAlpha(.66f),dest.getX(),dest.getY(),tint.darker(.7f).withAlpha(.79f),dest.getRight(),dest.getBottom(),false));g.fillEllipse(dest.reduced(radius*.035f));
+        }
+    }
     const auto rotation=juce::AffineTransform::rotation(p*juce::MathConstants<float>::pi*1.5f-1.18f,cx,cy);
     if(!silver){
         // Fixed light catches the lower lip of the rotating original mark.
@@ -625,12 +631,13 @@ public:
             const bool dope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
             for(int i=0;i<2;++i){
                 auto a=r.withY(r.getY()+i*r.getHeight()*.5f).withHeight(r.getHeight()*.5f).reduced(1.3f);
-                const bool on=(p>=.5f)==(i==1);const auto c=i==0?Colour(0xfff1a23b):Colour(dope?0xff48b8f7:0xffd9cdb3);
-                g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.45f):c.darker(2.f),a.getY(),on?c.darker(.32f):Colour(0xff1a1713),a.getBottom()));g.fillRoundedRectangle(a,2.f);
+                const bool on=(p>=.5f)==(i==1);const auto c=i==0?Colour(dope?0xffff9418:0xfff1a23b):Colour(dope?0xff169eff:0xffd9cdb3);
+                g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.45f):c.darker(dope?.75f:2.f),a.getY(),on?c.darker(.32f):dope?c.darker(1.55f):Colour(0xff1a1713),a.getBottom()));g.fillRoundedRectangle(a,2.f);
+                if(dope){g.setColour(juce::Colours::black.withAlpha(.38f));g.drawRoundedRectangle(a.reduced(.6f),2.f,1.f);g.setColour(c.brighter(.5f).withAlpha(on?.35f:.13f));for(float yy=a.getY()+4;yy<a.getBottom()-2;yy+=3.f)for(float xx=a.getX()+3;xx<a.getRight()-2;xx+=3.f)g.fillEllipse(xx,yy,.85f,.85f);}
                 g.setColour(on?c.brighter(.7f):Colour(0xff776954));g.drawRoundedRectangle(a,2.f,.8f);
                 if(on){g.setColour(juce::Colours::white.withAlpha(.4f));g.drawHorizontalLine(int(a.getY()+2),a.getX()+3,a.getRight()-3);}
                 const auto choices=juce::StringArray::fromTokens(s.getProperties().getWithDefault("switchLabels",juce::var("0,1")).toString(),",","");
-                g.setColour(on?Colour(0xff211b14):Colour(0xffb1a99a));g.setFont(font(juce::jlimit(8.f,12.f,size*.14f),true));
+                g.setColour(on?Colour(0xff211b14):dope?Colour(0xfff4ead7):Colour(0xffb1a99a));g.setFont(font(juce::jlimit(8.f,12.f,size*.14f),true));
                 g.drawFittedText(choices[i],a.toNearestInt(),juce::Justification::centred,1);
             }
             return;
@@ -657,7 +664,8 @@ public:
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(1.f);
         g.drawImage(capMount(),juce::Rectangle<float>(cx-shadowR,cy-shadowR,2*shadowR,2*shadowR));
-        paintNecromancerCap(g,cx,cy,capR,p,bool(s.getProperties().getWithDefault("silverCap",false)));
+        const auto tint=s.getProperties().getWithDefault("houseTint",juce::var(juce::String())).toString();
+        paintNecromancerCap(g,cx,cy,capR,p,bool(s.getProperties().getWithDefault("silverCap",false)),tint.isEmpty()?juce::Colours::transparentBlack:Colour(unsigned(tint.getHexValue32())));
         // Fixed reflected studio light; the original cap itself still rotates.
         {juce::Graphics::ScopedSaveState save(g);
             juce::Path clip;clip.addEllipse(cx-capR*.94f,cy-capR*.94f,capR*1.88f,capR*1.88f);g.reduceClipRegion(clip);

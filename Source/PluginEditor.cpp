@@ -34,6 +34,12 @@ static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
     if(plate){paintHardwarePlate(g,r,Colour(0xff29343a),false,5.f,3.f);paintRecessedWindow(g,track,2);g.setFont(font(9.5f,true));g.setColour(Colour(0xffcbd5cf));g.drawText("GR dB",r.withHeight(24),juce::Justification::centred);for(int i=0;i<=4;++i){float y=track.getY()+track.getHeight()*i*.25f;g.setColour(Colour(0xff80908d));g.drawHorizontalLine(int(y),track.getRight()+3,track.getRight()+8);g.drawText(juce::String(i*6),Rectangle<float>(track.getRight()+10,y-7,22,14),juce::Justification::centredLeft);}}
     else {const float v=juce::jlimit(0.f,1.f,std::abs(db)/24.f);auto bar=track.reduced(2).withHeight(track.reduced(2).getHeight()*v);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdcffb5),bar.getY(),Colour(0xff2a986b),bar.getBottom()));g.fillRoundedRectangle(bar,1);}
 }
+static void paintSSLReduction(Graphics& g,Rectangle<float> r,float db,bool plate){
+    if(plate){paintRecessedWindow(g,r,3.f);g.setColour(Colour(0xffc4c9bf));g.setFont(font(8.5f,true));g.drawText("GAIN REDUCTION",r.withHeight(12),juce::Justification::centred);}
+    auto track=r.reduced(8,0).withY(r.getY()+14).withHeight(r.getHeight()-19);const int n=20;const float step=track.getWidth()/n;
+    const int lit=juce::jlimit(0,n,int(std::ceil(std::abs(db)*n/20.f)));
+    for(int i=0;i<n;++i){auto a=track.withX(track.getX()+i*step).withWidth(step-1.4f);g.setColour(i<lit?Colour(i<12?0xff80cc6c:0xffedae4d):Colour(0xff303b2c));g.fillRoundedRectangle(a,.8f);}
+}
 // =================================================================== KnobCell
 KnobCell::KnobCell(const juce::String& label, juce::RangedAudioParameter& param, Fmt fmt, juce::Colour cap, juce::Colour pointer,
                    double resetValue, double step, bool compact)
@@ -93,7 +99,7 @@ void KnobCell::paint(Graphics& g) {
     // The slider clips its own paint to its square. Render only the matching
     // outside portion of the cached knob shadow here, behind the child.
     // This keeps the original cap size while allowing a real cast shadow.
-    if(!compact_&&!slider.isSwitch()&&!bool(slider.getProperties().getWithDefault("blackSelector",false))&&!slider.getBounds().isEmpty()){
+    if(!compact_&&!slider.isSwitch()&&!bool(slider.getProperties().getWithDefault("hushFader",false))&&!slider.getBounds().isEmpty()){
         juce::Graphics::ScopedSaveState save(g);
         const auto b=slider.getBounds().toFloat();
         const float capR=b.getWidth()*(b.getWidth()<61.f?.397f:.405f);
@@ -245,11 +251,9 @@ void SlotComponent::rebuild() {
                 cell->slider.setTooltip("Click to switch mode");
                 cell->slider.setWantsKeyboardFocus(true);
             }
-            if(type==SkellRubyQ||type==SkellMixHead||type==SkellDope||type==SkellDemon||type==SkellSSL||type==SkellNoise)cell->slider.getProperties().set("blackSelector",true);
-            if(type==SkellDope)cell->slider.getProperties().set("plainSilver",true);
+            if(type==SkellDope)cell->slider.getProperties().set("houseTint",juce::String("ff353431"));
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
-            if(type==SkellSSL){static const unsigned caps[]={0xffb0aba0,0xffa93235,0xff4e8c76,0xff437cb5,0xffa4883c,0xffc2c0b8};cell->slider.getProperties().set("capColorOverride",juce::String::toHexString(int(caps[j]))); }
-            if(type==SkellRubyQ&&k.unit==Unit::Hz)cell->slider.getProperties().set("frequencySelector",true);
+            if(type==SkellSSL){static const unsigned caps[]={0xffb0aba0,0xffb66e30,0xff347ab5,0xff38895d,0xffb63235,0xffaaa8a1};cell->slider.getProperties().set("houseTint",juce::String::toHexString(int(caps[j]))); }
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
             cells.push_back(std::move(cell));
@@ -269,9 +273,13 @@ void SlotComponent::setArtworkChoice(int choice) {
 
 void SlotComponent::syncArtwork() {
     const int choice=juce::jlimit(0,3,proc.artworkChoices[static_cast<size_t>(index)].load());
-    if(choice==appliedArtworkChoice)return;
-    appliedArtworkChoice=choice;nativeChoice=choice;panelCache={};
-    const auto spec=originalSpec(type,choice);
+    // The signature Dope panel follows the actual 361/180 switch; explicit
+    // user finish selections remain independent and are never rewritten.
+    const bool darkDope=type==SkellDope&&choice==1&&proc.apvts.getRawParameterValue(SkellierProcessor::knobId(index,0))->load()>=.5f;
+    const int key=choice*2+(darkDope?1:0);
+    if(key==appliedArtworkChoice)return;
+    appliedArtworkChoice=key;nativeChoice=darkDope?3:choice;panelCache={};
+    const auto spec=originalSpec(type,nativeChoice);
     static const char* names[]={"GRAPHITE","SIGNATURE","SILVER","MIDNIGHT"};
     artButton.setButtonText("FINISH");artButton.setTooltip(juce::String("Metal finish: ")+names[choice]+" (appearance only; click to cycle)");
     for(auto& c:cells){
@@ -279,6 +287,7 @@ void SlotComponent::syncArtwork() {
         c->slider.getProperties().set("cap",(int)spec.cap.getARGB());
         c->slider.getProperties().set("ptr",(int)Colour(0xff191510).getARGB());
         c->slider.getProperties().set("silverCap",choice==2);
+        if(type==SkellDope)c->slider.getProperties().set("houseTint",spec.light?juce::String("ff353431"):juce::String());
         c->slider.repaint();
     }
     resized();repaint();
@@ -420,7 +429,13 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
-        if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
+        if(type==SkellSSL){
+            auto section=[&](int y,const char* label){pg.setColour(Colour(0xff141719));pg.fillRoundedRectangle(Rectangle<float>(14,float(y),float(w-28),14),2);pg.setColour(Colour(0xffadb4ad));pg.setFont(font(9.f,true).withExtraKerningFactor(.12f));pg.drawText(label,19,y,w-38,14,juce::Justification::centredLeft);};
+            section(103,"CONSOLE / E-G");section(180,"EQUALIZER / FOUR BAND");section(419,"DYNAMICS");
+            for(int i=1;i<=3;++i){pg.setColour(Colour(0xffa2a6a0).withAlpha(.22f));pg.drawHorizontalLine(195+i*55,17,w-17);}
+            paintSSLReduction(pg,layout.meter.toFloat(),0,true);
+        }
+        else if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
         else if(type==SkellMixHead&&!layout.meter.isEmpty())paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
         else if(!layout.meter.isEmpty())paintVU(pg,layout.meter.toFloat(),0.f,hasOutputPeak(type),MeterLayer::plate);
         // Subtle engraved separators on five-control hardware, outside all controls.
@@ -454,7 +469,8 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
     if(type==SkellDeEsserFX)
         paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
-    if(type==SkellNoise&&!vuRect.isEmpty()){paintHushMeter(g,vuRect.toFloat(),needle,false);}
+    if(type==SkellSSL&&!vuRect.isEmpty()){paintSSLReduction(g,vuRect.toFloat(),needle,false);}
+    else if(type==SkellNoise&&!vuRect.isEmpty()){paintHushMeter(g,vuRect.toFloat(),needle,false);}
     else if(type==SkellMixHead&&!vuRect.isEmpty()){
         paintMixHeadPeak(g,vuRect.toFloat(),outputDb,false);
     }else if(hasOutputPeak(type)&&!vuRect.isEmpty()){
