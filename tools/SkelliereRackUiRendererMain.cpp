@@ -1,6 +1,7 @@
 // Screenshots and checks use the real plugin editor, not a reconstruction.
 #include "../Source/PluginProcessor.h"
 #include "../Source/PluginEditor.h"
+#include "../Source/AdvancedPanel.h"
 
 #include <SkellCore/HeadlessUIRenderer.h>
 #include <cstdio>
@@ -66,7 +67,7 @@ int main(int argc, char** argv) {
     if(args.engines){options.scenes={{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1}};options.mustDiffer={{"engine_modules","engine_modules_edit"}};}
     if(args.colors){options.scenes={{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
     if(args.gates){options.scenes={{"gate_modules",1260,870,13,1},{"gate_modules_edit",1260,870,13,1},{"gate_modules_80",1008,696,13,1},{"gate_modules_150",1890,1305,13,1}};options.mustDiffer={{"gate_modules","gate_modules_edit"}};}
-    if(args.consolidated){options.scenes={{"new_dynamics",1260,870,14,1},{"new_color",1260,870,15,1},{"new_space",1260,870,16,1},{"new_utility",1260,870,17,1},{"new_dynamics_150",1890,1305,14,1},{"new_utility_edit",1260,870,17,1}};options.mustDiffer={{"new_utility","new_utility_edit"}};}
+    if(args.consolidated){options.scenes={{"new_dynamics",1260,870,14,1},{"new_color",1260,870,15,1},{"new_space",1260,870,16,1},{"new_utility",1260,870,17,1},{"new_dynamics_150",1890,1305,14,1},{"new_utility_edit",1260,870,17,1}};options.mustDiffer={{"new_utility","new_utility_edit"}};for(int i=0;i<(skl::activeCatalogCount()+3)/4;++i)options.scenes.push_back({"identity_"+juce::String(i+1),1260,870,18+i,1});options.scenes.push_back({"identity_80",1008,696,18,1});}
     if(args.full&&!args.consolidated){options.scenes.push_back({"new_dynamics",1260,870,14,1});options.scenes.push_back({"new_color",1260,870,15,1});options.scenes.push_back({"new_space",1260,870,16,1});options.scenes.push_back({"new_utility",1260,870,17,1});}
     int expectedWidth=1260,expectedHeight=870,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
@@ -79,6 +80,7 @@ int main(int argc, char** argv) {
             for(int k=0;k<3;++k)processor.addModule(models[k],k);expectedCount=3;}
         if(scene.theme==12){const int models[]={skl::SkellDemon,skl::SkellSSL,skl::SkellNoise,skl::SkellMixHead};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
         if(scene.theme==13){const int models[]={skl::SmartGate,skl::SkellNoise,skl::SkellSSL,skl::FastComp};for(int k=0;k<4;++k)processor.addModule(models[k],k);expectedCount=4;}
+        if(scene.theme>=18){int i=0;for(int t=1;t<skl::kNumRackTypes;++t)if(skl::catalogVisible(t)){if(i/4==scene.theme-18){processor.addModule(t,i%4);++expectedCount;}++i;}}
         if(scene.theme>=14&&scene.theme<=17){const int models[][4]={{skl::VoxRider,skl::DynamicEQ,skl::Multiband,skl::Resonance},{skl::Exciter,skl::AirUnified,skl::DriveUnified,skl::ClipUnified},{skl::Doubler,skl::EchoUnified,skl::RoomUnified,skl::StereoUnified},{skl::NoiseGateUnified,skl::DeEsserUnified,skl::ProgramOpto,skl::FastComp}};for(int k=0;k<4;++k)processor.addModule(models[scene.theme-14][k],k);expectedCount=4;}
         if(scene.theme==8||scene.theme==9){
             const int models[]={skl::Comp,skl::Bell,skl::Delay,skl::Flanger};
@@ -158,7 +160,7 @@ int main(int argc, char** argv) {
     if(changed<1000||unstable!=0||first.getPixelAt(3,3)!=before.getPixelAt(3,3)){std::fprintf(stderr,"Tape motion regression: %d changed, %d unstable\n",changed,unstable);return 1;}
     std::printf("Tape motion: %d changed pixels, pause and offscreen freeze passed\n",changed);
     // Real native frames from every animated module; exact pause equality.
-    const int animated[]={skl::Air,skl::SkellAirFX,skl::Chorus,skl::Reverb,skl::Sat,skl::SoftClip,skl::Eq,skl::Tremolo,skl::Phaser,skl::Stereo,skl::Transient,skl::Slap,skl::DeEss,skl::SkellDeEsserFX,skl::SkellDemon};
+    const int animated[]={skl::Air,skl::SkellAirFX,skl::Chorus,skl::Reverb,skl::Sat,skl::SoftClip,skl::Eq,skl::Tremolo,skl::Phaser,skl::Stereo,skl::Transient,skl::Slap,skl::DeEss,skl::SkellDeEsserFX,skl::SkellDemon,skl::Tune,skl::Doubler,skl::Exciter};
     for(int type:animated){
         processor.clearRack();processor.addModule(type,0);
         skl::ui::SlotComponent* target=nullptr;
@@ -180,6 +182,14 @@ int main(int argc, char** argv) {
     const auto result = skellcore::ui::headless::render(editor, output, options);
     for (const auto& error : result.errors) std::fprintf(stderr, "%s\n", error.toRawUTF8());
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);
+    if(args.consolidated){
+        processor.clearRack();processor.addModule(skl::Multiband,0);processor.addModule(skl::Doubler,1);
+        auto set=[&](int slot,int param,float value){processor.apvts.getParameter(SkellierProcessor::advancedId(slot,param))->setValueNotifyingHost(value);};
+        set(0,skl::advMode,1);set(0,skl::bandControl(0,0),.14f);set(0,skl::bandControl(2,0),.23f);set(0,skl::bandControl(6,6),1);set(0,skl::bandControl(6,0),.15f);set(1,skl::advMode,1);
+        juce::AudioBuffer<float> b(2,512);juce::MidiBuffer midi;for(int block=0;block<200;++block){for(int c=0;c<2;++c)for(int i=0;i<512;++i){const double n=block*512+i;b.setSample(c,i,.28f*std::sin(2*skl::kPi*55*n/48000)+.16f*std::sin(2*skl::kPi*2500*n/48000));}processor.processBlock(b,midi);}
+        for(int j=0;j<2;++j){skl::ui::AdvancedPanel panel(processor,j,j?skl::Doubler:skl::Multiband);if(!panel.exerciseBindings()){std::fprintf(stderr,"Advanced parameter binding failed\n");return 1;}if(!j)panel.select(6);auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);auto f=output.getChildFile(j?"advanced-doubler.png":"advanced-multiband.png");f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;if(!img.isValid()||!stream.openedOk()||!png.writeImageToStream(img,stream))return 1;}
+        std::puts("Advanced panel real APVTS bindings and two native captures passed");
+    }
     if(!args.full){
         if(!result.passed()||result.captured!=int(options.scenes.size()))return 1;
         juce::Image sheet(juce::Image::RGB,1260,435*int((options.scenes.size()+1)/2),true);juce::Graphics g(sheet);

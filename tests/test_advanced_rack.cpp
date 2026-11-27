@@ -1,0 +1,25 @@
+#include "../Source/RackModuleFactory.h"
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+using namespace skl;
+static void require(bool ok,const char* msg){if(!ok){std::fprintf(stderr,"%s\n",msg);std::exit(1);}}
+static float sig(int i,float sr){return .21f*std::sin(2*kPi*55*i/sr)+.13f*std::sin(2*kPi*2500*i/sr)+.06f*std::sin(2*kPi*7500*i/sr);}
+static double bin(const std::vector<float>& x,float hz){double a=0,b=0;for(int i=48000;i<96000;++i){a+=x[i]*std::cos(2*kPi*hz*i/48000);b+=x[i]*std::sin(2*kPi*hz*i/48000);}return 2*std::hypot(a,b)/48000;}
+int main(){
+ for(int t:{Multiband,Resonance,Doubler,Exciter})for(int ch:{1,2})for(double sr:{44100.,48000.,96000.}){
+    ConsolidatedModule old(t);AdvancedRackModule now(t);old.prepare(sr,257,ch);now.prepare(sr,257,ch);float k[6]{};for(int j=0;j<info(t).numKnobs;++j)k[j]=defaultNorm(t,j);
+    juce::AudioBuffer<float>a(ch,257),b(ch,257);auto ext=advancedDefaults();
+    for(int block=0;block<60;++block){for(int c=0;c<ch;++c)for(int i=0;i<257;++i)a.getWritePointer(c)[i]=b.getWritePointer(c)[i]=sig(block*257+i,float(sr))*(c?-.8f:1.f);old.process(a,k,true);now.process(b,k,true);for(int c=0;c<ch;++c)for(int i=0;i<257;++i)require(a.getWritePointer(c)[i]==b.getWritePointer(c)[i],"Legacy mode changed audio");}
+    for(int block=0;block<250;++block){ext[advMode]=block%25<15?1:0;ext[advCross]=float(block%17)/16;ext[bandControl(0,0)]=.1f;ext[voiceControl(0,1)]=float(block%11)/10;now.setExtended(ext,block%20<10?0:-1);for(int c=0;c<ch;++c)for(int i=0;i<257;++i)b.getWritePointer(c)[i]=sig(block*257+i,float(sr));now.process(b,k,block%19!=0);for(int c=0;c<ch;++c)for(int i=0;i<257;++i)require(std::isfinite(b.getWritePointer(c)[i])&&std::abs(b.getWritePointer(c)[i])<2,"Unsafe mode/control automation");}
+ }
+ std::puts("24 legacy parity cases and 6000 automated odd-sized blocks passed");
+ AdvancedMultiband m; m.prepare(48000);auto s=AdvancedMultiband::Settings{};for(auto& b:s.bands)b.ratio=1;s.solo=0;m.set(s);std::vector<float> low(96000);for(int i=0;i<96000;++i)low[i]=m.process(sig(i,48000),0,1)[0];require(bin(low,55)>.17&&bin(low,2500)<.003,"Low band solo not selective");s.solo=6;s.floating[0].frequency=2500;s.floating[0].q=8;m.set(s);for(int i=0;i<96000;++i)low[i]=m.process(sig(i,48000),0,1)[0];require(bin(low,2500)>.1&&bin(low,55)<.002,"Floating solo not selective");s.solo=-1;m.set(s);float err=0;for(int i=0;i<96000;++i){float x=sig(i,48000);const auto z=m.process(x,0,1)[0];if(i>48000)err=std::max(err,std::abs(x-z));}require(err<1e-6,"Solo release not transparent");
+ std::printf("Low/floating audition selective, neutral restore max error %.9g\n",err);
+ PitchDoublerCandidate stereo,mono;stereo.prepare(48000);mono.prepare(48000);std::array<PitchDoublerCandidate::Voice,2> voices{{{19,17,.85f,.7f},{32,-6,-.25f,.35f}}};stereo.setVoices(voices,.7f);mono.setVoices(voices,.7f);double foldErr=0;for(int i=0;i<96000;++i){float x=sig(i,48000);auto a=stereo.process(x,x);auto b=mono.process(x,0,1);foldErr=std::max(foldErr,std::abs(double(.5f*(a[0]+a[1])-b[0])));}require(foldErr<2e-7,"Stereo fold-down disagrees with mono");
+ voices[0].pan=voices[1].pan=1;voices[0].gain=voices[1].gain=1;stereo.setVoices(voices,1);for(int i=0;i<96000;++i){const auto a=stereo.process(.4f,.4f);require(std::abs(a[0])<=.401f&&std::abs(a[1])<=.401f,"Same-pan overload");if(i>48000)require(std::abs(a[0])<1e-6f&&a[1]>.39f,"Positive pan must route right");}std::printf("Independent voice control / mono fold-down max error %.9g\n",foldErr);
+ ExciterOversampledCandidate os;os.prepare(48000);os.set(3500,18,0,18000);for(int i=0;i<200;++i){const float x=i==0?1.f:0.f;require(os.process(0,x)==(i==os.latency?1.f:0.f),"Oversampled dry latency not exact");}os.reset();os.set(3500,18,1,18000);ExciterCandidate ad;ad.prepare(48000);ad.set(3500,18,1,18000);std::vector<float>a(96000),b(96000);for(int i=0;i<96000;++i){float x=.5f*std::sin(2*kPi*9000*i/48000);a[i]=ad.process(0,x);b[i]=os.process(0,x);}const auto alias=20*std::log10(bin(b,3000)/bin(a,3000));require(alias< -15,"Oversampled fold insufficient");std::printf("4x vs ADAA 3 kHz folded alias %.2f dB; exact %d sample dry delay\n",alias,os.latency);
+ // Run CPU measurement on the same preallocated buffers, settings and signal.
+ for(int t:{Multiband,Resonance,Doubler,Exciter}){AdvancedRackModule m(t);m.prepare(48000,257,2);float k[6]{};for(int j=0;j<info(t).numKnobs;++j)k[j]=defaultNorm(t,j);juce::AudioBuffer<float>b(2,257);auto v=advancedDefaults();for(int mode:{0,1}){v[0]=float(mode);m.setExtended(v);m.reset();double ns=0;for(int rep=0;rep<3;++rep){double elapsed=0;for(int block=0;block<1000;++block){for(int c=0;c<2;++c)for(int i=0;i<257;++i)b.getWritePointer(c)[i]=sig(block*257+i,48000);auto t0=std::chrono::steady_clock::now();m.process(b,k,true);elapsed+=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-t0).count();}ns+=elapsed;}std::printf("BENCH type=%d mode=%d ns/stereo frame=%.1f\n",t,mode,ns/(3*257000));}}
+ std::puts("Advanced rack candidate integration passed");
+}

@@ -33,6 +33,11 @@ public:
     // This leaves all original choice normalisation and parameter ordering intact.
     static juce::String extraId(int s) { return "s"+juce::String(s)+"_extra"; }
     static juce::String sslId(int s,int k) { return "s"+juce::String(s)+"_ssl_"+skl::sslControl(k).id; }
+    static juce::String advancedId(int s,int k) { return "s"+juce::String(s)+"_adv_"+juce::String(k); }
+    static juce::String humanizeId(int s) { return "s"+juce::String(s)+"_tune_humanize"; }
+    float advancedBandReduction(int slot,int band) const noexcept;
+    float advancedGraphTop() const noexcept {return graphTop.load(std::memory_order_relaxed); }
+    std::array<std::atomic<int>,skl::kNumSlots> bandSolo{{-1,-1,-1,-1,-1,-1,-1,-1}};
     int slotType(int) const;
     bool slotOn(int) const;
     float gainReduction(int) const;
@@ -64,7 +69,7 @@ public:
     int rackLatency() const;
 private:
     static std::unique_ptr<skl::ModuleBase> makeModule(int t) { return skl::makeRackModule(t); }
-    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; std::array<float,skl::kSslExtraCount> ssl=skl::sslDefaults(); };
+    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; std::array<float,skl::kSslExtraCount> ssl=skl::sslDefaults(); skl::AdvancedValues advanced=skl::advancedDefaults(); float humanize=0.f; };
     void parameterChanged(const juce::String&,float) override;
     void setParam(const juce::String&,float);
     SlotValues readSlot(int) const;
@@ -85,6 +90,8 @@ private:
     std::atomic<float>* onRaw[skl::kNumSlots]={};
     std::atomic<float>* kRaw[skl::kNumSlots][skl::kMaxKnobs]={};
     std::atomic<float>* sslRaw[skl::kNumSlots][skl::kSslExtraCount]={};
+    std::atomic<float>* advancedRaw[skl::kNumSlots][skl::kAdvancedCount]={};
+    std::atomic<float>* humanizeRaw[skl::kNumSlots]={};
     std::atomic<float>* inRaw=nullptr;
     std::atomic<float>* outRaw=nullptr;
     std::atomic<float>* bypassRaw=nullptr;
@@ -96,7 +103,7 @@ private:
     double sampleRate_=48000;
     bool prepared=false;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGain, outputGain;
-    std::atomic<float> inPeak{0},outPeak{0};
+    std::atomic<float> inPeak{0},outPeak{0},graphTop{16000};
     std::array<std::atomic<float>,skl::kNumSlots> jetPeak{};
     std::vector<juce::String> undoStack,redoStack;
     juce::String snaps[2];

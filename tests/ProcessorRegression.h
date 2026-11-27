@@ -4,7 +4,7 @@
 inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
-    require(p.getParameters().size()==75+skl::kNumSlots*skl::kSslExtraCount,"Parameter count changed unexpectedly");
+    require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1),"Parameter count changed unexpectedly");
     require(skl::kNumRackTypes==49 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
@@ -16,7 +16,19 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s) { ordered(p.typeId(s)); ordered(p.onId(s)); for(int k=0;k<skl::kMaxKnobs;++k) ordered(p.knobId(s,k)); }
     for(int s=0;s<skl::kNumSlots;++s) ordered(p.extraId(s));
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kSslExtraCount;++i)ordered(p.sslId(s,i));
+    for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kAdvancedCount;++i)ordered(p.advancedId(s,i));
+    for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
+    p.clearRack();require(p.addModule(skl::Tune,0),"Tune missing");
+    set(p.humanizeId(0),.64f);set(p.knobId(0,1),.71f);set(p.knobId(0,2),.42f);
+    p.moveSlot(0,1,false);require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(1))->load()-.64f)<1e-6f,"Humanize lost on move");
+    p.undo();require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(0))->load()-.64f)<1e-6f,"Humanize lost on undo");
+    juce::MemoryBlock tuneState;p.getStateInformation(tuneState);p.clearRack();p.setStateInformation(tuneState.getData(),int(tuneState.getSize()));
+    require(std::abs(p.apvts.getRawParameterValue(p.humanizeId(0))->load()-.64f)<1e-6f,"Humanize lost on state recall");
+    auto tuneOld=p.apvts.copyState();for(int i=tuneOld.getNumChildren();--i>=0;)if(tuneOld.getChild(i).getProperty("id").toString().endsWith("_tune_humanize"))tuneOld.removeChild(i,nullptr);
+    auto tuneOldXml=tuneOld.createXml();juce::MemoryBlock tuneOldBinary;juce::AudioProcessor::copyXmlToBinary(*tuneOldXml,tuneOldBinary);p.setStateInformation(tuneOldBinary.getData(),int(tuneOldBinary.getSize()));
+    require(p.apvts.getRawParameterValue(p.humanizeId(0))->load()==0,"Legacy Tune did not default to original processing");
+    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,1))->load()-.71f)<1e-6f&&std::abs(p.apvts.getRawParameterValue(p.knobId(0,2))->load()-.42f)<1e-6f,"Legacy wet/amount changed");
     // Original normalized choice values must retain every legacy identity.
     auto* legacy=p.apvts.getParameter(p.typeId(0));
     auto* choices=dynamic_cast<juce::AudioParameterChoice*>(legacy);
@@ -48,6 +60,15 @@ inline void processorRegression() {
     auto compactState=p.apvts.copyState();for(int i=compactState.getNumChildren();--i>=0;)if(compactState.getChild(i).getProperty("id").toString().contains("_ssl_"))compactState.removeChild(i,nullptr);
     auto compactXml=compactState.createXml();juce::MemoryBlock compactBinary;juce::AudioProcessor::copyXmlToBinary(*compactXml,compactBinary);p.setStateInformation(compactBinary.getData(),int(compactBinary.getSize()));
     require(p.slotType(1)==skl::SkellSSL,"Legacy SSL state lost type");for(int s=0;s<skl::kNumSlots;++s)for(int j=0;j<skl::kSslExtraCount;++j)require(std::abs(p.apvts.getRawParameterValue(p.sslId(s,j))->load()-skl::sslDefault(j))<1e-6f,"Missing SSL control retained stale value");
+    p.clearRack();require(p.addModule(skl::Multiband,0),"Advanced Multiband missing");
+    set(p.advancedId(0,skl::advMode),1);set(p.advancedId(0,skl::bandControl(0,0)),.27f);
+    p.moveSlot(0,1,false);require(p.apvts.getRawParameterValue(p.advancedId(1,skl::advMode))->load()==1,"Advanced mode lost on move");
+    p.undo();require(std::abs(p.apvts.getRawParameterValue(p.advancedId(0,skl::bandControl(0,0)))->load()-.27f)<1e-6f,"Advanced band lost on undo");
+    p.moveSlot(0,1,true);juce::MemoryBlock advancedState;p.getStateInformation(advancedState);p.clearRack();p.setStateInformation(advancedState.getData(),int(advancedState.getSize()));
+    require(p.apvts.getRawParameterValue(p.advancedId(1,skl::advMode))->load()==1,"Advanced state lost");
+    auto previous=p.apvts.copyState();for(int i=previous.getNumChildren();--i>=0;)if(previous.getChild(i).getProperty("id").toString().contains("_adv_"))previous.removeChild(i,nullptr);
+    auto previousXml=previous.createXml();juce::MemoryBlock previousBinary;juce::AudioProcessor::copyXmlToBinary(*previousXml,previousBinary);p.setStateInformation(previousBinary.getData(),int(previousBinary.getSize()));
+    for(int i=0;i<skl::kAdvancedCount;++i)require(std::abs(p.apvts.getRawParameterValue(p.advancedId(1,i))->load()-skl::advancedDefault(i))<1e-6f,"Legacy state retained advanced setting");
     auto old=p.apvts.copyState();
     for(int i=old.getNumChildren();--i>=0;)
         if(old.getChild(i).getProperty("id").toString().endsWith("_extra")) old.removeChild(i,nullptr);

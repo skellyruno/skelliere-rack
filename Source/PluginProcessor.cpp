@@ -67,6 +67,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout SkellierProcessor::createLay
         layout.add(std::make_unique<AudioParameterFloat>(ParameterID{sslId(slot,i),1},
             "Slot "+String(slot+1)+" SSL "+c.id,NormalisableRange<float>(0.f,1.f,0.f),sslDefault(i)));
     }
+    // Append, never reorder the original 243 host parameters. Engine defaults to legacy.
+    for(int slot=0;slot<kNumSlots;++slot)for(int i=0;i<kAdvancedCount;++i){
+        const auto k=advancedSpec(i);juce::String name="Slot "+juce::String(slot+1)+" Advanced ";
+        if(i>=advCross&&i<advBand)name+="Crossover "+juce::String(i-advCross+1);
+        else if(i>=advBand&&i<advFloating)name+="Band "+juce::String((i-advBand)/7+1)+" "+k.label;
+        else if(i>=advFloating&&i<advVoice)name+="Floating "+juce::String((i-advFloating)/2+1)+" "+k.label;
+        else if(i>=advVoice)name+="Voice "+juce::String((i-advVoice)/4+1)+" "+k.label;
+        else name+=k.label;
+        layout.add(std::make_unique<AudioParameterFloat>(ParameterID{advancedId(slot,i),1},name,NormalisableRange<float>(0.f,1.f,k.steps>1?1.f:0.f),advancedDefault(i)));
+    }
+    // Append after existing advanced parameters; preserve host IDs and order.
+    for(int s=0;s<kNumSlots;++s)layout.add(std::make_unique<AudioParameterFloat>(ParameterID{humanizeId(s),1},"Slot "+String(s+1)+" Tune Humanize",NormalisableRange<float>(0.f,1.f,0.f),0.f));
     return layout;
 }
 
@@ -80,6 +92,8 @@ SkellierProcessor::SkellierProcessor()
         onRaw[s] = apvts.getRawParameterValue(onId(s));
         for (int k = 0; k < kMaxKnobs; ++k) kRaw[s][k] = apvts.getRawParameterValue(knobId(s, k));
         for(int i=0;i<kSslExtraCount;++i)sslRaw[s][i]=apvts.getRawParameterValue(sslId(s,i));
+        for(int i=0;i<kAdvancedCount;++i)advancedRaw[s][i]=apvts.getRawParameterValue(advancedId(s,i));
+        humanizeRaw[s]=apvts.getRawParameterValue(humanizeId(s));
         lastType[s] = -1;
         apvts.addParameterListener(typeId(s), this);
         apvts.addParameterListener(extraId(s), this);
@@ -94,6 +108,11 @@ SkellierProcessor::SkellierProcessor()
 SkellierProcessor::~SkellierProcessor() {
     latencyUpdater.cancelPendingUpdate();
     for (int s = 0; s < kNumSlots; ++s) { apvts.removeParameterListener(typeId(s), this); apvts.removeParameterListener(extraId(s), this); }
+}
+
+float SkellierProcessor::advancedBandReduction(int slot,int band) const noexcept {
+    if(slot<0||slot>=kNumSlots||slotType(slot)!=Multiband||!slotOn(slot)||bypassRaw->load()>.5f||(soloSlot.load()>=0&&soloSlot.load()!=slot))return 0;
+    auto* module=mods[slot][Multiband].get();return module?static_cast<AdvancedRackModule*>(module)->bandReduction(band):0;
 }
 
 void SkellierProcessor::parameterChanged(const juce::String&, float) { latencyUpdater.triggerAsyncUpdate(); }
@@ -112,6 +131,7 @@ skl::ModuleBase* SkellierProcessor::moduleFor(int slot, int type, int tuneSlot) 
 
 void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     sampleRate_ = std::isfinite(sr) && sr > 1000.0 ? sr : 48000.0;
+    graphTop.store(float(std::min(16000.,std::clamp(sampleRate_,8000.,384000.)*.4)),std::memory_order_relaxed);
     maxBlock = juce::jmax(1, samplesPerBlock);
     const int ch = juce::jlimit(1, 2, getMainBusNumInputChannels());
     for (int s = 0; s < kNumSlots; ++s)
@@ -201,6 +221,8 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             for (int i = 0; i < kMaxKnobs; ++i) k[i] = kRaw[s][i]->load();
             const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
             if(type==SkellSSL){std::array<float,kSslExtraCount> ext{};for(int j=0;j<kSslExtraCount;++j)ext[j]=sslRaw[s][j]->load(std::memory_order_relaxed);static_cast<RecoveredSSL*>(m)->setExtended(ext);}
+            if(hasAdvancedEngine(type)){AdvancedValues ext{};for(int j=0;j<kAdvancedCount;++j)ext[j]=advancedRaw[s][j]->load(std::memory_order_relaxed);static_cast<AdvancedRackModule*>(m)->setExtended(ext,bandSolo[size_t(s)].load(std::memory_order_relaxed));}
+            if(type==Tune)static_cast<skl::SkellyTune*>(m)->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));
             if(type==EchoUnified)m->setTempo(bpm);
             m->process(chunk,k,active);
             // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,
@@ -261,6 +283,8 @@ SkellierProcessor::SlotValues SkellierProcessor::readSlot(int s) const {
     v.artwork=artworkChoices[static_cast<size_t>(s)].load();
     for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = kRaw[s][k]->load();
     for(int i=0;i<kSslExtraCount;++i)v.ssl[i]=sslRaw[s][i]->load();
+    for(int i=0;i<kAdvancedCount;++i)v.advanced[i]=advancedRaw[s][i]->load(std::memory_order_relaxed);
+    v.humanize=humanizeRaw[s]->load(std::memory_order_relaxed);
     return v;
 }
 
@@ -269,6 +293,9 @@ void SkellierProcessor::writeSlot(int s, const SlotValues& v) {
     setParam(onId(s), 0.0f);
     for (int k = 0; k < kMaxKnobs; ++k) setParam(knobId(s, k), v.k[k]);
     for(int i=0;i<kSslExtraCount;++i)setParam(sslId(s,i),v.ssl[i]);
+    for(int i=0;i<kAdvancedCount;++i)if(advancedRaw[s][i]->load()!=v.advanced[i])setParam(advancedId(s,i),v.advanced[i]);
+    setParam(humanizeId(s),v.humanize);
+    bandSolo[size_t(s)].store(-1,std::memory_order_relaxed);
     setParam(extraId(s), 0.0f);
     setParam(typeId(s), v.type < kNumTypes ? (float) v.type : 0.0f);
     if (v.type >= kNumTypes) setParam(extraId(s), (float) (v.type - kNumTypes + 1));
@@ -374,6 +401,8 @@ juce::String SkellierProcessor::captureRack() const {
         e->setAttribute("art",v.artwork);
         for (int k = 0; k < kMaxKnobs; ++k) e->setAttribute("k" + juce::String(k), (double) v.k[k]);
         if(v.type==SkellSSL)for(int i=0;i<kSslExtraCount;++i)e->setAttribute("ssl_"+juce::String(sslControl(i).id),double(v.ssl[i]));
+        if(v.type==Tune)e->setAttribute("humanize",double(v.humanize));
+        if(hasAdvancedEngine(v.type))for(int i=0;i<kAdvancedCount;++i)e->setAttribute("adv_"+juce::String(i),double(v.advanced[i]));
     }
     return root.toString(juce::XmlElement::TextFormat().singleLine());
 }
@@ -391,6 +420,8 @@ void SkellierProcessor::restoreRack(const juce::String& text) {
         vals[i].artwork = juce::jlimit(-1,3,e->getIntAttribute("art",-1));
         for (int k = 0; k < kMaxKnobs; ++k) vals[i].k[k] = juce::jlimit(0.0f, 1.0f, (float) e->getDoubleAttribute("k" + juce::String(k), 0.5));
         for(int k=0;k<kSslExtraCount;++k){const float v=float(e->getDoubleAttribute("ssl_"+juce::String(sslControl(k).id),sslDefault(k)));vals[i].ssl[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):sslDefault(k);}
+        const float h=float(e->getDoubleAttribute("humanize",0.));vals[i].humanize=std::isfinite(h)?std::clamp(h,0.f,1.f):0.f;
+        for(int k=0;k<kAdvancedCount;++k){const float v=float(e->getDoubleAttribute("adv_"+juce::String(k),advancedDefault(k)));vals[i].advanced[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):advancedDefault(k);}
     }
     soloSlot.store(-1);
     for (int s = 0; s < kNumSlots; ++s) writeSlot(s, vals[s]);
@@ -472,6 +503,11 @@ void SkellierProcessor::setStateInformation(const void* data, int size) {
                 for(int i=0;i<kSslExtraCount;++i){const auto id=sslId(s,i);if(!state.getChildWithProperty("id",id).isValid()){
                     juce::ValueTree parameter("PARAM");parameter.setProperty("id",id,nullptr);parameter.setProperty("value",sslDefault(i),nullptr);state.appendChild(parameter,nullptr);
                 }}
+                for(int i=0;i<kAdvancedCount;++i){const auto id=advancedId(s,i);if(!state.getChildWithProperty("id",id).isValid()){
+                    juce::ValueTree parameter("PARAM");parameter.setProperty("id",id,nullptr);parameter.setProperty("value",advancedDefault(i),nullptr);state.appendChild(parameter,nullptr);
+                }}
+                const auto hid=humanizeId(s);if(!state.getChildWithProperty("id",hid).isValid()){juce::ValueTree parameter("PARAM");parameter.setProperty("id",hid,nullptr);parameter.setProperty("value",0.f,nullptr);state.appendChild(parameter,nullptr);}
+                bandSolo[size_t(s)].store(-1,std::memory_order_relaxed);
                 artworkChoices[(size_t) s] = juce::jlimit(0, 3,
                     (int) state.getProperty("art" + juce::String(s), 1));
             }

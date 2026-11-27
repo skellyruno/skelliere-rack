@@ -407,15 +407,18 @@ public:
     }
     void reset() override { tuner.reset(); lastValid = false; }
     int latency() const override { return lat; }
+    void setHumanize(float v) noexcept { humanize=std::isfinite(v)?std::clamp(v,0.f,1.f):0.f; }
     void process(juce::AudioBuffer<float>& b, const float* k, bool active) override {
         const int ch = std::min(ch_, b.getNumChannels());
         skelly::Parameters p = tuner.parameters();
         p.speedMs = realOf(Tune, 0, k);
         p.amount = realOf(Tune, 1, k);
+        p.vibratoPreservation=humanize;
+        p.flexCents=35.f*humanize;
         p.mix = active ? realOf(Tune, 2, k) : 0.0f;   // off = fixed dry path, so latency never changes
         const int key = (int) realOf(Tune, 3, k), scale = (int) realOf(Tune, 4, k);
         p.pitchClasses = mask(key, scale);
-        if (!lastValid || p.speedMs != last.speedMs || p.amount != last.amount || p.mix != last.mix || p.pitchClasses != last.pitchClasses) {
+        if (!lastValid || p.speedMs != last.speedMs || p.amount != last.amount || p.mix != last.mix || p.pitchClasses != last.pitchClasses || p.vibratoPreservation != last.vibratoPreservation || p.flexCents != last.flexCents) {
             tuner.setParameters(p); last = p; lastValid = true;
         }
         const int total = b.getNumSamples();
@@ -436,6 +439,7 @@ public:
     }
 private:
     skellcore::backends::SkellyTuneBackend tuner; std::vector<float> scratch;
+    float humanize=0.f;
     skelly::Parameters last{}; bool lastValid = false; int maxBlock_ = 512, ch_ = 2, lat = 0;
 };
 

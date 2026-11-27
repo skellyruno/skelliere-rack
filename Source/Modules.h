@@ -61,7 +61,7 @@ inline const ModuleInfo& info(int type) {
         {"Trim","Gain staging and pan","Clean gain and pan for balancing levels between modules.",CatUtility,2,
          {{"Gain",-24,24,false,0,Unit::Db,0,nullptr},{"Pan",-1,1,false,0,Unit::Pan,0,nullptr}},1,{{"Level",0,2}},false},
         {"Skelly Tune","Real-time pitch correction","SkellyTune pitch correction. Pick a key and scale, then set how fast notes snap. Adds a fixed latency the host compensates.",CatTone,5,
-         {{"Speed",0,200,false,25,Unit::Ms,0,nullptr},{"Amount",0,1,false,1,Unit::Pct,0,nullptr},
+         {{"Retune",0,200,false,25,Unit::Ms,0,nullptr},{"Amount",0,1,false,1,Unit::Pct,0,nullptr},
           {"Mix",0,1,false,1,Unit::Pct,0,nullptr},{"Key",0,11,false,0,Unit::Steps,12,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"},
           {"Scale",0,2,false,0,Unit::Steps,3,"Chromatic,Major,Minor"}},2,{{"Correction",0,3},{"Scale",3,2}},false},
         {"Tilt Tone","Broad complementary shelves","Turn toward bright or warm around the pivot. Complementary shelves with smoothed controls and output trim.",CatTone,3,

@@ -85,8 +85,9 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
-    void mouseEnter(const juce::MouseEvent&) override { if(type==skl::Empty)repaint(); }
-    void mouseExit(const juce::MouseEvent&) override { if(type==skl::Empty)repaint(); }
+    void mouseMove(const juce::MouseEvent&) override;
+    void mouseEnter(const juce::MouseEvent& e) override { mouseMove(e);if(type==skl::Empty)repaint(); }
+    void mouseExit(const juce::MouseEvent&) override { if(type==skl::Empty||tuneHover>=0){tuneHover=-1;repaint();} }
     std::function<void(int)> onSelected;
     std::function<void(const juce::String&)> onNotice;
     void mouseDrag(const juce::MouseEvent&) override;
@@ -100,7 +101,8 @@ private:
     void paintNativeFace(juce::Graphics&);
 
     SkellierProcessor& proc;
-    int index, type = 0;
+    int index, type = 0, tuneHover=-1;
+    bool selectTuneKey(juce::Point<float>,bool commit);
     bool dragOver = false, dragging = false, shownPower=true, editing=false;
     float needle = 0.0f, shownNeedle = -1.0f;
     double lastMeterTime=0;
@@ -112,7 +114,7 @@ private:
     int appliedArtworkChoice = -1, nativeChoice = 0;
     juce::Rectangle<int> panelBounds;
     juce::Image panelCache;
-    juce::TextButton artButton{"FINISH"};
+    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};

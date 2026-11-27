@@ -734,6 +734,28 @@ public:
             }
             g.setColour(dope?Colour(0xff191816):ink);g.drawLine(cx+std::sin(angle)*rad*.4f,cy-std::cos(angle)*rad*.4f,cx+std::sin(angle)*rad*.9f,cy-std::cos(angle)*rad*.9f,1.9f);return;
         }
+        // Individually machined physical controls, rather than tinted copies of
+        // the skull cap. Every moving lever and pointer uses the real slider angle.
+        const int hardware=int(s.getProperties().getWithDefault("physicalControl",0));
+        if(hardware>0){
+            const float r=size*.36f;auto disc=[&](float rr,float dy=0.f){return juce::Rectangle<float>(cx-rr,cy-rr+dy,2*rr,2*rr);};
+            const Colour ivory(0xffded5ba), dark(0xff161a18), brass(0xffa28c60), nickel(0xffa8b3ae);
+            const Colour metal=hardware==5?ivory:hardware==6?brass:hardware==7?Colour(0xff9c3e31):hardware==8?Colour(0xff546d62):hardware==4?nickel:Colour(0xff454b46);
+            g.setColour(juce::Colours::black.withAlpha(.55f));g.fillEllipse(disc(r*1.20f,2));
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff8f887a),cy-r*1.2f,Colour(0xff0e100f),cy+r*1.2f));g.fillEllipse(disc(r*1.12f));
+            g.setColour(Colour(0xff101311));g.fillEllipse(disc(r*1.02f));
+            // Fluted bakelite, polygonal nickel, ceramic, lacquered square, and optical collars.
+            juce::Path cap;const int sides=hardware==6?12:hardware==7?4:hardware==4?8:0;
+            if(sides){for(int k=0;k<sides;++k){const float a=angle+juce::MathConstants<float>::twoPi*k/sides+(sides==4?.785398f:0.f),rr=r*(sides==4?1.02f:.96f);const auto pt=juce::Point<float>(cx+std::sin(a)*rr,cy-std::cos(a)*rr);if(!k)cap.startNewSubPath(pt);else cap.lineTo(pt);}cap.closeSubPath();}
+            else cap.addEllipse(disc(r*.96f));
+            juce::ColourGradient cg(metal.brighter(.62f),cx-r*.85f,cy-r*.95f,metal.darker(.62f),cx+r*.9f,cy+r*.94f,false);cg.addColour(.38,metal.brighter(.19f));cg.addColour(.59,metal.darker(.17f));g.setGradientFill(cg);g.fillPath(cap);g.setColour(metal.brighter(.40f));g.strokePath(cap,juce::PathStrokeType(.65f));
+            if(hardware==1||hardware==8||hardware==6){for(int i=0;i<(hardware==8?36:24);++i){float a=angle+i*juce::MathConstants<float>::twoPi/(hardware==8?36:24);g.setColour(Colour(0xff0b0d0c).withAlpha(.55f));g.drawLine(cx+std::sin(a)*r*.79f,cy-std::cos(a)*r*.79f,cx+std::sin(a)*r*.96f,cy-std::cos(a)*r*.96f,juce::jmax(.65f,r*.054f));}}
+            if(hardware==2||hardware==3){juce::Path handle;if(hardware==2){handle.startNewSubPath(0,-r*1.06f);handle.lineTo(r*.33f,r*.47f);handle.quadraticTo(0,r*.72f,-r*.33f,r*.47f);handle.closeSubPath();}else handle.addRoundedRectangle(-r*.88f,-r*.24f,r*1.76f,r*.48f,r*.13f);handle.applyTransform(juce::AffineTransform::rotation(angle).translated(cx,cy));g.setColour(juce::Colours::black.withAlpha(.72f));g.fillPath(handle,juce::AffineTransform::translation(1,1.5f));juce::ColourGradient lever(Colour(0xffe3d9be),cx-r,cy-r,Colour(0xff69665b),cx+r,cy+r,false);g.setGradientFill(lever);g.fillPath(handle);g.setColour(Colour(0xffe7dfcc));g.strokePath(handle,juce::PathStrokeType(.65f));}
+            else if(hardware==8){g.setColour(Colour(0xff131f19));g.fillEllipse(disc(r*.62f));g.setGradientFill(juce::ColourGradient(Colour(0xff9cbb9a),cx-r*.37f,cy-r*.45f,Colour(0xff203129),cx+r*.35f,cy+r*.42f,true));g.fillEllipse(disc(r*.54f));g.setColour(Colour(0xffc7d9ba).withAlpha(.8f));g.drawEllipse(disc(r*.55f),.7f);}
+            else {const float slot=hardware==5?r*.65f:r*.39f;g.setColour(Colour(0xff151714).withAlpha(.85f));g.drawLine(cx-std::sin(angle)*slot,cy+std::cos(angle)*slot,cx+std::sin(angle)*slot,cy-std::cos(angle)*slot,hardware==5?2.6f:1.4f);}
+            const auto ink=light?Colour(0xff302820):Colour(0xffe6d7bc);for(int i=0;i<=12;++i){const float a=a0+(a1-a0)*i/12.f;g.setColour(ink.withAlpha(i%3==0?.91f:.55f));g.drawLine(cx+std::sin(a)*r*1.20f,cy-std::cos(a)*r*1.20f,cx+std::sin(a)*r*(i%3==0?1.34f:1.28f),cy-std::cos(a)*r*(i%3==0?1.34f:1.28f),i%3==0?.95f:.7f);}
+            const float sn=std::sin(angle),cs=-std::cos(angle);g.setColour(Colour(0xff121511));g.drawLine(cx+sn*r*.67f,cy+cs*r*.67f,cx+sn*r*.94f,cy+cs*r*.94f,3.4f);g.setColour(hardware==1&&s.getName()=="Retune"?Colour(0xff91e2a0):ivory);g.drawLine(cx+sn*r*.69f,cy+cs*r*.69f,cx+sn*r*.94f,cy+cs*r*.94f,1.6f);return;
+        }
         // Nearly all of the original rack knob area is now the actual metal
         // cap rather than a small cap surrounded by Necromancer's black well.
         const float capR=size*(utility?.397f:.405f);

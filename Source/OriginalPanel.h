@@ -18,7 +18,20 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==SkellSSL)metal=Colour(0xff252827);
     if(finish==1&&type==SkellDemon)metal=Colour(0xff64120e);
     if(finish==1&&type==SkellMixHead)metal=Colour(0xffa52b19);
-    if(finish==1&&type==SkellRubyQ)metal=Colour(0xff661124);
+    if(finish==1){switch(type){
+        case FastComp:metal=Colour(0xff46372c);break;
+        case BusComp:metal=Colour(0xff223d47);break;
+        case Limiter:metal=Colour(0xff292c30);break;
+        case Trim:metal=Colour(0xff666960);break;
+        case Tune:metal=Colour(0xff151f1b);break;
+        case DynamicEQ:metal=Colour(0xff293e44);break;
+        case Multiband:metal=Colour(0xff54462c);break;
+        case Resonance:metal=Colour(0xff352b43);break;
+        case Exciter:metal=Colour(0xff4b3525);break;
+        case Doubler:metal=Colour(0xff243e40);break;
+        case DualFilter:metal=Colour(0xff414a37);break;
+        default:break;
+    }}
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
@@ -40,6 +53,22 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     if(mi.hasVU||hasOutputPeak(type))l.meter={15,106,width-30,120};
     if(type==EchoUnified||type==RoomUnified||type==DriveUnified||type==ClipUnified||type==AirUnified||type==Doubler||type==Exciter||type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
+    if(type==Trim||type==Tune||type==DualFilter)l.detail={16,106,width-32,type==Trim?120:90};
+    if(type==Tune){l.detail={12,100,width-24,312};const int top=425,bottom=editing?520:548;l.cells[0]={12,top,half,bottom-top-4};l.cells[5]={12+half,top,half,bottom-top-4};return l;}
+    if(type==Trim){l.detail.setHeight(117);const int bottom=editing?520:548;l.cells[0]={mid-86,240,172,156};l.cells[1]={mid-65,402,130,bottom-406};return l;}
+    if(type==Limiter){const int top=239,bottom=editing?520:548,hero=161;l.cells[1]={mid-73,top,146,hero};l.cells[0]={12,top+hero+4,half,bottom-top-hero-8};l.cells[2]={12+half,top+hero+4,half,bottom-top-hero-8};return l;}
+    if(type==StereoUnified){const int top=242,bottom=editing?520:548,lane=width*60/100,row=(bottom-top)/2;l.cells[0]={12,top,lane-12,row-4};l.cells[3]={lane,top,width-lane-12,row-4};l.cells[1]={12,top+row,half,bottom-top-row-4};l.cells[2]={12+half,top+row,half,bottom-top-row-4};return l;}
+    if(type==VoxRider){const int top=243,bottom=editing?520:548,remaining=bottom-top;const int row=remaining/3;l.cells[0]={mid-76,top,152,row-4};for(int j=1;j<5;++j)l.cells[j]={12+((j-1)%2)*half,top+row+((j-1)/2)*row,half,row-4};return l;}
+    if(type==BusComp||type==DynamicEQ){
+        l.sideReadouts=true;const int top=240,bottom=editing?520:548,row=(bottom-top)/n;
+        for(int k=0;k<n;++k)l.cells[k]={13,top+k*row,width-26,row-3};return l;
+    }
+    if(type==Resonance){
+        const int top=240,bottom=editing?520:548,row=(bottom-top)/3;
+        const int wide=width*58/100;
+        l.cells[0]={12,top,wide-12,row-4};l.cells[1]={wide,top,width-wide-12,row-4};
+        for(int k=2;k<6;++k)l.cells[k]={12+(k%2)*half,top+(k/2)*row,half,row-4};return l;
+    }
     if(type==SkellDemon){
         l.detail={7,90,width-14,281};
         const int cw=(width-24)/3,rh=(editing?519:547)-376;
@@ -91,7 +120,7 @@ inline OriginalLayout originalLayoutBase(int type,int width,bool editing=false) 
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
     // Four-window controls leave a lower breathing area like real rack gear.
     // Five-control compressors need the bottom row for makeup gain.
-    const int top=type==SkellDemon?250:type==Eq?199:window?(n==5?(editing?248:253):242):108;
+    const int top=type==SkellDemon?250:type==Eq?199:type==DualFilter?212:window?(n==5?(editing?248:253):242):108;
     const int bottom=editing?520:(window&&n==4?515:window&&n==5&&!l.meter.isEmpty()?565:548),available=bottom-top;
     if(type==Bell||type==DualFilter||type==Tilt){
         l.sideReadouts=true;const int row=available/std::max(1,n);
