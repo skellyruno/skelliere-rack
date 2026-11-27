@@ -53,6 +53,9 @@ public:
     void applyFactory(int);
     static int numFactory();
     static juce::String factoryName(int);
+    static juce::StringArray modulePresetNames(int type);
+    bool applyModulePreset(int slot,int expectedType,int preset);
+    std::atomic<bool> tuneFlats{false}; // display preference, never a DSP parameter
     bool canUndo() const { return !undoStack.empty(); }
     bool canRedo() const { return !redoStack.empty(); }
     void undo();

@@ -35,7 +35,24 @@ const std::vector<FPreset>& factory() {
     };
     return list;
 }
+struct ModulePreset { const char* name; std::vector<float> values; };
+const std::vector<ModulePreset>& modulePresets(int type) {
+    // Original real-unit starting points, not copies of vendor presets.
+    static const std::vector<ModulePreset> echo={{"Vocal Slap",{115,0,7000,.22f,0,2}}, {"Wide Echo",{320,.28f,6000,.25f,.30f,1}}, {"Quarter Note",{320,.35f,5500,.24f,.40f,3}}};
+    static const std::vector<ModulePreset> room={{"Short Plate",{1.2f,20,9000,.20f,.35f,0}}, {"Dark Hall",{3.2f,35,4500,.28f,.35f,1}}, {"Small Room",{.65f,8,11000,.17f,.15f,2}}};
+    static const std::vector<ModulePreset> drive={{"Warm Tube",{6,12000,.45f,0}}, {"Console Edge",{9,10000,.38f,1}}, {"Air Lift",{5,16000,.25f,2}}};
+    static const std::vector<ModulePreset> empty;
+    switch(type){case EchoUnified:return echo;case RoomUnified:return room;case DriveUnified:return drive;default:return empty;}
+}
 } // namespace
+
+juce::StringArray SkellierProcessor::modulePresetNames(int type){juce::StringArray names;for(const auto& p:modulePresets(type))names.add(p.name);return names;}
+bool SkellierProcessor::applyModulePreset(int slot,int expectedType,int preset){
+    if(slot<0||slot>=kNumSlots||slotType(slot)!=expectedType)return false;
+    const auto& list=modulePresets(expectedType);if(preset<0||preset>=int(list.size()))return false;
+    const auto& values=list[size_t(preset)].values;const auto& m=info(expectedType);if(int(values.size())!=m.numKnobs)return false;
+    pushUndo();for(int k=0;k<m.numKnobs;++k)setParam(knobId(slot,k),toNorm(m.knobs[k],values[size_t(k)]));return true;
+}
 
 int SkellierProcessor::numFactory() { return (int) factory().size(); }
 juce::String SkellierProcessor::factoryName(int i) { return factory()[(size_t) juce::jlimit(0, numFactory() - 1, i)].name; }
@@ -485,6 +502,7 @@ void SkellierProcessor::getStateInformation(juce::MemoryBlock& dest) {
     auto state = apvts.copyState();
     for (int s = 0; s < kNumSlots; ++s)
         state.setProperty("art" + juce::String(s), artworkChoices[(size_t) s].load(), nullptr);
+    state.setProperty("tuneFlats", tuneFlats.load(std::memory_order_relaxed), nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 void SkellierProcessor::setStateInformation(const void* data, int size) {
@@ -511,6 +529,7 @@ void SkellierProcessor::setStateInformation(const void* data, int size) {
                 artworkChoices[(size_t) s] = juce::jlimit(0, 3,
                     (int) state.getProperty("art" + juce::String(s), 1));
             }
+            tuneFlats.store(bool(state.getProperty("tuneFlats",false)),std::memory_order_relaxed);
             apvts.replaceState(state);
         }
     latencyUpdater.triggerAsyncUpdate();

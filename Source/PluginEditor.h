@@ -103,6 +103,7 @@ private:
     SkellierProcessor& proc;
     int index, type = 0, tuneHover=-1;
     bool selectTuneKey(juce::Point<float>,bool commit);
+    bool showTuneMenu(juce::Point<float>);
     bool dragOver = false, dragging = false, shownPower=true, editing=false;
     float needle = 0.0f, shownNeedle = -1.0f;
     double lastMeterTime=0;
@@ -114,7 +115,7 @@ private:
     int appliedArtworkChoice = -1, nativeChoice = 0;
     juce::Rectangle<int> panelBounds;
     juce::Image panelCache;
-    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"};
+    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"}, modulePresetButton{"PRESETS"};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};

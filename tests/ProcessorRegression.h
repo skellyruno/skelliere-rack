@@ -29,6 +29,25 @@ inline void processorRegression() {
     auto tuneOldXml=tuneOld.createXml();juce::MemoryBlock tuneOldBinary;juce::AudioProcessor::copyXmlToBinary(*tuneOldXml,tuneOldBinary);p.setStateInformation(tuneOldBinary.getData(),int(tuneOldBinary.getSize()));
     require(p.apvts.getRawParameterValue(p.humanizeId(0))->load()==0,"Legacy Tune did not default to original processing");
     require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,1))->load()-.71f)<1e-6f&&std::abs(p.apvts.getRawParameterValue(p.knobId(0,2))->load()-.42f)<1e-6f,"Legacy wet/amount changed");
+    // Display-only enharmonic preference must not change the key parameter.
+    set(p.knobId(0,3),1.f/11.f);p.tuneFlats.store(true);
+    juce::MemoryBlock spelling;p.getStateInformation(spelling);p.tuneFlats.store(false);
+    p.setStateInformation(spelling.getData(),int(spelling.getSize()));
+    require(p.tuneFlats.load()&&std::abs(p.apvts.getRawParameterValue(p.knobId(0,3))->load()-1.f/11.f)<1e-6f,"Enharmonic preference or pitch changed on recall");
+    auto noSpelling=p.apvts.copyState();noSpelling.removeProperty("tuneFlats",nullptr);auto noSpellingXml=noSpelling.createXml();juce::MemoryBlock noSpellingBinary;juce::AudioProcessor::copyXmlToBinary(*noSpellingXml,noSpellingBinary);
+    p.setStateInformation(noSpellingBinary.getData(),int(noSpellingBinary.getSize()));require(!p.tuneFlats.load(),"Old session retained stale note spelling");
+    // Module presets are explicit user actions and never replace the whole rack.
+    for(int type:{skl::EchoUnified,skl::RoomUnified,skl::DriveUnified}){
+        p.clearRack();require(p.addModule(type,0)&&p.addModule(skl::Trim,1),"Preset modules missing");
+        set(p.onId(0),0);set(p.knobId(1,0),.81f);p.artworkChoices[0].store(2);
+        require(p.modulePresetNames(type).size()==3,"Preset names missing");
+        for(int j=0;j<3;++j){const float old=p.apvts.getRawParameterValue(p.knobId(0,0))->load();require(p.applyModulePreset(0,type,j),"Module preset not applied");
+            require(p.slotType(0)==type&&!p.slotOn(0)&&p.artworkChoices[0].load()==2&&p.slotType(1)==skl::Trim&&std::abs(p.apvts.getRawParameterValue(p.knobId(1,0))->load()-.81f)<1e-6f,"Module preset changed unrelated state");
+            for(int k=0;k<skl::info(type).numKnobs;++k){const float v=p.apvts.getRawParameterValue(p.knobId(0,k))->load();require(std::isfinite(v)&&v>=0&&v<=1,"Module preset value out of range");}
+            p.undo();require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-old)<1e-6f,"Module preset undo failed");}
+        require(!p.applyModulePreset(0,skl::Trim,0)&&!p.applyModulePreset(0,type,3)&&!p.applyModulePreset(-1,type,0),"Stale or invalid preset accepted");
+    }
+    p.clearRack(); // isolate the legacy choice test from extension-preset fixtures
     // Original normalized choice values must retain every legacy identity.
     auto* legacy=p.apvts.getParameter(p.typeId(0));
     auto* choices=dynamic_cast<juce::AudioParameterChoice*>(legacy);

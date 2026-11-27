@@ -171,7 +171,9 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
             face.getX()+face.getWidth()*.22f,face.getY()+face.getHeight()*.14f,juce::Colours::transparentWhite,
             face.getRight(),face.getCentreY(),true));g.fillRect(face);
         if(brushed)paintBrushed(g,face,light?.82f:.72f);else {paintPeened(g,face,.65f);paintBrushed(g,face,.36f);}
-        if(r.getWidth()>200&&r.getHeight()>45)paintAnalogWear(g,face,light,739+int(r.getWidth())*13+int(r.getHeight())*7,.61f);
+        if(r.getWidth()>90&&r.getHeight()>45){paintAnalogWear(g,face,light,739+int(r.getWidth())*13+int(r.getHeight())*7,.82f);
+            g.setGradientFill(juce::ColourGradient(Colour(0xffad8156).withAlpha(light?.085f:.045f),face.getX()+1,face.getBottom()-3,juce::Colours::transparentBlack,face.getX()+20,face.getBottom()-28,false));g.fillRect(face);
+        }
         // Large reflected softbox and darker return, clipped to the metal.
         g.setGradientFill(juce::ColourGradient(Colour(0xffffe9c7).withAlpha(light?.055f:.018f),face.getX()+face.getWidth()*.18f,face.getY()+face.getHeight()*.18f,juce::Colours::transparentWhite,face.getRight(),face.getBottom(),true));g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(light?.09f:.15f),face.getRight(),face.getBottom(),juce::Colours::transparentBlack,face.getX(),face.getCentreY(),true));g.fillRect(face);
@@ -601,6 +603,11 @@ public:
     }
     void drawButtonBackground(Graphics& g, juce::Button& b, const Colour&, bool hover, bool down) override {
         auto r = b.getLocalBounds().toFloat().reduced(1.f);
+        if(b.getProperties().contains("moduleClose")){
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff4b4840),r.getY(),Colour(0xff1c1d19),r.getBottom()));g.fillRoundedRectangle(r,4.f);
+            g.setColour(Colour(0xffc4b49c).withAlpha(hover?.7f:.34f));g.drawRoundedRectangle(r,4.f,.7f);
+            if(hover||down){g.setColour(Colour(0xffa13e30).withAlpha(down?.56f:.24f));g.fillRoundedRectangle(r.reduced(1),3.f);}return;
+        }
         const bool on = b.getToggleState();
         Colour top=on?Colour(0xffe0c39a):Colour(0xff35312c),bot=on?Colour(0xffb08f65):Colour(0xff1c1916);
         if(b.getProperties().contains("quiet")) {top=on?Colour(0xff494238):Colour(0xff282522);bot=Colour(0xff191714);}
@@ -615,8 +622,9 @@ public:
             g.setColour(pal::amber); g.fillEllipse(cx - 2.5f, cy - 2.5f, 5.0f, 5.0f);
         }
     }
-    void drawButtonText(Graphics& g, juce::TextButton& b, bool, bool) override {
-        g.setFont(font(b.getHeight()>=32?15.f:12.f,false).withExtraKerningFactor(.035f));
+    void drawButtonText(Graphics& g, juce::TextButton& b, bool hover, bool) override {
+        if(b.getProperties().contains("moduleClose")){const auto r=b.getLocalBounds().toFloat();const float cx=r.getCentreX(),cy=r.getCentreY();g.setColour(hover?Colour(0xffffb6a2):Colour(0xffc4bca9));g.drawLine(cx-3.5f,cy-3.5f,cx+3.5f,cy+3.5f,1.2f);g.drawLine(cx-3.5f,cy+3.5f,cx+3.5f,cy-3.5f,1.2f);return;}
+        g.setFont(font(b.getProperties().contains("moduleHeader")?9.1f:(b.getHeight()>=32?15.f:12.f),false).withExtraKerningFactor(.035f));
         g.setColour((b.getToggleState()&&!b.getProperties().contains("quiet") ? Colour(0xff20180f) : pal::ink).withMultipliedAlpha(b.isEnabled()?1.f:.36f));
         auto r = b.getLocalBounds();
         if (b.getToggleState() && b.getClickingTogglesState() && !b.getProperties().contains("plain")) r = r.withTrimmedLeft(12);
@@ -665,18 +673,13 @@ public:
             const bool on=p>=.5f;const float u=size/58.f;
             const auto names=juce::StringArray::fromTokens(s.getProperties().getWithDefault("switchLabels",juce::var("0,1")).toString(),",","");
             auto plate=Rectangle<float>(cx-28*u,cy-26*u,56*u,52*u);
-            g.setColour(Colour(0xff210c08).withAlpha(.9f));g.fillRoundedRectangle(plate.translated(0,2*u),3*u);
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff49443e),plate.getY(),Colour(0xff211b18),plate.getBottom()));g.fillRoundedRectangle(plate,3*u);
-            g.setColour(Colour(0xffd9b58b).withAlpha(.8f));g.drawRoundedRectangle(plate.reduced(.5f),3*u,.7f);
-            auto well=Rectangle<float>(cx-25*u,cy-22*u,27*u,44*u);
-            g.setColour(Colour(0xff140f0d));g.fillRoundedRectangle(well,3*u);g.setColour(Colour(0xff726257));g.drawRoundedRectangle(well.reduced(.5f),3*u,.7f);
-            const float bx=cx-11*u,by=cy,tx=bx+(on?-3.f:3.f)*u,ty=by+(on?-16.f:16.f)*u;
-            juce::Path nut;for(int i=0;i<6;++i){const float a=juce::MathConstants<float>::twoPi*i/6.f+juce::MathConstants<float>::pi/6;const float x=bx+std::cos(a)*9*u,y=by+std::sin(a)*9*u;if(i==0)nut.startNewSubPath(x,y);else nut.lineTo(x,y);}nut.closeSubPath();
-            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffe0d1b3),by-9*u,Colour(0xff665d4d),by+9*u));g.fillPath(nut);g.setColour(Colour(0xff241c17));g.strokePath(nut,juce::PathStrokeType(.8f));
-            g.setColour(Colour(0xff171717));g.fillEllipse(bx-5*u,by-5*u,10*u,10*u);
-            g.setColour(Colour(0xff0c0907).withAlpha(.9f));g.drawLine(bx+2*u,by+2*u,tx+2*u,ty+2*u,7.5f*u);
-            g.setColour(Colour(0xff514c46));g.drawLine(bx,by,tx,ty,7.f*u);g.setColour(Colour(0xffb6b5ac));g.drawLine(bx-.8f*u,by,tx-.8f*u,ty,5.f*u);g.setColour(Colour(0xfff6f1de));g.drawLine(bx-2*u,by,tx-2*u,ty,1.4f*u);
-            auto tip=Rectangle<float>(tx-4.5f*u,ty-3.5f*u,9*u,7*u);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xfff8ebd2),tip.getY(),Colour(0xff70675a),tip.getBottom()));g.fillRoundedRectangle(tip,2*u);g.setColour(Colour(0xfff6ead0).withAlpha(.8f));g.drawRoundedRectangle(tip.reduced(.4f),2*u,.5f);
+            // Actual supplied kit artwork; warmed to the rack's signature nickel caps.
+            static const auto up=juce::ImageFileFormat::loadFrom(SkelliereKnobData::mixhead_toggle_up_png,SkelliereKnobData::mixhead_toggle_up_pngSize);
+            static const auto down=juce::ImageFileFormat::loadFrom(SkelliereKnobData::mixhead_toggle_down_png,SkelliereKnobData::mixhead_toggle_down_pngSize);
+            const auto& toggle=on?up:down;const float side=38*u;
+            const auto rect=Rectangle<float>(cx-10*u-side*.5f,cy-side*.5f,side,side);
+            g.setColour(juce::Colours::black.withAlpha(.48f));g.fillEllipse(rect.reduced(2*u).translated(1.5f*u,2.5f*u));
+            g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);g.drawImage(toggle,rect);
             for(int i=0;i<2;++i){const bool selected=(i==int(on));const float y=cy+(i==1?-13.f:13.f)*u;g.setColour(selected?Colour(0xffffb64d):Colour(0xff2a211c));g.fillEllipse(cx+4*u,y-6*u,4*u,4*u);g.setColour(selected?Colour(0xffffe2a6):Colour(0xffc8b7aa));g.setFont(font(8.5f*u,true));g.drawFittedText(names[i].toUpperCase(),Rectangle<float>(cx+2*u,y-1*u,24*u,10*u).toNearestInt(),juce::Justification::centred,1);}
             if(s.hasKeyboardFocus(false)){g.setColour(pal::amber);g.drawRoundedRectangle(plate.expanded(1),3*u,.8f);}return;
         }

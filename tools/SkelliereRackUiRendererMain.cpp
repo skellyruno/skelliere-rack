@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     if(args.engines){options.scenes={{"engine_modules",1260,870,12,1},{"engine_modules_edit",1260,870,12,1},{"engine_modules_80",1008,696,12,1},{"engine_modules_150",1890,1305,12,1}};options.mustDiffer={{"engine_modules","engine_modules_edit"}};}
     if(args.colors){options.scenes={{"color_modules",1260,870,11,1},{"color_modules_edit",1260,870,11,1},{"color_modules_80",1008,696,11,1},{"color_modules_150",1890,1305,11,1}};options.mustDiffer={{"color_modules","color_modules_edit"}};}
     if(args.gates){options.scenes={{"gate_modules",1260,870,13,1},{"gate_modules_edit",1260,870,13,1},{"gate_modules_80",1008,696,13,1},{"gate_modules_150",1890,1305,13,1}};options.mustDiffer={{"gate_modules","gate_modules_edit"}};}
-    if(args.consolidated){options.scenes={{"new_dynamics",1260,870,14,1},{"new_color",1260,870,15,1},{"new_space",1260,870,16,1},{"new_utility",1260,870,17,1},{"new_dynamics_150",1890,1305,14,1},{"new_utility_edit",1260,870,17,1}};options.mustDiffer={{"new_utility","new_utility_edit"}};for(int i=0;i<(skl::activeCatalogCount()+3)/4;++i)options.scenes.push_back({"identity_"+juce::String(i+1),1260,870,18+i,1});options.scenes.push_back({"identity_80",1008,696,18,1});options.scenes.push_back({"tune_edit",1260,870,18,1});options.scenes.push_back({"tune_150",1890,1305,18,1});}
+    if(args.consolidated){options.scenes={{"new_dynamics",1260,870,14,1},{"new_color",1260,870,15,1},{"new_space",1260,870,16,1},{"new_utility",1260,870,17,1},{"new_dynamics_150",1890,1305,14,1},{"new_utility_edit",1260,870,17,1}};options.mustDiffer={{"new_utility","new_utility_edit"}};for(int i=0;i<(skl::activeCatalogCount()+3)/4;++i)options.scenes.push_back({"identity_"+juce::String(i+1),1260,870,18+i,1});options.scenes.push_back({"identity_80",1008,696,18,1});options.scenes.push_back({"tune_edit",1260,870,18,1});options.scenes.push_back({"tune_150",1890,1305,18,1});options.scenes.push_back({"mixhead_switches_150",1890,1305,12,1});options.scenes.push_back({"tune_flats",1260,870,18,1});}
     if(args.full&&!args.consolidated){options.scenes.push_back({"new_dynamics",1260,870,14,1});options.scenes.push_back({"new_color",1260,870,15,1});options.scenes.push_back({"new_space",1260,870,16,1});options.scenes.push_back({"new_utility",1260,870,17,1});}
     int expectedWidth=1260,expectedHeight=870,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
@@ -122,6 +122,9 @@ int main(int argc, char** argv) {
             processor.apvts.getParameter(SkellierProcessor::knobId(tapeSlot,4))->setValueNotifyingHost(0.f);
             processor.apvts.getParameter(SkellierProcessor::knobId(tapeSlot,5))->setValueNotifyingHost(1.f);
         }
+        processor.tuneFlats.store(scene.id=="tune_flats");
+        if(scene.id=="tune_flats")processor.apvts.getParameter(SkellierProcessor::knobId(3,3))->setValueNotifyingHost(1.f/11.f);
+        if(scene.id=="mixhead_switches_150"){processor.apvts.getParameter(SkellierProcessor::knobId(3,4))->setValueNotifyingHost(0);processor.apvts.getParameter(SkellierProcessor::knobId(3,5))->setValueNotifyingHost(1);}
         if(scene.id=="catalog_min"||scene.id=="catalog_max")for(int s=0;s<expectedCount;++s)
             for(int k=0;k<skl::info(processor.slotType(s)).numKnobs;++k)
                 processor.apvts.getParameter(SkellierProcessor::knobId(s,k))->setValueNotifyingHost(scene.id=="catalog_max"?1.f:0.f);

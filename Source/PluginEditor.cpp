@@ -273,15 +273,14 @@ void PowerButton::paintButton(Graphics& g, bool hover, bool down) {
     g.setGradientFill(juce::ColourGradient(Colour(0xffd2bea0),cx-R*.55f,cy-R*.65f,Colour(0xff40382c),cx+R*.65f,cy+R,true));
     g.fillEllipse(cx - R, cy - R, 2 * R, 2 * R);
     g.setColour(Colour(0xff1b1b1b)); g.drawEllipse(cx - R, cy - R, 2 * R, 2 * R, 1.0f);
-    const float lr = R * 0.57f;
-    if (getToggleState()) {
-        g.setColour(pal::amber.withAlpha(0.35f)); g.fillEllipse(cx - lr * 1.8f, cy - lr * 1.8f, lr * 3.6f, lr * 3.6f);
-        g.setGradientFill(juce::ColourGradient(Colour(0xfffff7cf), cx - lr * 0.3f, cy - lr * 0.4f, pal::amber.darker(0.4f), cx + lr, cy + lr, true));
-    } else {
-        g.setColour(Colour(0xff26241d));
-    }
-    g.fillEllipse(cx - lr, cy - lr, 2 * lr, 2 * lr);
-    if (hover || down) { g.setColour(juce::Colours::white.withAlpha(down ? 0.25f : 0.12f)); g.fillEllipse(cx - R, cy - R, 2 * R, 2 * R); }
+    const float lr=R*.74f;
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff33342f),cy-lr,Colour(0xff10130f),cy+lr));g.fillEllipse(cx-lr,cy-lr,2*lr,2*lr);
+    const auto ink=getToggleState()?Colour(0xffb8edac):Colour(0xff777b70);
+    if(getToggleState()){g.setColour(ink.withAlpha(.17f));g.fillEllipse(cx-lr,cy-lr,2*lr,2*lr);}
+    juce::Path symbol;symbol.addCentredArc(cx,cy+.3f,lr*.62f,lr*.62f,0,.67f,juce::MathConstants<float>::twoPi-.67f,true);
+    g.setColour(ink);g.strokePath(symbol,juce::PathStrokeType(1.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.drawLine(cx,cy-lr*.8f,cx,cy,1.1f);
+    if(hover||down){g.setColour(juce::Colours::white.withAlpha(down?.15f:.07f));g.fillEllipse(cx-R,cy-R,2*R,2*R);}
+
 }
 
 void StripButton::mouseDown(const juce::MouseEvent& e) {
@@ -300,6 +299,8 @@ void StripButton::mouseDown(const juce::MouseEvent& e) {
 // =================================================================== SlotComponent
 SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     addAndMakeVisible(powerBtn);
+    addChildComponent(modulePresetButton);modulePresetButton.setTooltip("Apply a starting-point preset to this effect only");modulePresetButton.getProperties().set("plain",true);modulePresetButton.getProperties().set("quiet",true);
+    modulePresetButton.onClick=[this]{const int originalType=type;const auto names=proc.modulePresetNames(type);if(names.isEmpty())return;juce::PopupMenu menu;for(int j=0;j<names.size();++j)menu.addItem(j+1,names[j]);juce::Component::SafePointer<SlotComponent> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&modulePresetButton).withMinimumWidth(140),[safe,originalType](int choice){if(safe!=nullptr&&choice>0&&safe->type==originalType&&safe->proc.applyModulePreset(safe->index,originalType,choice-1))safe->repaint();});};
     addAndMakeVisible(artButton);addChildComponent(advancedButton);advancedButton.setTooltip("Open advanced DSP engine and controls");advancedButton.getProperties().set("plain",true);
     advancedButton.onClick=[this]{if(!hasAdvancedEngine(type))return;auto* parent=findParentComponentOfClass<juce::AudioProcessorEditor>();if(!parent)return;juce::CallOutBox::launchAsynchronously(std::make_unique<AdvancedPanel>(proc,index,type),parent->getLocalArea(this,advancedButton.getBounds()),parent);};
     artButton.setTooltip("Cycle original Skell metal finishes");
@@ -315,7 +316,7 @@ SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     for(auto* b:{&leftBtn,&rightBtn,&removeBtn,&soloBtn,&artButton}){b->getProperties().set("plain",true);b->getProperties().set("quiet",true);}
     powerBtn.setTooltip("Enable or bypass this effect");
     leftBtn.setTooltip("Move module left"); rightBtn.setTooltip("Move module right");
-    removeBtn.setTooltip("Remove module (Undo restores it)"); soloBtn.setTooltip("Solo this slot");
+    removeBtn.getProperties().set("moduleClose",true);removeBtn.setTooltip("Remove module (Undo restores it)"); soloBtn.setTooltip("Solo this slot");
     rebuild();
 }
 
@@ -323,10 +324,10 @@ void SlotComponent::rebuild() {
     type = proc.slotType(index);
     cells.clear();tuneHover=-1;
     const bool filled = type != Empty;
-    artButton.setVisible(filled&&editing);advancedButton.setVisible(hasAdvancedEngine(type));
+    artButton.setVisible(filled&&editing);advancedButton.setVisible(hasAdvancedEngine(type));modulePresetButton.setVisible(filled&&!proc.modulePresetNames(type).isEmpty());
     appliedArtworkChoice = -1; panelCache={};
     powerBtn.setVisible(filled);
-    for(auto* c:{&leftBtn,&rightBtn,&removeBtn,&soloBtn})c->setVisible(filled&&editing);
+    for(auto* c:{&leftBtn,&rightBtn,&soloBtn})c->setVisible(filled&&editing);removeBtn.setVisible(filled);
     if (filled) {
         const auto& mi = info(type);
         for (int j = 0; j < uiKnobCount(type)+(type==Tune?1:0); ++j) {
@@ -432,7 +433,12 @@ bool SlotComponent::artworkLayoutIsValid() const {
     if(type==Empty)return cells.empty();
     if(cells.size()!=static_cast<size_t>(uiKnobCount(type)+(type==Tune?1:0)))return false;
     const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(editing?46:23);
-    if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||removeBtn.isVisible()!=editing||artButton.isVisible()!=editing)return false;
+    if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||!removeBtn.isVisible()||artButton.isVisible()!=editing)return false;
+    const auto header=getLocalBounds().withHeight(60).reduced(22,0);
+    if(modulePresetButton.isVisible()!=!proc.modulePresetNames(type).isEmpty())return false;
+    if(modulePresetButton.isVisible()&&(!header.contains(modulePresetButton.getBounds())||modulePresetButton.getBounds().intersects(powerBtn.getBounds())||modulePresetButton.getBounds().intersects(removeBtn.getBounds())||(advancedButton.isVisible()&&modulePresetButton.getBounds().intersects(advancedButton.getBounds()))))return false;
+    if(!header.contains(powerBtn.getBounds())||!header.contains(removeBtn.getBounds())||powerBtn.getBounds().intersects(removeBtn.getBounds()))return false;
+    if(advancedButton.isVisible()&&(!header.contains(advancedButton.getBounds())||advancedButton.getBounds().intersects(powerBtn.getBounds())||advancedButton.getBounds().intersects(removeBtn.getBounds())))return false;
     for(size_t i=0;i<cells.size();++i){
         const auto& c=*cells[i];
         if(type==Tune&&i>=1&&i<=4){if(c.isVisible())return false;continue;}
@@ -464,8 +470,9 @@ bool SlotComponent::exerciseSpriteBindings() {
         const int white[]={0,2,4,5,7,9,11},black[]={1,3,6,8,10},after[]={0,1,3,4,5};const float kw=keys.getWidth()/7.f;
         for(int j=0;j<7;++j){const juce::Point<float> point(keys.getX()+(j+.5f)*kw,keys.getBottom()-3);const float before=key->getValue();ok=selectTuneKey(point,false)&&ok&&key->getValue()==before;ok=selectTuneKey(point,true)&&ok&&std::abs(key->getValue()-white[j]/11.f)<1e-5f;}
         for(int j=0;j<5;++j){const juce::Point<float> point(keys.getX()+(after[j]+1)*kw,keys.getY()+3);ok=selectTuneKey(point,true)&&ok&&std::abs(key->getValue()-black[j]/11.f)<1e-5f;}
-        const auto roots=tuneRootBounds(detail);for(int j=0;j<12;++j){const juce::Point<float> p(roots.getX()+(j%6+.5f)*roots.getWidth()/6,roots.getY()+(j/6+.5f)*roots.getHeight()/2);const float before=key->getValue();ok=selectTuneKey(p,false)&&ok&&key->getValue()==before;ok=selectTuneKey(p,true)&&ok&&std::abs(key->getValue()-j/11.f)<1e-5f;}
-        for(int j=0;j<3;++j){ok=selectTuneKey({modes.getX()+(j+.5f)*modes.getWidth()/3,modes.getCentreY()},true)&&ok&&std::abs(scale->getValue()-j*.5f)<1e-5f;}
+        const auto roots=tuneRootBounds(detail);ok=ok&&tuneKeyAt(detail,roots.getCentre())<0&&tuneKeyAt(detail,modes.getCentre())<0;
+        for(int j=0;j<12;++j){cells[3]->slider.setValue(j/11.0,juce::sendNotificationSync);ok=ok&&std::abs(key->getValue()-j/11.f)<1e-5f&&!tuneNoteName(j,false).isEmpty()&&!tuneNoteName(j,true).isEmpty();}
+        for(int j=0;j<3;++j){cells[4]->slider.setValue(j*.5,juce::sendNotificationSync);ok=ok&&std::abs(scale->getValue()-j*.5f)<1e-5f;}
         key->setValueNotifyingHost(oldKey);scale->setValueNotifyingHost(oldScale);tuneHover=-1;
     }
     auto* on=proc.apvts.getParameter(SkellierProcessor::onId(index));const float old=on->getValue();
@@ -503,17 +510,20 @@ void SlotComponent::setMeter(float gr) {
 void SlotComponent::setEditMode(bool enabled) {
     if(editing==enabled)return;
     editing=enabled;panelCache={};
-    for(auto* c:{&leftBtn,&rightBtn,&removeBtn,&soloBtn,&artButton})c->setVisible(type!=Empty&&editing);
+    for(auto* c:{&leftBtn,&rightBtn,&soloBtn,&artButton})c->setVisible(type!=Empty&&editing);removeBtn.setVisible(type!=Empty);
     resized();repaint();
 }
 void SlotComponent::resized() {
     sectionRects.clear();vuRect={};panelBounds={};
-    const int w=getWidth(),h=getHeight();footRect=editing?Rectangle<int>(10,h-43,w-20,32):Rectangle<int>(25,h-24,17,17);
+    const int w=getWidth(),h=getHeight();footRect=editing?Rectangle<int>(10,h-43,w-20,32):Rectangle<int>();
     if(type==Empty)return;
-    advancedButton.setBounds(w-77,17,63,22);
-    powerBtn.setBounds(editing?Rectangle<int>(16,h-39,25,25):Rectangle<int>(25,h-24,17,17));soloBtn.setBounds(49,h-38,27,23);
-    leftBtn.setBounds(82,h-38,21,23);rightBtn.setBounds(106,h-38,21,23);
-    artButton.setBounds(130,h-38,juce::jmin(62,w-170),23);removeBtn.setBounds(w-35,h-38,20,23);
+    const int top=type==SkellSSL?3:10;
+    powerBtn.setBounds(25,top,24,24);removeBtn.setBounds(w-49,top,24,24);
+    advancedButton.setBounds(w/2+17,top+4,w-49-(w/2+17)-5,16);
+    modulePresetButton.setBounds(54,top+4,w/2-71,16);
+    advancedButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("moduleHeader",true);
+    soloBtn.setBounds(25,h-38,27,23);leftBtn.setBounds(59,h-38,21,23);rightBtn.setBounds(84,h-38,21,23);
+    artButton.setBounds(w-90,h-38,65,23);
     const auto layout=originalLayout(type,w,editing);vuRect=layout.meter;
     for(size_t i=0;i<cells.size();++i)cells[i]->setBounds(layout.cells[i]);
 }
@@ -669,7 +679,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         // Repaint only the optical scene; the heavy chassis/faceplate stays cached.
         juce::Graphics::ScopedSaveState scene(g);g.reduceClipRegion(detail);
         const auto r=detail.toFloat();const auto& m=artworkMotion;const int art=legacyArtworkType(type);
-        if(identityArt(type)){std::array<float,6> vals{};for(int j=0;j<std::min(int(cells.size()),6);++j)vals[j]=type==Tune&&j==5?float(cells[j]->slider.getValue()):toReal(info(type).knobs[j],float(cells[j]->slider.getValue()));paintIdentityArt(g,r,type,m.phase,m.level,type==ClipUnified?int(vals[3]):0,false,vals,tuneHover);}else if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,art,m.phase,m.level,false);
+        if(identityArt(type)){std::array<float,6> vals{};for(int j=0;j<std::min(int(cells.size()),6);++j)vals[j]=type==Tune&&j==5?float(cells[j]->slider.getValue()):toReal(info(type).knobs[j],float(cells[j]->slider.getValue()));paintIdentityArt(g,r,type,m.phase,m.level,type==ClipUnified?int(vals[3]):0,false,vals,tuneHover,proc.tuneFlats.load(std::memory_order_relaxed));}else if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,art,m.phase,m.level,false);
         else if(art==Reverb||art==Chorus)paintSpaceDetail(g,r,art,m.phase,m.level,false);
         else if(art==Delay||art==Slap)paintTapeDetail(g,r,art==Delay&&nativeChoice==1,m.left,m.right,m.phase);
         else paintWorkshopDetail(g,r,art,m.phase,m.level,false);
@@ -712,13 +722,26 @@ bool SlotComponent::selectTuneKey(juce::Point<float> point,bool commit){
     if(type!=Tune)return false;const auto detail=originalLayout(type,getWidth(),editing).detail.toFloat();
     const int note=tuneKeyAt(detail,point);if(note!=tuneHover){tuneHover=note;repaint(detail.toNearestInt());}
     if(note>=0){if(commit&&cells.size()==6)cells[3]->slider.setValue(note/11.0,juce::sendNotificationSync);return true;}
-    const auto modes=tuneScaleBounds(detail);if(modes.contains(point)){if(commit&&cells.size()==6)cells[4]->slider.setValue(juce::jlimit(0,2,int((point.x-modes.getX())*3/modes.getWidth()))*.5,juce::sendNotificationSync);return true;}
+
     return false;
+}
+bool SlotComponent::showTuneMenu(juce::Point<float> point){
+    if(type!=Tune||cells.size()!=6)return false;
+    const auto detail=originalLayout(type,getWidth(),editing).detail.toFloat();const auto roots=tuneRootBounds(detail),modes=tuneScaleBounds(detail);const bool root=roots.contains(point);if(!root&&!modes.contains(point))return false;
+    juce::PopupMenu menu;const int current=int(std::lround(cells[root?3:4]->slider.getValue()*(root?11:2)));
+    if(root){const bool flats=proc.tuneFlats.load(std::memory_order_relaxed);for(int n=0;n<12;++n)menu.addItem(n+1,tuneNoteName(n,flats),true,n==current);menu.addSeparator();menu.addItem(30,"Use sharps (#)",true,!flats);menu.addItem(31,"Use flats (b)",true,flats);}
+    else{const char* labels[]={"Chromatic","Major","Minor"};for(int n=0;n<3;++n)menu.addItem(n+1,labels[n],true,n==current);}
+    juce::Component::SafePointer<SlotComponent> safe(this);const auto target=localAreaToGlobal((root?roots:modes).toNearestInt());
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withTargetScreenArea(target).withMinimumWidth(120),[safe,root](int choice){
+        if(safe==nullptr||safe->type!=Tune||safe->proc.slotType(safe->index)!=Tune||safe->cells.size()!=6||choice==0)return;
+        if(root&&(choice==30||choice==31)){safe->proc.tuneFlats.store(choice==31,std::memory_order_relaxed);safe->repaint();return;}
+        if(choice>=1&&choice<=(root?12:3)){safe->cells[root?3:4]->slider.setValue(double(choice-1)/(root?11:2),juce::sendNotificationSync);safe->repaint();}
+    });return true;
 }
 void SlotComponent::mouseMove(const juce::MouseEvent& e){selectTuneKey(e.position,false);}
 void SlotComponent::mouseDown(const juce::MouseEvent& e) {
     dragging=false;
-    if(!e.mods.isPopupMenu()&&selectTuneKey(e.position,true))return;
+    if(!e.mods.isPopupMenu()&&(showTuneMenu(e.position)||selectTuneKey(e.position,true)))return;
     if(type!=Empty&&!e.mods.isPopupMenu())return;
     // Empty slots can add effects without opening the module library.
     // Popups are asynchronous; do not retain an unsafe editor pointer.
