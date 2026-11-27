@@ -25,23 +25,39 @@ public:
     void prepare(double sr,int,int) override {rate=std::clamp(sr,8000.,384000.);engine.prepare(rate);reset();}
     void reset() override {engine.reset();seed=false;tick=0;wet=1;gr.store(0,std::memory_order_relaxed);}
     float meter() const override{return gr.load(std::memory_order_relaxed);}
+    void setExtended(const std::array<float,kSslExtraCount>& v) noexcept {for(int i=0;i<kSslExtraCount;++i)extTarget[i]=std::isfinite(v[i])?std::clamp(v[i],0.f,1.f):sslDefault(i);}
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         if(b.getNumChannels()<1)return;
         float target[6];for(int j=0;j<6;++j)target[j]=std::isfinite(k[j])?std::clamp(k[j],0.f,1.f):defaultNorm(SkellSSL,j);
-        if(!seed){std::copy(target,target+6,p);wet=active?1.f:0.f;seed=true;}
+        if(!seed){std::copy(target,target+6,p);ext=extTarget;wet=active?1.f:0.f;seed=true;}
         const float step=float(32./(.02*rate)),fade=float(1./(.005*rate));auto* l=b.getWritePointer(0);auto* r=b.getNumChannels()>1?b.getWritePointer(1):nullptr;
         float reduction=0;
         for(int i=0;i<b.getNumSamples();){
-            if(tick==0){for(int j=0;j<6;++j)p[j]+=std::clamp(target[j]-p[j],-step,step);settings.gLaw=p[0]>=.5f;settings.lfGain=realOf(SkellSSL,1,p);settings.lmfGain=realOf(SkellSSL,2,p);settings.hmfGain=realOf(SkellSSL,3,p);settings.hfGain=realOf(SkellSSL,4,p);settings.compThreshold=10.-30.*p[5];settings.compRatio=1.+5.*p[5];settings.compRelease=.4;settings.dynOn=p[5]>.0001f;tick=32;}
+            if(tick==0){
+                for(int j=0;j<6;++j)p[j]+=std::clamp(target[j]-p[j],-step,step);
+                for(int j=0;j<kSslExtraCount;++j)ext[j]+=std::clamp(extTarget[j]-ext[j],-step,step);
+                auto v=[&](int j){return double(sslReal(j,ext[j]));};
+                settings.gLaw=p[0]>=.5f;settings.inputDb=v(SslInput);settings.outputDb=v(SslOutput);
+                // Smooth polarity outside the recovered engine; keep its DSP identity.
+                settings.phase=false;settings.hpHz=v(SslHP);settings.lpKHz=ext[SslLP]<.001f?0.:std::max(3.,v(SslLP)/1000.);
+                settings.lfGain=realOf(SkellSSL,1,p);settings.lfHz=v(SslLFFreq);settings.lfBell=v(SslLFBell)>.5;
+                settings.lmfGain=realOf(SkellSSL,2,p);settings.lmfKHz=v(SslLMFreq)/1000.;settings.lmfQ=v(SslLMQ);
+                settings.hmfGain=realOf(SkellSSL,3,p);settings.hmfKHz=v(SslHMFreq)/1000.;settings.hmfQ=v(SslHMQ);
+                settings.hfGain=realOf(SkellSSL,4,p);settings.hfKHz=v(SslHFFreq)/1000.;settings.hfBell=v(SslHFBell)>.5;
+                settings.compThreshold=std::clamp(v(SslThreshold)-30.*p[5],-20.,10.);
+                settings.compRatio=std::clamp(v(SslRatio)+5.*p[5],1.,20.);settings.compRelease=v(SslRelease)/1000.;settings.compFast=v(SslFast)>.5;
+                settings.expThreshold=v(SslExpThreshold);settings.expRange=v(SslExpRange);settings.expRelease=v(SslExpRelease)/1000.;settings.gate=v(SslGate)>.5;
+                settings.dynOn=p[5]>.0001f||settings.compRatio>1.0005||settings.expRange>.05;tick=32;
+            }
             const int n=std::min(tick,b.getNumSamples()-i);float a[32],z[32];for(int j=0;j<n;++j){a[j]=sane(l[i+j]);z[j]=r?sane(r[i+j]):a[j];}
-            engine.process(a,z,n,settings);reduction=std::max(reduction,engine.compReductionDb());
-            for(int j=0;j<n;++j){wet+=std::clamp((active?1.f:0.f)-wet,-fade,fade);const float x=sane(l[i+j]);l[i+j]=wet==0?x:sane(x+wet*(a[j]-x));if(r){const float y=sane(r[i+j]);r[i+j]=wet==0?y:sane(y+wet*(z[j]-y));}}
+            engine.process(a,z,n,settings);reduction=std::max({reduction,engine.compReductionDb(),engine.gateReductionDb()});
+            for(int j=0;j<n;++j){wet+=std::clamp((active?1.f:0.f)-wet,-fade,fade);const float polarity=1.f-2.f*ext[SslPhase];const float x=sane(l[i+j]);l[i+j]=wet==0?x:sane(x+wet*(polarity*a[j]-x));if(r){const float y=sane(r[i+j]);r[i+j]=wet==0?y:sane(y+wet*(polarity*z[j]-y));}}
             tick-=n;i+=n;
         }
         gr.store(active?reduction:0.f,std::memory_order_relaxed);
     }
 private:
-    skelly::vmatch::echannel::Channel engine;skelly::vmatch::echannel::Settings settings;double rate=48000;float p[6]{},wet=1;int tick=0;bool seed=false;std::atomic<float> gr{0};
+    skelly::vmatch::echannel::Channel engine;skelly::vmatch::echannel::Settings settings;double rate=48000;float p[6]{},wet=1;std::array<float,kSslExtraCount> ext=sslDefaults(),extTarget=sslDefaults();int tick=0;bool seed=false;std::atomic<float> gr{0};
 };
 // Independent zero-lookahead four-band noise reducer. Not a reconstruction of NS1.
 class RackNoiseReducer final : public ModuleBase {

@@ -15,8 +15,8 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==Reverb)metal=Colour(0xff423b4a);
     if(finish==1&&type==Chorus)metal=Colour(0xff29454a);
     if(finish==1&&type==SkellDope)metal=Colour(0xffc1c3be);
-    if(finish==1&&type==SkellSSL)metal=Colour(0xff262b2c);
-    if(finish==1&&type==SkellDemon)metal=Colour(0xff741719);
+    if(finish==1&&type==SkellSSL)metal=Colour(0xff212425);
+    if(finish==1&&type==SkellDemon)metal=Colour(0xff591014);
     if(finish==0)metal=Colour(0xff303437);
     if(finish==2)metal=Colour(0xffb1b6b1);
     if(finish==3)metal=Colour(0xff222829);
@@ -26,7 +26,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     return {metal,accent,cap,light,series};
 }
 struct OriginalLayout {
-    std::array<juce::Rectangle<int>,6> cells{};
+    std::array<juce::Rectangle<int>,kMaxKnobs+kSslExtraCount> cells{};
     juce::Rectangle<int> meter, detail;
     bool sideReadouts=false;
 };
@@ -39,15 +39,34 @@ inline OriginalLayout originalLayout(int type,int width,bool editing=false) {
     if(type==Delay||type==Slap||type==Air||type==SkellAirFX||type==Reverb||type==Chorus||type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)l.detail={16,106,width-32,120};
     if(type==Eq)l.detail.setHeight(82);
     if(type==SkellDemon){
-        l.detail={12,102,width-24,229};
-        const int cw=(width-24)/3,rh=(editing?519:547)-342;
-        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,342+(k/3)*(rh/2),cw,rh/2-3};
+        l.detail={10,101,width-20,249};
+        const int cw=(width-24)/3,rh=(editing?519:547)-355;
+        for(int k=0;k<6;++k)l.cells[k]={12+(k%3)*cw,355+(k/3)*(rh/2),cw,rh/2-3};
         return l;
     }
     if(type==SkellSSL){
-        l.sideReadouts=true;l.cells[0]={16,118,width-32,57};
-        for(int k=1;k<=4;++k)l.cells[k]={16,195+(4-k)*55,width-32,54};
-        l.cells[5]={16,434,width-32,55};l.meter={17,491,width-34,29};return l;
+        // Console proportions: compact input/filter/dynamics on the left,
+        // four full EQ bands on the right. The six original automation slots
+        // and the appended SSL controls are placed independently.
+        const int lane=(width-28)/2, left=13,right=15+lane;
+        auto row=[&](int x,int y,int h,std::initializer_list<int> ids){const int n=int(ids.size()),cw=lane/n;int i=0;for(int j:ids){l.cells[j]={x+i*cw,y,cw,h};++i;}};
+        auto e=[](int i){return kMaxKnobs+i;};
+        row(left,120,53,{e(SslInput),e(SslOutput),e(SslPhase)});
+        row(left,190,54,{e(SslHP),e(SslLP),0});
+        row(left,263,54,{5,e(SslThreshold),e(SslRatio)});
+        row(left,319,53,{e(SslRelease),e(SslFast)});
+        row(left,394,54,{e(SslExpThreshold),e(SslExpRange)});
+        row(left,451,61,{e(SslExpRelease),e(SslGate)});
+        row(right,120,64,{4,e(SslHFFreq),e(SslHFBell)});
+        row(right,204,64,{3,e(SslHMFreq),e(SslHMQ)});
+        row(right,288,64,{2,e(SslLMFreq),e(SslLMQ)});
+        row(right,372,64,{1,e(SslLFFreq),e(SslLFBell)});
+        l.meter={right+2,456,lane-4,64};return l;
+    }
+    if(type==SkellDope){
+        l.cells[0]={14,113,81,111};
+        for(int k=1;k<=4;++k)l.cells[k]={12+((k-1)%2)*half,238+((k-1)/2)*135,half,128};
+        return l;
     }
     if(type==SkellNoise){l.meter={18,108,68,260};l.cells[0]={89,108,width-105,260};l.cells[1]={12,385,half,editing?126:158};l.cells[2]={12+half,385,half,editing?126:158};return l;}
     const bool window=!l.meter.isEmpty()||!l.detail.isEmpty();
@@ -367,18 +386,25 @@ inline void paintTapeDetail(Graphics& g,juce::Rectangle<float> r,bool useReferen
     }
     // The tape mechanism is decorative; its live controls are below the window.
 }
-inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
-    if(frame)paintHardwarePlate(g,r,Colour(0xff56231c),false,8.f,3.f);
-    auto a=r.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(a.toNearestInt());
-    g.setGradientFill(juce::ColourGradient(Colour(0xffa12818),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
-    const float scale=std::min(a.getWidth()/200.f,a.getHeight()/206.f);
-    g.addTransform(juce::AffineTransform::scale(scale).translated(a.getCentreX()-100*scale,a.getBottom()-206*scale));
-    const auto bright=Colour(0xffec5a3c),shade=Colour(0xff230409),mid=Colour(0xff87151c),black=Colour(0xff100308);
+inline void paintDemonVectorFallback(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
+    const auto win=r.withTrimmedBottom(15.f);
+    if(frame)paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);
+    auto a=win.reduced(5.f);juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
+    g.setGradientFill(juce::ColourGradient(Colour(0xff69120d),a.getCentreX(),a.getY()+a.getHeight()*.38f,Colour(0xff130407),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4);
+    const float scale=std::min(r.getWidth()/200.f,r.getHeight()/228.f);
+    g.addTransform(juce::AffineTransform::scale(scale).translated(r.getCentreX()-100*scale,r.getY()+2.f));
+    auto glow=[&](float x,float y,float rad,Colour c,float alpha){g.setGradientFill(juce::ColourGradient(c.withAlpha(alpha),x,y,juce::Colours::transparentBlack,x+rad,y,true));g.fillEllipse(x-rad,y-rad,2*rad,2*rad);};
+    {juce::Graphics::ScopedSaveState bg(g);g.reduceClipRegion(juce::Rectangle<int>(5,5,190,207));
+    glow(100,118,91,Colour(0xffff3e17),.17f+.17f*level);glow(30,159,60,Colour(0xffc62016),.19f);glow(176,51,56,Colour(0xffb21712),.20f);
+    for(int i=0;i<24;++i)glow(8.f+float((i*47)%184),11.f+float((i*37)%190),9.f+(i%5)*6.f,Colour(0xff9c170e),.09f);}
+    const float roar=3.f+9.f*(.5f+.5f*std::sin(phase*2.7f-.7f))+5.f*level;
+    const auto bright=Colour(0xffef7954),shade=Colour(0xff300409),mid=Colour(0xffa12526),black=Colour(0xff080306);
     // Layered bony forms with dark undercuts, scarlet rim light and asymmetric highlights.
     auto sculpt=[&](const juce::Path& p,float ox,float oy,float dx,float dy){
         g.setColour(black.withAlpha(.92f));g.fillPath(p,juce::AffineTransform::translation(1.5f,2.4f));
-        juce::ColourGradient gr(bright,ox,oy,shade,dx,dy,false);gr.addColour(.30,mid.brighter(.26f));gr.addColour(.60,mid.darker(.35f));g.setGradientFill(gr);g.fillPath(p);
-        g.setColour(Colour(0xfff6754e).withAlpha(.55f));g.strokePath(p,juce::PathStrokeType(.65f));
+        juce::ColourGradient gr(bright,ox,oy,shade,dx,dy,false);gr.addColour(.18,Colour(0xffc34733));gr.addColour(.43,mid);gr.addColour(.73,mid.darker(.74f));g.setGradientFill(gr);g.fillPath(p);
+        g.setColour(Colour(0xfff6754e).withAlpha(.43f));g.strokePath(p,juce::PathStrokeType(.65f));
+        juce::Graphics::ScopedSaveState sub(g);g.reduceClipRegion(p);g.setGradientFill(juce::ColourGradient(Colour(0xffffb886).withAlpha(.24f),ox,oy,juce::Colours::transparentWhite,dx,dy,true));g.fillPath(p);
     };
     auto bone=[&](float x1,float y1,float x2,float y2,float w){juce::Path p;p.startNewSubPath(x1,y1);p.lineTo(x2,y2);g.setColour(black);g.strokePath(p,juce::PathStrokeType(w+3,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setGradientFill(juce::ColourGradient(bright,x1,y1,shade,x2+3,y2,false));g.strokePath(p,juce::PathStrokeType(w,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setColour(bright.withAlpha(.65f));g.drawLine(x1-1,y1,x2-1,y2,w*.16f);};
     for(int i=0;i<33;++i){float x=5.f+float((i*43)%190),y=204.f-std::fmod(i*23.f+phase*12.f,202.f);g.setColour(Colour(0xffff6334).withAlpha(.12f+.17f*level));g.fillEllipse(x,y,1.4f,3.2f);}
@@ -388,20 +414,21 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
         auto X=[&](float x){return 100+side*x;};
         // Blade-like scapula and jagged shoulder ridges.
         juce::Path shoulder;shoulder.startNewSubPath(X(10),118);shoulder.cubicTo(X(24),102,X(43),99,X(62),92);shoulder.lineTo(X(59),107);shoulder.lineTo(X(79),99);shoulder.lineTo(X(70),120);shoulder.cubicTo(X(49),140,X(35),130,X(10),125);shoulder.closeSubPath();sculpt(shoulder,X(20),100,X(60),139);
-        for(int k=0;k<6;++k){float y=124+k*10.2f;juce::Path rib;rib.startNewSubPath(X(5),y);rib.cubicTo(X(25),y-8,X(50-k*2.f),y-5,X(45-k*2.f),y+9);rib.cubicTo(X(35-k*2.f),y+18,X(17),y+14,X(10),y+8);g.setColour(black);g.strokePath(rib,juce::PathStrokeType(8.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setGradientFill(juce::ColourGradient(bright,X(20),y-3,shade,X(43),y+14,false));g.strokePath(rib,juce::PathStrokeType(4.8f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));}
+        for(int k=0;k<7;++k){float y=124+k*10.2f;juce::Path rib;rib.startNewSubPath(X(5),y);rib.cubicTo(X(25),y-8,X(50-k*2.f),y-5,X(45-k*2.f),y+9);rib.cubicTo(X(35-k*2.f),y+18,X(17),y+14,X(10),y+8);g.setColour(black);g.strokePath(rib,juce::PathStrokeType(8.f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));g.setGradientFill(juce::ColourGradient(bright,X(20),y-3,shade,X(43),y+14,false));g.strokePath(rib,juce::PathStrokeType(4.8f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));}
         // Reach forward: exposed arm bones, articulated knuckles and hooked claws.
-        bone(X(61),120,X(79),154,10);bone(X(73),151,X(57),183,7);bone(X(82),153,X(65),185,5);
-        juce::Path palm;palm.addRoundedRectangle(X(60)-10,178,20,15,5);sculpt(palm,X(50),178,X(69),195);
-        for(int finger=0;finger<4;++finger){float xx=X(45+finger*9.f),yy=183+std::abs(finger-1)*2.f;bone(xx,yy,xx+side*2,yy+10,4.8f);bone(xx+side*2,yy+10,xx-side*2,yy+18,3.7f);juce::Path claw;claw.startNewSubPath(xx-side*5,yy+15);claw.quadraticTo(xx+side*2,yy+16,xx-side*5,yy+23);claw.lineTo(xx-side*8,yy+16);claw.closeSubPath();sculpt(claw,xx,yy+14,xx,yy+23);}
+        bone(X(67),119,X(86),156,13);bone(X(79),153,X(61),190,8);bone(X(90),155,X(71),191,6);
         // Long swept segmented horns, red bone rather than smooth beige cones.
-        juce::Path horn;horn.startNewSubPath(X(20),60);horn.cubicTo(X(50),68,X(74),39,X(64),7);horn.cubicTo(X(86),23,X(87),61,X(63),82);horn.cubicTo(X(47),97,X(25),85,X(20),75);horn.closeSubPath();sculpt(horn,X(68),16,X(23),91);
+        juce::Path horn;horn.startNewSubPath(X(20),60);horn.cubicTo(X(50),68,X(87),39,X(72),5);horn.cubicTo(X(97),23,X(96),62,X(72),85);horn.cubicTo(X(47),97,X(25),85,X(20),75);horn.closeSubPath();sculpt(horn,X(68),16,X(23),91);
         for(int i=0;i<7;++i){float t=i/7.f,xx=X(35+33*t),yy=77-42*t*t;juce::Path grooves;grooves.startNewSubPath(xx-side*5,yy-5);grooves.quadraticTo(xx,yy+3,xx+side*7,yy+2);g.setColour(black.withAlpha(.67f));g.strokePath(grooves,juce::PathStrokeType(1.6f));g.setColour(bright.withAlpha(.43f));g.strokePath(grooves,juce::PathStrokeType(.55f),juce::AffineTransform::translation(0,-1.3f));}
     }
     // The dominant skeletal face: cheek hollows, nasal aperture, separated jaw and fangs.
-    juce::Path skull;skull.startNewSubPath(100,35);skull.cubicTo(72,29,54,46,55,72);skull.lineTo(64,91);skull.lineTo(76,94);skull.lineTo(79,110);skull.lineTo(88,117);skull.lineTo(112,117);skull.lineTo(121,110);skull.lineTo(124,94);skull.lineTo(136,91);skull.lineTo(145,72);skull.cubicTo(146,46,128,29,100,35);skull.closeSubPath();sculpt(skull,69,34,128,111);
-    juce::Path jaw;jaw.startNewSubPath(76,96);jaw.lineTo(79,125);jaw.quadraticTo(100,141,121,125);jaw.lineTo(124,96);jaw.lineTo(113,119);jaw.quadraticTo(100,129,87,119);jaw.closeSubPath();sculpt(jaw,80,108,122,138);
-    g.setColour(black);g.fillEllipse(79,96,42,28);
-    for(int i=0;i<7;++i){float x=81+i*5.5f;juce::Path tooth;tooth.startNewSubPath(x,98);tooth.lineTo(x+5,98);tooth.lineTo(x+2.5f,106+(i==0||i==6?5:0));tooth.closeSubPath();sculpt(tooth,x,98,x+5,111);juce::Path low;low.startNewSubPath(x,124);low.lineTo(x+5,124);low.lineTo(x+2.5f,116);low.closeSubPath();sculpt(low,x,116,x+5,125);}
+    juce::Path skull;skull.startNewSubPath(100,35);skull.cubicTo(64,25,46,44,48,72);skull.lineTo(64,91);skull.lineTo(76,94);skull.lineTo(79,110);skull.lineTo(88,117);skull.lineTo(112,117);skull.lineTo(121,110);skull.lineTo(124,94);skull.lineTo(136,91);skull.lineTo(152,72);skull.cubicTo(154,44,136,25,100,35);skull.closeSubPath();sculpt(skull,69,34,128,111);
+    {juce::Graphics::ScopedSaveState face(g);g.reduceClipRegion(skull);glow(75,40,36,Colour(0xffffb27b),.26f);glow(131,74,34,Colour(0xff200309),.31f);
+        for(int i=0;i<100;++i){const float x=56.f+float((i*53)%88),y=34.f+float((i*37)%77);g.setColour((i%3?shade:bright).withAlpha(.19f));g.fillEllipse(x,y,.55f+float(i%3)*.4f,.8f+float(i%4)*.35f);}}
+    juce::Path mouth;mouth.startNewSubPath(73,97);mouth.quadraticTo(100,88,127,97);mouth.cubicTo(127,131+roar,115,143+roar,100,145+roar);mouth.cubicTo(85,143+roar,73,131+roar,73,97);mouth.closeSubPath();g.setColour(black);g.fillPath(mouth);glow(100,121,18,Colour(0xff8b140d),.22f);
+    juce::Path jaw;jaw.startNewSubPath(67,93);jaw.cubicTo(68,124+roar,75,140+roar,86,147+roar);jaw.quadraticTo(100,157+roar,114,147+roar);jaw.cubicTo(125,140+roar,132,124+roar,133,93);jaw.lineTo(124,99);jaw.cubicTo(122,123+roar,116,136+roar,100,138+roar);jaw.cubicTo(84,136+roar,78,123+roar,76,99);jaw.closeSubPath();sculpt(jaw,74,110,126,155+roar);
+    for(int i=0;i<9;++i){float x=76.8f+i*5.2f,y=98.f+std::abs(i-4)*.5f;juce::Path tooth;tooth.startNewSubPath(x,y);tooth.quadraticTo(x+2.5f,y-2,x+4.9f,y);tooth.cubicTo(x+4.9f,y+3,x+3.9f,y+6,x+2.2f,y+(i==0||i==8?15.f:9.f));tooth.quadraticTo(x+.1f,y+6,x,y);tooth.closeSubPath();sculpt(tooth,x,y,x+5,y+13);
+        const float yy=139+roar-std::abs(i-4)*1.3f;juce::Path low;low.startNewSubPath(x,yy);low.quadraticTo(x+1,yy-7,x+2.6f,yy-(i==0||i==8?12.f:7.f));low.quadraticTo(x+5,yy-4,x+5,yy);low.closeSubPath();sculpt(low,x,yy-8,x+5,yy);}
     for(int side:{-1,1}){auto X=[&](float x){return 100+side*x;};juce::Path socket;socket.startNewSubPath(X(5),70);socket.lineTo(X(32),58);socket.quadraticTo(X(39),79,X(25),84);socket.quadraticTo(X(11),85,X(5),70);socket.closeSubPath();g.setColour(black);g.fillPath(socket);g.setColour(shade);g.strokePath(socket,juce::PathStrokeType(2.2f));
         float ex=X(21);g.setGradientFill(juce::ColourGradient(Colour(0xffff5a22).withAlpha(.85f),ex,74,juce::Colours::transparentBlack,ex+13,85,true));g.fillEllipse(ex-15,61,30,27);g.setColour(Colour(0xffffa350).withAlpha(.76f+.23f*std::sin(phase*2)));g.fillEllipse(ex-5,71,10,4);g.setColour(Colour(0xfffff0bf));g.fillEllipse(ex-1.5f,71.6f,3,2.8f);
         juce::Path brow;brow.startNewSubPath(X(3),66);brow.quadraticTo(X(22),48,X(37),56);brow.lineTo(X(31),62);brow.lineTo(X(8),72);brow.closeSubPath();sculpt(brow,X(15),52,X(27),72);
@@ -412,8 +439,33 @@ inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,
     juce::Path cracks;cracks.startNewSubPath(99,36);cracks.lineTo(103,46);cracks.lineTo(97,54);cracks.lineTo(101,63);cracks.startNewSubPath(73,42);cracks.lineTo(80,49);cracks.lineTo(77,54);cracks.lineTo(86,57);cracks.startNewSubPath(131,49);cracks.lineTo(125,53);cracks.lineTo(128,59);cracks.startNewSubPath(66,83);cracks.lineTo(73,88);cracks.lineTo(69,92);
     g.setColour(black.withAlpha(.72f));g.strokePath(cracks,juce::PathStrokeType(1.25f));g.setColour(bright.withAlpha(.38f));g.strokePath(cracks,juce::PathStrokeType(.65f),juce::AffineTransform::translation(.7f,-.65f));
     for(int i=0;i<33;++i){const float x=68.f+float((i*31)%65),y=39.f+float((i*13)%15);g.setColour(shade.withAlpha(.48f));g.fillEllipse(x,y,.9f,1.4f);}
+    // Reaching hands: in front of the rim, not flat inside the window.
+    for(int side:{-1,1}){auto X=[&](float x){return 100+side*x;};const float reach=2.f*std::sin(phase*1.65f+side*.8f);
+        juce::Path palm;palm.startNewSubPath(X(81),184+reach);palm.cubicTo(X(74),180+reach,X(51),185+reach,X(45),195+reach);palm.cubicTo(X(49),208+reach,X(71),216+reach,X(83),204+reach);palm.closeSubPath();sculpt(palm,X(50),184+reach,X(79),213+reach);
+        for(int f=0;f<4;++f){const float xx=X(48+f*11.f),yy=194+reach+std::abs(f-1)*1.4f;bone(xx,yy,xx+side*3,yy+10,7.f);bone(xx+side*3,yy+10,xx-side*3,yy+19,5.2f);juce::Path claw;claw.startNewSubPath(xx-side*6,yy+17);claw.cubicTo(xx+side*2,yy+15,xx+side*3,yy+24,xx-side*7,yy+31-f*1.4f);claw.quadraticTo(xx-side*3,yy+25,xx-side*9,yy+21);claw.closeSubPath();sculpt(claw,xx,yy+17,xx-side*4,yy+31);}
+    }
     // A diffuse red reflected light across the chamber, never obscuring the eyes.
     g.setGradientFill(juce::ColourGradient(Colour(0xffff3d19).withAlpha(.10f+.06f*level),100,189,juce::Colours::transparentBlack,100,126,true));g.fillEllipse(43,139,114,65);
+}
+// Original baked perspective relief. The nine frames share one decoded atlas.
+inline const juce::Image& demonReliefAtlas(){
+    static const auto atlas=juce::ImageFileFormat::loadFrom(SkelliereKnobData::demon_relief_atlas_png,SkelliereKnobData::demon_relief_atlas_pngSize);
+    return atlas;
+}
+inline bool demonReliefIsValid(){const auto& a=demonReliefAtlas();return a.isValid()&&a.hasAlphaChannel()&&a.getWidth()==1296&&a.getHeight()==1488;}
+inline void paintDemonDetail(Graphics& g,juce::Rectangle<float> r,float phase=0,float level=0,bool frame=true){
+    if(!demonReliefIsValid()){paintDemonVectorFallback(g,r,phase,level,frame);return;}
+    const auto win=r.withTrimmedBottom(15.f);const auto a=win.reduced(5.f);
+    if(frame){paintHardwarePlate(g,win,Colour(0xff341218),false,6.f,3.f);return;}
+    juce::Graphics::ScopedSaveState clip(g);g.reduceClipRegion(r.toNearestInt());
+    g.setGradientFill(juce::ColourGradient(Colour(0xff5b140f),a.getCentreX(),a.getY()+a.getHeight()*.53f,Colour(0xff090306),a.getRight(),a.getBottom(),true));g.fillRoundedRectangle(a,4.f);
+    {juce::Graphics::ScopedSaveState bg(g);g.reduceClipRegion(a.toNearestInt());
+        for(int i=0;i<21;++i){float x=a.getX()+a.getWidth()*float((i*47)%100)/100.f,y=a.getY()+a.getHeight()*float((i*37)%100)/100.f,rad=15.f+(i%5)*7.f;g.setGradientFill(juce::ColourGradient(Colour(0xffc32613).withAlpha(.07f+.025f*level),x,y,juce::Colours::transparentBlack,x+rad,y,true));g.fillEllipse(x-rad,y-rad,rad*2,rad*2);}
+        for(int i=0;i<28;++i){const float x=a.getX()+float((i*43)%100)*a.getWidth()/100.f,y=a.getBottom()-std::fmod(i*23.f+phase*12.f,a.getHeight());g.setColour(Colour(0xffff7031).withAlpha(.15f+.19f*level));g.fillEllipse(x,y,1.1f,2.8f);}
+    }
+    const int index=juce::jlimit(0,8,int(std::round(8.f*juce::jlimit(0.f,1.f,.5f+.43f*std::sin(phase*2.7f-.7f)+.12f*level))));
+    const auto& atlas=demonReliefAtlas();const auto dst=r.reduced(1.f,0.f);g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.setOpacity(1.f);
+    g.drawImage(atlas, dst.getX(),dst.getY(),dst.getWidth(),dst.getHeight(),(index%3)*432,(index/3)*496,432,496);
 }
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
@@ -422,9 +474,11 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     // gradients that lift the entire blue/olive/burgundy material.
     const Colour base=p.light?p.metal.interpolatedWith(Colour(0xffead6b8),.08f)
         :p.metal.interpolatedWith(Colour(0xff0e0d0b),.21f);
-    paintHardwarePlate(g,r.reduced(.3f),base,p.light,10.f,4.9f);
+    paintHardwarePlate(g,r.reduced(.3f),base,p.light,7.f,4.3f);
     auto f=r.reduced(6.f);g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(.055f),f.getX(),f.getY(),juce::Colours::black.withAlpha(.20f),f.getRight(),f.getBottom(),false));g.fillRoundedRectangle(f,6.f);
-    g.setColour(juce::Colours::black.withAlpha(.28f));g.drawRoundedRectangle(r.reduced(4.f),7.f,.8f);
+    g.setColour(juce::Colours::black.withAlpha(.55f));g.drawRoundedRectangle(r.reduced(4.f),4.f,.85f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
+    g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
     for(int i=0;i<4;++i)paintScrew(g,i%2?r.getRight()-15:r.getX()+15,i<2?r.getY()+15:r.getBottom()-15,6.8f,.8f*i);
 }
 inline void paintOriginalMini(Graphics& g,juce::Rectangle<float> r,int type) {

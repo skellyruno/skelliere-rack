@@ -127,7 +127,7 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
     if(r.getWidth()<=bevel*2||r.getHeight()<=bevel*2)return;
     g.setColour(Colour(0xff080706));g.fillRoundedRectangle(r,radius);
     auto rim=r.reduced(.75f);
-    juce::ColourGradient edge(metal.interpolatedWith(Colour(0xffe6d7bc),.55f),rim.getX(),rim.getY(),
+    juce::ColourGradient edge(metal.interpolatedWith(Colour(0xffc3c1b6),.46f),rim.getX(),rim.getY(),
         metal.interpolatedWith(Colour(0xff080706),.80f),rim.getRight(),rim.getBottom(),false);
     edge.addColour(.22,metal.interpolatedWith(Colour(0xffc7bbab),.21f));
     edge.addColour(.58,metal.interpolatedWith(Colour(0xff100e0c),.46f));
@@ -142,13 +142,13 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
         juce::Graphics::ScopedSaveState save(g);
         juce::Path clip;clip.addRoundedRectangle(face.getX(),face.getY(),face.getWidth(),face.getHeight(),rr);g.reduceClipRegion(clip);
         const bool light=metal.getPerceivedBrightness()>.46f;
-        juce::ColourGradient body(metal.interpolatedWith(Colour(0xfff8e9d6),light?.18f:.10f),face.getX(),face.getY(),
-            metal.interpolatedWith(Colour(0xff0c0a08),light?.17f:.17f),face.getRight(),face.getBottom(),false);
+        juce::ColourGradient body(metal.interpolatedWith(Colour(0xfff8e9d6),light?.15f:.055f),face.getX(),face.getY(),
+            metal.interpolatedWith(Colour(0xff080a0a),light?.16f:.25f),face.getRight(),face.getBottom(),false);
         body.addColour(.44,metal);g.setGradientFill(body);g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(light?.15f:.075f),
             face.getX()+face.getWidth()*.22f,face.getY()+face.getHeight()*.14f,juce::Colours::transparentWhite,
             face.getRight(),face.getCentreY(),true));g.fillRect(face);
-        if(brushed)paintBrushed(g,face,light?.85f:.72f);else {paintPeened(g,face,.74f);paintBrushed(g,face,.18f);}
+        if(brushed)paintBrushed(g,face,light?.70f:.56f);else {paintPeened(g,face,.52f);paintBrushed(g,face,.30f);}
         // Large reflected softbox and darker return, clipped to the metal.
         g.setGradientFill(juce::ColourGradient(Colour(0xffffe9c7).withAlpha(light?.055f:.018f),face.getX()+face.getWidth()*.18f,face.getY()+face.getHeight()*.18f,juce::Colours::transparentWhite,face.getRight(),face.getBottom(),true));g.fillRect(face);
         g.setGradientFill(juce::ColourGradient(juce::Colours::black.withAlpha(light?.06f:.12f),face.getRight(),face.getBottom(),juce::Colours::transparentBlack,face.getX(),face.getCentreY(),true));g.fillRect(face);
@@ -163,9 +163,9 @@ inline void paintHardwarePlate(Graphics& g,juce::Rectangle<float> r,Colour metal
     upper.lineTo(rim.getRight()-radius,rim.getY()+.9f);
     // Broad directional shoulder and a narrow specular peak. The same light
     // direction is used by the turned cap and recessed hardware fasteners.
-    g.setGradientFill(juce::ColourGradient(Colour(0xfff9e7ca).withAlpha(.45f),rim.getX(),rim.getY(),Colour(0xffbdab91).withAlpha(.08f),rim.getRight(),rim.getBottom(),false));
+    g.setGradientFill(juce::ColourGradient(Colour(0xffe4e0d3).withAlpha(.36f),rim.getX(),rim.getY(),Colour(0xffbdab91).withAlpha(.08f),rim.getRight(),rim.getBottom(),false));
     g.strokePath(upper,juce::PathStrokeType(2.4f,juce::PathStrokeType::curved),juce::AffineTransform::translation(.65f,.65f));
-    g.setColour(Colour(0xffffe6c0).withAlpha(.52f));g.strokePath(upper,juce::PathStrokeType(.85f,juce::PathStrokeType::curved));
+    g.setColour(Colour(0xfff3e6ce).withAlpha(.36f));g.strokePath(upper,juce::PathStrokeType(.85f,juce::PathStrokeType::curved));
     juce::Path lower;lower.startNewSubPath(rim.getRight()-1.f,rim.getY()+radius);
     lower.lineTo(rim.getRight()-1.f,rim.getBottom()-radius);
     lower.quadraticTo(rim.getRight()-1.f,rim.getBottom()-1.f,rim.getRight()-radius,rim.getBottom()-1.f);
@@ -389,6 +389,7 @@ inline void paintMonogram(Graphics& g,juce::Rectangle<float> r,Colour ink) {
 inline void paintScrew(Graphics& g, float cx, float cy, float r, float turn) {
     g.setColour(juce::Colours::black.withAlpha(.60f));
     g.fillEllipse(cx-r-1.1f,cy-r+.65f,2*r+2.2f,2*r+2.2f);
+    g.setGradientFill(juce::ColourGradient(Colour(0xff0a0908),cx-r,cy-r,Colour(0xffb7a98f),cx+r,cy+r,false));g.fillEllipse(cx-r-1.2f,cy-r-1.2f,2*r+2.4f,2*r+2.4f);
     juce::ColourGradient head(Colour(0xffe9d7b7),cx-r*.43f,cy-r*.65f,Colour(0xff29241d),cx+r*.82f,cy+r*.85f,true);
     head.addColour(.24,Colour(0xffe9d9bc));head.addColour(.52,Colour(0xffa8977e));head.addColour(.84,Colour(0xff4a4135));
     g.setGradientFill(head);g.fillEllipse(cx-r,cy-r,2*r,2*r);
@@ -625,7 +626,8 @@ public:
         const bool utility=size<61.f;
         const float p=juce::jlimit(0.f,1.f,pos),angle=a0+p*(a1-a0);
         if(bool(s.getProperties().getWithDefault("colorSwitch",false))){
-            auto r=juce::Rectangle<float>(cx-size*.31f,cy-size*.35f,size*.62f,size*.70f);
+            const bool isDope=bool(s.getProperties().getWithDefault("dopeSwitch",false));
+            auto r=juce::Rectangle<float>(cx-size*(isDope?.38f:.31f),cy-size*(isDope?.40f:.35f),size*(isDope?.76f:.62f),size*(isDope?.80f:.70f));
             g.setColour(Colour(0xff100f0c));g.fillRoundedRectangle(r.expanded(3.f),4.f);
             g.setColour(Colour(0xffb2a28c).withAlpha(.7f));g.drawRoundedRectangle(r.expanded(2.f),4.f,1.f);
             const bool dope=bool(s.getProperties().getWithDefault("dopeSwitch",false));

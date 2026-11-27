@@ -17,7 +17,7 @@ inline int resolveRackType(float legacy, float extension) noexcept {
     if (!std::isfinite(extension) || extension < 1 || extension > kNumRackTypes - kNumTypes) return Empty;
     return kNumTypes + (int) std::lround(extension) - 1;
 }
-inline bool hasOutputPeak(int type) noexcept { return type==Flanger || type==SkellMixHead; }
+inline bool hasOutputPeak(int type) noexcept { return type==Flanger || type==SkellMixHead || type==SkellSSL; }
 enum class Unit { Db, Hz, Ms, Pct, Ratio, Sec, LfoHz, Pan, Steps, Scalar };
 enum Category : int { CatNone=0, CatDynamics, CatTone, CatSpace, CatUtility };
 struct Knob { const char* label; float lo,hi; bool log; float def; Unit unit; int steps; const char* names; };
@@ -114,8 +114,8 @@ inline const ModuleInfo& info(int type) {
          {{"Low",-12,12,false,0,Unit::Db,0,nullptr},{"Low Hz",40,300,true,100,Unit::Hz,0,nullptr},{"Mid",-12,12,false,0,Unit::Db,0,nullptr},{"Mid Hz",250,5000,true,1000,Unit::Hz,0,nullptr},{"High",-12,12,false,0,Unit::Db,0,nullptr},{"High Hz",2500,16000,true,8000,Unit::Hz,0,nullptr}},3,{{"Low",0,2},{"Mid",2,2},{"High",4,2}},false},
         {"Demon","Pitch and formant shifter","Recovered VoiceShift/TD-PSOLA, with transpose, quantize and robot modes; reported delay.",CatSpace,6,
          {{"Pitch",-12,12,false,0,Unit::Scalar,0,nullptr},{"Formant",-12,12,false,0,Unit::Scalar,0,nullptr},{"Link",0,1,false,0,Unit::Steps,2,"Off,On"},{"Mode",0,2,false,0,Unit::Steps,3,"Shift,Quant,Robot"},{"Drive",0,10,false,0,Unit::Scalar,0,nullptr},{"Mix",0,1,false,1,Unit::Pct,0,nullptr}},3,{{"Voice",0,2},{"Mode",2,2},{"Color",4,2}},false},
-        {"SSL Strip","Measured E/G channel","Recovered E/G console core with four fixed-frequency bands and linked feedback dynamics. Compact controls.",CatTone,6,
-         {{"Circuit",0,1,false,0,Unit::Steps,2,"E,G"},{"LF 60",-12,12,false,0,Unit::Db,0,nullptr},{"LM 500",-12,12,false,0,Unit::Db,0,nullptr},{"HM 3.5k",-12,12,false,0,Unit::Db,0,nullptr},{"HF 8k",-12,12,false,0,Unit::Db,0,nullptr},{"Comp",0,1,false,0,Unit::Pct,0,nullptr}},3,{{"Circuit",0,1},{"EQ",1,4},{"Dyn",5,1}},true},
+        {"SSL Strip","Measured E/G channel","Recovered E/G console: variable four-band EQ, filters, gain, compressor and gate/expander. COMP retains the original macro.",CatTone,6,
+         {{"Circuit",0,1,false,0,Unit::Steps,2,"E,G"},{"LF",-12,12,false,0,Unit::Db,0,nullptr},{"LM",-12,12,false,0,Unit::Db,0,nullptr},{"HM",-12,12,false,0,Unit::Db,0,nullptr},{"HF",-12,12,false,0,Unit::Db,0,nullptr},{"Comp",0,1,false,0,Unit::Pct,0,nullptr}},3,{{"Circuit",0,1},{"EQ",1,4},{"Dyn",5,1}},true},
         {"Hush","Adaptive noise reduction","Original four-band downward attenuation with a tracked noise floor, not NS1 emulation.",CatUtility,3,
          {{"Amount",0,1,false,.35f,Unit::Pct,0,nullptr},{"Floor",-72,-24,false,-48,Unit::Db,0,nullptr},{"Release",25,500,true,120,Unit::Ms,0,nullptr}},2,{{"Suppress",0,1},{"Control",1,2}},true}
     };
@@ -142,5 +142,40 @@ inline float toReal(const Knob& k,float n) {
 }
 inline float defaultNorm(int type,int knob) { return toNorm(info(type).knobs[knob],info(type).knobs[knob].def); }
 inline float realOf(int type,int knob,const float* norm) { return toReal(info(type).knobs[knob],norm[knob]); }
+// Fixed extension IDs are appended after the original 75 host parameters.
+// Defaults are the exact compact-console settings; no new setting modifies an old rack.
+enum SslControl : int { SslInput, SslOutput, SslPhase, SslHP, SslLP,
+    SslHFFreq, SslHFBell, SslHMFreq, SslHMQ, SslLMFreq, SslLMQ, SslLFFreq, SslLFBell,
+    SslThreshold, SslRatio, SslRelease, SslFast, SslExpThreshold, SslExpRange, SslExpRelease, SslGate, kSslExtraCount };
+struct SslControlSpec { const char* id; Knob knob; };
+inline const SslControlSpec& sslControl(int i){
+    static constexpr SslControlSpec spec[kSslExtraCount]={
+        {"input",{"IN",-24,24,false,0,Unit::Db,0,nullptr}},
+        {"output",{"OUT",-24,24,false,0,Unit::Db,0,nullptr}},
+        {"phase",{"PHASE",0,1,false,0,Unit::Steps,2,"N,INV"}},
+        {"hp",{"HP",0,350,false,0,Unit::Hz,0,nullptr}},
+        {"lp",{"LP",0,19500,false,0,Unit::Hz,0,nullptr}},
+        {"hf_freq",{"FREQ",1500,16000,true,8000,Unit::Hz,0,nullptr}},
+        {"hf_bell",{"E SHAPE",0,1,false,0,Unit::Steps,2,"SH,BL"}},
+        {"hm_freq",{"FREQ",600,7000,true,3500,Unit::Hz,0,nullptr}},
+        {"hm_q",{"Q",.1f,3.5f,true,1.5f,Unit::Scalar,0,nullptr}},
+        {"lm_freq",{"FREQ",200,2500,true,500,Unit::Hz,0,nullptr}},
+        {"lm_q",{"Q",.1f,3.5f,true,2.5f,Unit::Scalar,0,nullptr}},
+        {"lf_freq",{"FREQ",30,450,true,60,Unit::Hz,0,nullptr}},
+        {"lf_bell",{"E SHAPE",0,1,false,0,Unit::Steps,2,"SH,BL"}},
+        {"threshold",{"THR BASE",-20,10,false,10,Unit::Db,0,nullptr}},
+        {"ratio",{"RATIO BASE",1,20,true,1,Unit::Ratio,0,nullptr}},
+        {"release",{"REL",100,4000,true,400,Unit::Ms,0,nullptr}},
+        {"fast",{"ATT",0,1,false,0,Unit::Steps,2,"SLOW,FAST"}},
+        {"exp_threshold",{"THRESH",-30,10,false,-30,Unit::Db,0,nullptr}},
+        {"exp_range",{"RANGE",0,40,false,0,Unit::Db,0,nullptr}},
+        {"exp_release",{"REL",100,4000,true,200,Unit::Ms,0,nullptr}},
+        {"gate",{"MODE",0,1,false,0,Unit::Steps,2,"EXP,GATE"}}
+    };return spec[std::clamp(i,0,int(kSslExtraCount)-1)];
+}
+inline float sslDefault(int i){const auto& k=sslControl(i).knob;return toNorm(k,k.def);}
+inline float sslReal(int i,float n){const auto& k=sslControl(i).knob;return std::abs(n-sslDefault(i))<1e-6f?k.def:toReal(k,n);}
+inline std::array<float,kSslExtraCount> sslDefaults(){std::array<float,kSslExtraCount> x{};for(int i=0;i<kSslExtraCount;++i)x[i]=sslDefault(i);return x;}
+inline int uiKnobCount(int type){return info(type).numKnobs+(type==SkellSSL?kSslExtraCount:0);}
 } // namespace skl
 

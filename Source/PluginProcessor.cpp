@@ -62,6 +62,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout SkellierProcessor::createLay
     for (int s = 0; s < kNumSlots; ++s)
         layout.add(std::make_unique<AudioParameterInt>(ParameterID{extraId(s), 1},
             "Slot " + String(s + 1) + " Extra Effect", 0, 127, 0));
+    for(int slot=0;slot<kNumSlots;++slot)for(int i=0;i<kSslExtraCount;++i){
+        const auto& c=sslControl(i);
+        layout.add(std::make_unique<AudioParameterFloat>(ParameterID{sslId(slot,i),1},
+            "Slot "+String(slot+1)+" SSL "+c.id,NormalisableRange<float>(0.f,1.f,0.f),sslDefault(i)));
+    }
     return layout;
 }
 
@@ -74,6 +79,7 @@ SkellierProcessor::SkellierProcessor()
         extraRaw[s] = apvts.getRawParameterValue(extraId(s));
         onRaw[s] = apvts.getRawParameterValue(onId(s));
         for (int k = 0; k < kMaxKnobs; ++k) kRaw[s][k] = apvts.getRawParameterValue(knobId(s, k));
+        for(int i=0;i<kSslExtraCount;++i)sslRaw[s][i]=apvts.getRawParameterValue(sslId(s,i));
         lastType[s] = -1;
         apvts.addParameterListener(typeId(s), this);
         apvts.addParameterListener(extraId(s), this);
@@ -193,8 +199,9 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             float k[kMaxKnobs];
             for (int i = 0; i < kMaxKnobs; ++i) k[i] = kRaw[s][i]->load();
             const bool active=onRaw[s]->load()>0.5f && (solo<0||solo==s);
+            if(type==SkellSSL){std::array<float,kSslExtraCount> ext{};for(int j=0;j<kSslExtraCount;++j)ext[j]=sslRaw[s][j]->load(std::memory_order_relaxed);static_cast<RecoveredSSL*>(m)->setExtended(ext);}
             m->process(chunk,k,active);
-            // Real post-effect peak telemetry for Jet and MixHead. No audio changes,
+            // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,
             // allocations or locking; the existing buffer is read once.
             if(hasOutputPeak(type)&&active)measuredJet[s]=juce::jmax(measuredJet[s],chunk.getMagnitude(0,len));
         }
@@ -251,6 +258,7 @@ SkellierProcessor::SlotValues SkellierProcessor::readSlot(int s) const {
     SlotValues v; v.type = slotType(s); v.on = slotOn(s);
     v.artwork=artworkChoices[static_cast<size_t>(s)].load();
     for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = kRaw[s][k]->load();
+    for(int i=0;i<kSslExtraCount;++i)v.ssl[i]=sslRaw[s][i]->load();
     return v;
 }
 
@@ -258,6 +266,7 @@ void SkellierProcessor::writeSlot(int s, const SlotValues& v) {
     // Switch the slot off while it is rewritten so the audio thread never runs a module with half-updated knobs.
     setParam(onId(s), 0.0f);
     for (int k = 0; k < kMaxKnobs; ++k) setParam(knobId(s, k), v.k[k]);
+    for(int i=0;i<kSslExtraCount;++i)setParam(sslId(s,i),v.ssl[i]);
     setParam(extraId(s), 0.0f);
     setParam(typeId(s), v.type < kNumTypes ? (float) v.type : 0.0f);
     if (v.type >= kNumTypes) setParam(extraId(s), (float) (v.type - kNumTypes + 1));
@@ -362,6 +371,7 @@ juce::String SkellierProcessor::captureRack() const {
         e->setAttribute("i", s); e->setAttribute("type", v.type); e->setAttribute("on", v.on ? 1 : 0);
         e->setAttribute("art",v.artwork);
         for (int k = 0; k < kMaxKnobs; ++k) e->setAttribute("k" + juce::String(k), (double) v.k[k]);
+        if(v.type==SkellSSL)for(int i=0;i<kSslExtraCount;++i)e->setAttribute("ssl_"+juce::String(sslControl(i).id),double(v.ssl[i]));
     }
     return root.toString(juce::XmlElement::TextFormat().singleLine());
 }
@@ -378,6 +388,7 @@ void SkellierProcessor::restoreRack(const juce::String& text) {
         // Older dream strips have no finish field: preserve the receiving slot finish.
         vals[i].artwork = juce::jlimit(-1,3,e->getIntAttribute("art",-1));
         for (int k = 0; k < kMaxKnobs; ++k) vals[i].k[k] = juce::jlimit(0.0f, 1.0f, (float) e->getDoubleAttribute("k" + juce::String(k), 0.5));
+        for(int k=0;k<kSslExtraCount;++k){const float v=float(e->getDoubleAttribute("ssl_"+juce::String(sslControl(k).id),sslDefault(k)));vals[i].ssl[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):sslDefault(k);}
     }
     soloSlot.store(-1);
     for (int s = 0; s < kNumSlots; ++s) writeSlot(s, vals[s]);
@@ -456,6 +467,9 @@ void SkellierProcessor::setStateInformation(const void* data, int size) {
                     parameter.setProperty("value", 0, nullptr);
                     state.appendChild(parameter, nullptr);
                 }
+                for(int i=0;i<kSslExtraCount;++i){const auto id=sslId(s,i);if(!state.getChildWithProperty("id",id).isValid()){
+                    juce::ValueTree parameter("PARAM");parameter.setProperty("id",id,nullptr);parameter.setProperty("value",sslDefault(i),nullptr);state.appendChild(parameter,nullptr);
+                }}
                 artworkChoices[(size_t) s] = juce::jlimit(0, 3,
                     (int) state.getProperty("art" + juce::String(s), 1));
             }

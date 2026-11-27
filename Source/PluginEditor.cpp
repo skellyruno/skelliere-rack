@@ -34,11 +34,19 @@ static void paintHushMeter(Graphics& g,Rectangle<float> r,float db,bool plate){
     if(plate){paintHardwarePlate(g,r,Colour(0xff29343a),false,5.f,3.f);paintRecessedWindow(g,track,2);g.setFont(font(9.5f,true));g.setColour(Colour(0xffcbd5cf));g.drawText("GR dB",r.withHeight(24),juce::Justification::centred);for(int i=0;i<=4;++i){float y=track.getY()+track.getHeight()*i*.25f;g.setColour(Colour(0xff80908d));g.drawHorizontalLine(int(y),track.getRight()+3,track.getRight()+8);g.drawText(juce::String(i*6),Rectangle<float>(track.getRight()+10,y-7,22,14),juce::Justification::centredLeft);}}
     else {const float v=juce::jlimit(0.f,1.f,std::abs(db)/24.f);auto bar=track.reduced(2).withHeight(track.reduced(2).getHeight()*v);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdcffb5),bar.getY(),Colour(0xff2a986b),bar.getBottom()));g.fillRoundedRectangle(bar,1);}
 }
-static void paintSSLReduction(Graphics& g,Rectangle<float> r,float db,bool plate){
-    if(plate){paintRecessedWindow(g,r,3.f);g.setColour(Colour(0xffc4c9bf));g.setFont(font(8.5f,true));g.drawText("GAIN REDUCTION",r.withHeight(12),juce::Justification::centred);}
-    auto track=r.reduced(8,0).withY(r.getY()+14).withHeight(r.getHeight()-19);const int n=20;const float step=track.getWidth()/n;
-    const int lit=juce::jlimit(0,n,int(std::ceil(std::abs(db)*n/20.f)));
-    for(int i=0;i<n;++i){auto a=track.withX(track.getX()+i*step).withWidth(step-1.4f);g.setColour(i<lit?Colour(i<12?0xff80cc6c:0xffedae4d):Colour(0xff303b2c));g.fillRoundedRectangle(a,.8f);}
+// Two independent real meter scales: gain reduction in dB and output peak in dBFS.
+static void paintSSLReduction(Graphics& g,Rectangle<float> r,float db,float peak,bool plate){
+    if(plate){paintHardwarePlate(g,r,Colour(0xff242725),false,3.f,2.2f);paintRecessedWindow(g,r.reduced(4.f),2.f);return;}
+    const float left=r.getX()+8.f,width=r.getWidth()-16.f;const int n=16;const float step=width/n;
+    auto line=[&](float y,const char* label,float value,int lit,bool output){
+        g.setColour(Colour(0xffc9cfc1));g.setFont(font(7.8f,true));
+        g.drawText(label,left,y,width*.62f,11,juce::Justification::centredLeft);
+        g.drawText((output&&value<=-60.f)?juce::String("-INF"):juce::String(value,1),left+width*.55f,y,width*.45f,11,juce::Justification::centredRight);
+        for(int i=0;i<n;++i){const auto v=Rectangle<float>(left+i*step,y+12,step-.9f,8.f);const bool on=i<lit;const auto c=output?(i>=14?Colour(0xffef6150):i>=11?Colour(0xffd8ae44):Colour(0xff73cb67)):Colour(0xffe6ad51);
+            g.setGradientFill(juce::ColourGradient::vertical(on?c.brighter(.32f):Colour(0xff30342a),v.getY(),on?c.darker(.42f):Colour(0xff161915),v.getBottom()));g.fillRoundedRectangle(v,.65f);}
+    };
+    line(r.getY()+7,"GR dB",std::abs(db)<.05f?0.f:-std::abs(db),juce::jlimit(0,n,int(std::ceil(std::abs(db)*n/20.f))),false);
+    line(r.getY()+34,"OUT dBFS",peak,juce::jlimit(0,n,int(std::ceil((peak+60.f)*n/60.f))),true);
 }
 // =================================================================== KnobCell
 KnobCell::KnobCell(const juce::String& label, juce::RangedAudioParameter& param, Fmt fmt, juce::Colour cap, juce::Colour pointer,
@@ -69,6 +77,10 @@ void KnobCell::setLightFace(bool light) {
 void KnobCell::setSprite(int) { slider.setSliderStyle(juce::Slider::RotaryVerticalDrag); }
 
 void KnobCell::resized() {
+    if(bool(slider.getProperties().getWithDefault("consoleCell",false))&&!compact_){
+        const int size=juce::jmax(1,juce::jmin(getWidth()-2,getHeight()-20,47));
+        slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-20)/2),size,size);return;
+    }
     if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_){slider.setBounds(5,3,getWidth()-10,getHeight()-36);return;}
     if(compact_){
         const int size=juce::jmax(1,juce::jmin(getHeight(),getWidth(),48));
@@ -79,7 +91,7 @@ void KnobCell::resized() {
     }else{
         // VMR-style control proportions. At 100% a paired metal face is
         // roughly 62px, not 85px; single controls can be slightly larger.
-        const int limit=getWidth()<90?58:getWidth()<125?76:96;
+        const int limit=bool(slider.getProperties().getWithDefault("dopeSwitch",false))?76:getWidth()<90?58:getWidth()<125?76:96;
         const int size=juce::jmax(1,juce::jmin(getWidth()-4,getHeight()-32,limit));
         slider.setBounds((getWidth()-size)/2,juce::jmax(0,(getHeight()-size-32)/2),size,size);
     }
@@ -87,11 +99,12 @@ void KnobCell::resized() {
 bool KnobCell::controlGeometryValid() const noexcept {
     const auto b=slider.getBounds();
     if(b.isEmpty()||!getLocalBounds().contains(b))return false;
+    if(bool(slider.getProperties().getWithDefault("consoleCell",false)))return b.getWidth()==b.getHeight()&&b.getWidth()<=47&&b.getBottom()+18<=getHeight();
     if(bool(slider.getProperties().getWithDefault("hushFader",false))&&!compact_)return b.getBottom()+28<=getHeight();
     if(b.getWidth()!=b.getHeight())return false;
     if(compact_)return b.getWidth()<=48;
     if(sideReadout_)return b.getWidth()<=88&&b.getRight()+12<getWidth();
-    const int limit=getWidth()<90?58:getWidth()<125?76:96;
+    const int limit=bool(slider.getProperties().getWithDefault("dopeSwitch",false))?76:getWidth()<90?58:getWidth()<125?76:96;
     return b.getWidth()<=limit&&b.getBottom()+28<=getHeight();
 }
 
@@ -141,6 +154,14 @@ void KnobCell::paint(Graphics& g) {
         return;
     }
     const int y=juce::jmin(getHeight()-30,slider.getBottom()+3);
+    if(bool(slider.getProperties().getWithDefault("consoleCell",false))){
+        const int yy=juce::jmin(getHeight()-19,slider.getBottom()+1);
+        const float fs=getWidth()<40?8.3f:9.7f;
+        g.setColour(lightFace_?Colour(0xff252322):Colour(0xffe3e1d9));g.setFont(font(fs,true));
+        g.drawFittedText(label_,Rectangle<int>(0,yy,getWidth(),10),juce::Justification::centred,1);
+        g.setColour(lightFace_?Colour(0xff37332a):Colour(0xffb4c2b9));g.setFont(font(fs));
+        g.drawFittedText(text_,Rectangle<int>(0,yy+10,getWidth(),9),juce::Justification::centred,1);return;
+    }
     g.setColour(lightFace_?Colour(0xff211b14):Colour(0xffffecd1));g.setFont(font(15.5f,true).withExtraKerningFactor(.055f));
     g.drawFittedText(label_,Rectangle<int>(2,y,getWidth()-4,15),juce::Justification::centred,1);
     g.setColour(lightFace_?Colour(0xff30261b):Colour(0xffeee0c8));g.setFont(font(14.5f));
@@ -238,11 +259,22 @@ void SlotComponent::rebuild() {
     for(auto* c:{&leftBtn,&rightBtn,&removeBtn,&soloBtn})c->setVisible(filled&&editing);
     if (filled) {
         const auto& mi = info(type);
-        for (int j = 0; j < mi.numKnobs; ++j) {
-            const Knob k = mi.knobs[j];
-            auto* param = proc.apvts.getParameter(SkellierProcessor::knobId(index, j));
-            auto cell = std::make_unique<KnobCell>(k.label, *param, [k](double v) { return knobText(k, (float) v); },
-                                                   capColour(mi.cat), pointerColour(mi.cat), (double) defaultNorm(type, j),
+        for (int j = 0; j < uiKnobCount(type); ++j) {
+            const bool ext=type==SkellSSL&&j>=kMaxKnobs;
+            const int extIndex=ext?j-kMaxKnobs:-1;
+            Knob k=ext?sslControl(extIndex).knob:mi.knobs[j];
+            if(type==SkellSSL){if(j==0)k.label="E/G";if(extIndex==SslThreshold)k.label="THR BASE";if(extIndex==SslRatio)k.label="RATIO";}
+            auto* param=proc.apvts.getParameter(ext?SkellierProcessor::sslId(index,extIndex):SkellierProcessor::knobId(index,j));
+            auto cell=std::make_unique<KnobCell>(k.label,*param,[k,extIndex,type=type](double n){
+                if(type!=SkellSSL)return knobText(k,float(n));
+                const float v=extIndex>=0?sslReal(extIndex,float(n)):toReal(k,float(n));
+                if(extIndex==SslHP&&v<16.5f)return juce::String("OFF");
+                if(extIndex==SslLP&&n<.001)return juce::String("OFF");
+                if(k.unit==Unit::Hz){const float hz=extIndex==SslLP?std::max(3000.f,v):v;return hz>=1000?juce::String(hz/1000,1)+"k":juce::String(int(std::lround(hz)));}
+                if(k.unit==Unit::Ms)return juce::String(v/1000,2)+"s";
+                if(k.unit==Unit::Db)return juce::String(v>0?"+":"")+juce::String(v,1);
+                if(k.unit==Unit::Scalar)return juce::String(v,1);
+                return knobText(k,float(n));},capColour(mi.cat),pointerColour(mi.cat),double(ext?sslDefault(extIndex):defaultNorm(type,j)),
                                                    k.steps > 1 ? 1.0 / (double) (k.steps - 1) : 0.0);
             if((type==SkellDope||type==SkellMixHead||type==SkellDemon||type==SkellSSL)&&k.steps==2){
                 cell->slider.getProperties().set("colorSwitch",true);
@@ -253,7 +285,19 @@ void SlotComponent::rebuild() {
             }
             if(type==SkellDope)cell->slider.getProperties().set("houseTint",juce::String("ff353431"));
             if(type==SkellNoise&&j==0){cell->slider.getProperties().set("hushFader",true);cell->slider.setSliderStyle(juce::Slider::LinearVertical);}
-            if(type==SkellSSL){static const unsigned caps[]={0xffb0aba0,0xffb66e30,0xff347ab5,0xff38895d,0xffb63235,0xffaaa8a1};cell->slider.getProperties().set("houseTint",juce::String::toHexString(int(caps[j]))); }
+            if(type==SkellSSL){
+                cell->slider.getProperties().set("consoleCell",true);
+                static const unsigned caps[]={0xffb0aba0,0xffb66e30,0xff347ab5,0xff38895d,0xffb63235,0xffa33b36};
+                unsigned cap=ext?0xffa5a6a0:caps[j];
+                if(extIndex==SslInput||extIndex==SslOutput)cap=0xffb6443c;
+                if(extIndex==SslHP||extIndex==SslLP)cap=0xff51865d;
+                if(extIndex==SslExpThreshold)cap=0xff41865b;
+                if(extIndex==SslThreshold)cap=0xffb63a33;
+                cell->slider.getProperties().set("houseTint",juce::String::toHexString(int(cap)));
+                if(extIndex==SslThreshold||extIndex==SslRatio)cell->slider.setTooltip("Base setting. COMP macro also lowers threshold and raises ratio (preserves legacy automation).");
+                if(extIndex==SslHFBell||extIndex==SslLFBell)cell->slider.setTooltip("Shelf/bell shape in E circuit; G uses its native shelf law.");
+                if(extIndex==SslHP||extIndex==SslLP)cell->slider.setTooltip("Filter frequency; turn fully down for OFF.");
+            }
             if(k.unit==Unit::Db&&k.lo<0.f&&k.hi>0.f&&std::abs(k.lo+k.hi)<.001f)cell->setBipolarLegend(k.lo,k.hi);
             addAndMakeVisible(*cell);
             cells.push_back(std::move(cell));
@@ -295,7 +339,7 @@ void SlotComponent::syncArtwork() {
 
 bool SlotComponent::artworkLayoutIsValid() const {
     if(type==Empty)return cells.empty();
-    if(cells.size()!=static_cast<size_t>(info(type).numKnobs))return false;
+    if(cells.size()!=static_cast<size_t>(uiKnobCount(type)))return false;
     const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(editing?46:23);
     if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||removeBtn.isVisible()!=editing||artButton.isVisible()!=editing)return false;
     for(size_t i=0;i<cells.size();++i){
@@ -314,7 +358,7 @@ bool SlotComponent::exerciseSpriteBindings() {
     if(cells.empty())return true;
     bool ok=true;
     for(size_t i=0;i<cells.size();++i){
-        auto* p=proc.apvts.getParameter(SkellierProcessor::knobId(index,static_cast<int>(i)));
+        auto* p=proc.apvts.getParameter(type==SkellSSL&&i>=kMaxKnobs?SkellierProcessor::sslId(index,int(i)-kMaxKnobs):SkellierProcessor::knobId(index,int(i)));
         const float old=p->getValue();
         p->setValueNotifyingHost(0);ok=ok&&std::abs(cells[i]->slider.getValue())<1e-5;
         cells[i]->slider.setValue(1,juce::sendNotificationSync);ok=ok&&std::abs(p->getValue()-1)<1e-5;
@@ -413,6 +457,13 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         panelCache=juce::Image(juce::Image::ARGB,w*rasterScale,h*rasterScale,true);Graphics pg(panelCache);
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
+        if(type==SkellSSL){
+            pg.setColour(Colour(0xff111514));pg.fillRoundedRectangle(Rectangle<float>(12,31,float(w-24),59),2.f);
+            pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawRoundedRectangle(Rectangle<float>(12,31,float(w-24),59),2.f,.7f);
+            paintMonogram(pg,Rectangle<float>(21,43,18,24),Colour(0xffe0ded2));
+            pg.setColour(Colour(0xffe0ded2));pg.setFont(font(20.f,true).withExtraKerningFactor(.06f));pg.drawText("SSL STRIP",47,37,w-59,26,juce::Justification::centredLeft);
+            pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",48,64,w-61,15,juce::Justification::centredLeft);
+        }else{
         paintMonogram(pg,Rectangle<float>(w*.5f-11,12,22,29),ink);
         pg.setColour(ink);pg.setFont(font(14.5f,false).withExtraKerningFactor(.22f));
         pg.drawText("SKELL",18,45,w-36,17,juce::Justification::centred,false);
@@ -427,13 +478,32 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         pg.drawHorizontalLine(75,float(w+titleWidth)*.5f,w-20);
         pg.setColour((p.light?juce::Colours::white:juce::Colours::black).withAlpha(.24f));
         pg.drawHorizontalLine(76,20,float(w-titleWidth)*.5f);pg.drawHorizontalLine(76,float(w+titleWidth)*.5f,w-20);
+        }
         const auto layout=originalLayout(type,w,editing);
         if(!layout.detail.isEmpty()){if(type==SkellDemon)paintDemonDetail(pg,layout.detail.toFloat());else if(isAirPanel(type))paintAirDetail(pg,layout.detail.toFloat(),type);else if(type==Reverb||type==Chorus)paintSpaceDetail(pg,layout.detail.toFloat(),type);else if(type==Sat||type==SoftClip||type==Eq||type==Tremolo||type==Phaser||type==Stereo||type==Transient)paintWorkshopDetail(pg,layout.detail.toFloat(),type);else paintTapeDetail(pg,layout.detail.toFloat(),type==Delay&&nativeChoice==1);}
         if(type==SkellSSL){
-            auto section=[&](int y,const char* label){pg.setColour(Colour(0xff141719));pg.fillRoundedRectangle(Rectangle<float>(14,float(y),float(w-28),14),2);pg.setColour(Colour(0xffadb4ad));pg.setFont(font(9.f,true).withExtraKerningFactor(.12f));pg.drawText(label,19,y,w-38,14,juce::Justification::centredLeft);};
-            section(103,"CONSOLE / E-G");section(180,"EQUALIZER / FOUR BAND");section(419,"DYNAMICS");
-            for(int i=1;i<=3;++i){pg.setColour(Colour(0xffa2a6a0).withAlpha(.22f));pg.drawHorizontalLine(195+i*55,17,w-17);}
-            paintSSLReduction(pg,layout.meter.toFloat(),0,true);
+            const int lane=(w-28)/2;
+            const auto panel=Rectangle<float>(10,98,float(w-20),426);
+            pg.setColour(Colour(0xff101414).withAlpha(.40f));pg.fillRoundedRectangle(panel,3.f);
+            pg.setColour(Colour(0xffafb7af).withAlpha(.36f));pg.drawRoundedRectangle(panel,3.f,.7f);
+            pg.setColour(Colour(0xff101111));pg.drawVerticalLine(13+lane,101,522);
+            pg.setColour(Colour(0xff89908a).withAlpha(.45f));pg.drawVerticalLine(14+lane,101,522);
+            auto section=[&](int x,int y,int ww,const char* label){
+                pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff515652),float(y),Colour(0xff262a28),float(y+17)));pg.fillRect(x,y,ww,17);
+                pg.setColour(Colour(0xffc8cbbf));pg.setFont(font(9.f,true).withExtraKerningFactor(.04f));pg.drawFittedText(label,Rectangle<int>(x+4,y,ww-8,17),juce::Justification::centredLeft,1);
+            };
+            section(15,103,lane-6,"INPUT / OUTPUT");section(15,175,lane-6,"FILTER / CIRCUIT");section(15,247,lane-6,"COMPRESSOR");section(15,378,lane-6,"GATE / EXP");
+            section(18+lane,103,lane-6,"HIGH FREQ");section(18+lane,187,lane-6,"HI MID");section(18+lane,271,lane-6,"LO MID");section(18+lane,355,lane-6,"LOW FREQ");section(18+lane,438,lane-6,"DYNAMICS / OUT");
+            paintSSLReduction(pg,layout.meter.toFloat(),0,-60,true);
+        }
+        else if(type==SkellDope){
+            auto plaque=Rectangle<float>(101,126,float(w-115),82);
+            paintHardwarePlate(pg,plaque,Colour(0xff31312e),true,4.f,2.6f);
+            paintRecessedWindow(pg,plaque.reduced(6.f),2.f);
+            pg.setColour(Colour(0xffd8d8c9));pg.setFont(font(11.f,true));pg.drawText("SKELL",plaque.withY(plaque.getY()+13).withHeight(15),juce::Justification::centred);
+            pg.setFont(font(14.f,true));pg.drawText("A-TYPE",plaque.withY(plaque.getY()+29).withHeight(19),juce::Justification::centred);
+            pg.setColour(Colour(0xffb6b5a9));pg.setFont(font(8.5f));pg.drawFittedText("DYNAMIC COLOR",plaque.withY(plaque.getY()+49).withHeight(16).toNearestInt(),juce::Justification::centred,1);
+            pg.setColour(ink.withAlpha(.38f));pg.drawHorizontalLine(233,16,w-16);pg.setColour(juce::Colours::black.withAlpha(.35f));pg.drawHorizontalLine(234,16,w-16);
         }
         else if(type==SkellNoise&&!layout.meter.isEmpty())paintHushMeter(pg,layout.meter.toFloat(),0,true);
         else if(type==SkellMixHead&&!layout.meter.isEmpty())paintMixHeadPeak(pg,layout.meter.toFloat(),-60.f,true);
@@ -469,7 +539,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         paintEngravedFigure(g,{20.f,438.f,30.f,53.f},ink.withAlpha(.65f),BonePose::stand,artworkMotion.phase);
     if(type==SkellDeEsserFX)
         paintEngravedFigure(g,{27.f,34.f,18.f,24.f},ink.withAlpha(.72f),BonePose::stand,artworkMotion.phase);
-    if(type==SkellSSL&&!vuRect.isEmpty()){paintSSLReduction(g,vuRect.toFloat(),needle,false);}
+    if(type==SkellSSL&&!vuRect.isEmpty()){paintSSLReduction(g,vuRect.toFloat(),needle,outputDb,false);}
     else if(type==SkellNoise&&!vuRect.isEmpty()){paintHushMeter(g,vuRect.toFloat(),needle,false);}
     else if(type==SkellMixHead&&!vuRect.isEmpty()){
         paintMixHeadPeak(g,vuRect.toFloat(),outputDb,false);
@@ -1024,11 +1094,11 @@ void RackUI::paint(Graphics& g) {
 }
 void RackUI::paintChassis(Graphics& g) {
     g.fillAll(Colour(0xff11100f));
-    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff171513),true,9.f,3.f);
+    paintHardwarePlate(g,getLocalBounds().toFloat().reduced(1.f),Colour(0xff1c1b19),true,8.f,4.f);
     const auto header=Rectangle<float>(8,4,1244,95);
     // Keep the exposed chassis dark like the original reference; do not
     // darken the more colorful module panels or attenuate the real LEDs.
-    g.setColour(Colour(0xff100f0e).withAlpha(.40f));g.fillRoundedRectangle(header,5.f);
+    g.setColour(Colour(0xff0c0c0b).withAlpha(.52f));g.fillRoundedRectangle(header,5.f);
     {juce::Graphics::ScopedSaveState save(g);juce::Path clip;clip.addRoundedRectangle(header.getX(),header.getY(),header.getWidth(),header.getHeight(),5.f);g.reduceClipRegion(clip);paintBrushed(g,header,.24f);}
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffb5a38a).withAlpha(.04f),header.getY(),juce::Colours::transparentBlack,header.getBottom()));g.fillRoundedRectangle(header,5.f);
     // Gentle upper-left reflection across the machined header; not a second border.
@@ -1045,12 +1115,12 @@ void RackUI::paintChassis(Graphics& g) {
     const float railLeft=libraryVisible?269.f:8.f;
     const auto frame=Rectangle<float>(railLeft,103,1252.f-railLeft,595);
     g.setColour(juce::Colours::black.withAlpha(.9f));g.fillRoundedRectangle(frame.expanded(2.f).translated(0.f,2.f),11);
-    paintHardwarePlate(g,frame,Colour(0xff25211d),true,11.f,4.5f);
+    paintHardwarePlate(g,frame,Colour(0xff262827),true,8.f,4.5f);
     g.setColour(Colour(0xff070605));g.fillRoundedRectangle(frame.reduced(3.5f),6);
     // A machined upper and lower lip, not a flat gold outline.
-    auto rail=frame.reduced(5.f).withHeight(5.f);
-    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff685b49),rail.getY(),Colour(0xff0a0806),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
-    rail=rail.withY(frame.getBottom()-6.f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff090807),rail.getY(),Colour(0xff6b5b47),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
+    auto rail=frame.reduced(5.f).withHeight(6.f);
+    g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff756f63),rail.getY(),Colour(0xff080807),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
+    rail=rail.withY(frame.getBottom()-6.f);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff090908),rail.getY(),Colour(0xff746a59),rail.getBottom()));g.fillRoundedRectangle(rail,2.f);
     g.setColour(Colour(0xff0e0c0a));g.drawRoundedRectangle(frame.reduced(4),7,1.7f);
     paintScrew(g,1245,117,4.5f,.6f);paintScrew(g,1245,685,4.5f,1.5f);
     if(!libraryVisible){paintScrew(g,14,117,4.2f,.9f);paintScrew(g,14,685,4.2f,1.3f);}

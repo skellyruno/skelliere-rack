@@ -4,7 +4,7 @@
 inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
-    require(p.getParameters().size()==75,"Legacy parameter ordering/count changed");
+    require(p.getParameters().size()==75+skl::kNumSlots*skl::kSslExtraCount,"Parameter count changed unexpectedly");
     require(skl::kNumRackTypes==34 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
@@ -15,6 +15,7 @@ inline void processorRegression() {
     ordered("in"); ordered("out"); ordered("bypass");
     for(int s=0;s<skl::kNumSlots;++s) { ordered(p.typeId(s)); ordered(p.onId(s)); for(int k=0;k<skl::kMaxKnobs;++k) ordered(p.knobId(s,k)); }
     for(int s=0;s<skl::kNumSlots;++s) ordered(p.extraId(s));
+    for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kSslExtraCount;++i)ordered(p.sslId(s,i));
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
     // Original normalized choice values must retain every legacy identity.
     auto* legacy=p.apvts.getParameter(p.typeId(0));
@@ -36,6 +37,17 @@ inline void processorRegression() {
         p.processBlock(b,midi);
         for(int c=0;c<2;++c) for(int i=0;i<63;++i) require(std::isfinite(b.getSample(c,i)),"Production process invalid");
     }
+    // Extra SSL controls travel with the slot, survive undo and state recall,
+    // and default when loading an older 75-parameter session.
+    p.clearRack();require(p.addModule(skl::SkellSSL,0),"Expanded SSL missing");
+    for(int j=0;j<skl::kSslExtraCount;++j)set(p.sslId(0,j),.73f);
+    p.moveSlot(0,1,false);for(int j=0;j<skl::kSslExtraCount;++j)require(std::abs(p.apvts.getRawParameterValue(p.sslId(1,j))->load()-.73f)<1e-6f,"SSL controls lost on move");
+    p.undo();require(p.slotType(0)==skl::SkellSSL,"SSL undo lost type");for(int j=0;j<skl::kSslExtraCount;++j)require(std::abs(p.apvts.getRawParameterValue(p.sslId(0,j))->load()-.73f)<1e-6f,"SSL controls lost on undo");
+    p.moveSlot(0,1,true);juce::MemoryBlock sslState;p.getStateInformation(sslState);p.clearRack();p.setStateInformation(sslState.getData(),int(sslState.getSize()));
+    require(p.slotType(1)==skl::SkellSSL,"SSL copied state lost module");for(int j=0;j<skl::kSslExtraCount;++j)require(std::abs(p.apvts.getRawParameterValue(p.sslId(1,j))->load()-.73f)<1e-6f,"SSL controls lost on state recall");
+    auto compactState=p.apvts.copyState();for(int i=compactState.getNumChildren();--i>=0;)if(compactState.getChild(i).getProperty("id").toString().contains("_ssl_"))compactState.removeChild(i,nullptr);
+    auto compactXml=compactState.createXml();juce::MemoryBlock compactBinary;juce::AudioProcessor::copyXmlToBinary(*compactXml,compactBinary);p.setStateInformation(compactBinary.getData(),int(compactBinary.getSize()));
+    require(p.slotType(1)==skl::SkellSSL,"Legacy SSL state lost type");for(int s=0;s<skl::kNumSlots;++s)for(int j=0;j<skl::kSslExtraCount;++j)require(std::abs(p.apvts.getRawParameterValue(p.sslId(s,j))->load()-skl::sslDefault(j))<1e-6f,"Missing SSL control retained stale value");
     auto old=p.apvts.copyState();
     for(int i=old.getNumChildren();--i>=0;)
         if(old.getChild(i).getProperty("id").toString().endsWith("_extra")) old.removeChild(i,nullptr);
@@ -48,7 +60,7 @@ inline void processorRegression() {
     require(p.slotType(0)==skl::Eq,"Extension overrode legacy selection");
     // A real Jet meter must match the output of a unity-gain single-slot
     // rack, consume its peak once and clear on bypass/removal.
-    for(int meterType:{skl::Flanger,skl::SkellMixHead}){
+    for(int meterType:{skl::Flanger,skl::SkellMixHead,skl::SkellSSL}){
     p.clearRack();require(p.addModule(meterType,0),"Peak-meter module not selectable");
     p.soloSlot.store(-1);set("in",0);set("out",0);set("bypass",0);set(p.onId(0),1);
     juce::AudioBuffer<float> jet(2,63);juce::MidiBuffer jetMidi;
@@ -58,13 +70,13 @@ inline void processorRegression() {
     (void)p.takeJetPeak(0);
     fillJet();p.processBlock(jet,jetMidi);
     const float observed=p.takeJetPeak(0);
-    require(observed>0.f&&std::abs(observed-jet.getMagnitude(0,63))<.0001f,"Jet peak differs from real post-effect output");
-    require(p.takeJetPeak(0)==0.f,"Jet meter did not consume peak");
+    require(observed>0.f&&std::abs(observed-jet.getMagnitude(0,63))<.0001f,"Module peak differs from real post-effect output");
+    require(p.takeJetPeak(0)==0.f,"Module meter did not consume peak");
     fillJet();p.processBlock(jet,jetMidi);set(p.onId(0),0);
     fillJet();p.processBlock(jet,jetMidi);
-    require(p.takeJetPeak(0)==0.f,"Bypassed Jet retained stale peak");
+    require(p.takeJetPeak(0)==0.f,"Bypassed module retained stale peak");
     p.removeSlot(0);fillJet();p.processBlock(jet,jetMidi);
-    require(p.takeJetPeak(0)==0.f,"Removed Jet retained stale peak");
+    require(p.takeJetPeak(0)==0.f,"Removed module retained stale peak");
     }
     // Bypass All skips every module, so a stored gain reduction must not be shown.
     p.clearRack();require(p.addModule(skl::Comp,0),"Opto not selectable");

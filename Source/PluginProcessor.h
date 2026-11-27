@@ -32,6 +32,7 @@ public:
     // Appended host parameters select new effects only while legacy type is Empty.
     // This leaves all original choice normalisation and parameter ordering intact.
     static juce::String extraId(int s) { return "s"+juce::String(s)+"_extra"; }
+    static juce::String sslId(int s,int k) { return "s"+juce::String(s)+"_ssl_"+skl::sslControl(k).id; }
     int slotType(int) const;
     bool slotOn(int) const;
     float gainReduction(int) const;
@@ -63,7 +64,7 @@ public:
     int rackLatency() const;
 private:
     static std::unique_ptr<skl::ModuleBase> makeModule(int t) { return skl::makeRackModule(t); }
-    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; };
+    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; std::array<float,skl::kSslExtraCount> ssl=skl::sslDefaults(); };
     void parameterChanged(const juce::String&,float) override;
     void setParam(const juce::String&,float);
     SlotValues readSlot(int) const;
@@ -83,6 +84,7 @@ private:
     std::atomic<float>* extraRaw[skl::kNumSlots]={};
     std::atomic<float>* onRaw[skl::kNumSlots]={};
     std::atomic<float>* kRaw[skl::kNumSlots][skl::kMaxKnobs]={};
+    std::atomic<float>* sslRaw[skl::kNumSlots][skl::kSslExtraCount]={};
     std::atomic<float>* inRaw=nullptr;
     std::atomic<float>* outRaw=nullptr;
     std::atomic<float>* bypassRaw=nullptr;
