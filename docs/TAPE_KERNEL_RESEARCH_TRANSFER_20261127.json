@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "parent": "57c97d6bdf9c9f71f3257eb5393f357e4aa195d4",
+  "reference_research": {
+    "repository": "skellyruno/skell-vst-decompiler",
+    "commit": "a647e3c6e2a7728038923883964f5d1c18e9908c"
+  },
+  "source_archive_sha256": "228de16107ce74b555db5307d5fba7de23c7485f318a1054c47506a7876766e8",
+  "corpus": {
+    "inputs": 36,
+    "seconds": 159.25009070294786,
+    "sample_rate": 44100,
+    "stages": "2 archive-labeled dry, 34 processed excerpts",
+    "fingerprints_verified": 36
+  },
+  "kernel": {
+    "name": "AlignedTape4x",
+    "module": "Skell MixHead",
+    "latency_samples": 12,
+    "compared_outputs": "aligned dry and oversampled nonlinear residual, not complete rack output",
+    "original_module_blob": "e5aab5d3d57cba6a40c713fdc11ca492f77ca706"
+  },
+  "rejected_mirrored": {
+    "paired_cases": 108,
+    "exact": 108,
+    "timed_runs": 648,
+    "full_local_report_sha256": "aa2b05c4d4ec0d9751f5a0559c6f2523e01bd164569e521c13c4a9ab6cdd1a37",
+    "rows": [
+      {
+        "amount": 0,
+        "baseline_ms": 0.42376352850189297,
+        "candidate_ms": 0.7099579404761904,
+        "median_paired_improvement_percent": -68.93224285396226,
+        "faster_excerpts": 0
+      },
+      {
+        "amount": 0.5,
+        "baseline_ms": 9.803642306147651,
+        "candidate_ms": 12.353456327380952,
+        "median_paired_improvement_percent": -26.69166052342986,
+        "faster_excerpts": 0
+      },
+      {
+        "amount": 1,
+        "baseline_ms": 9.913808713407722,
+        "candidate_ms": 12.358737701446296,
+        "median_paired_improvement_percent": -24.771519155552923,
+        "faster_excerpts": 0
+      }
+    ]
+  },
+  "accepted_zero_amount": {
+    "paired_cases": 108,
+    "exact": 108,
+    "timed_runs": 648,
+    "exact_dry_alignment": 108,
+    "full_local_report_sha256": "8be4569841e819faf564d33880d9864174f80c28ea790c476df9a2cf03e2db0c",
+    "rows": [
+      {
+        "amount": 0,
+        "baseline_ms": 0.4243278429183319,
+        "candidate_ms": 0.3332670393364177,
+        "median_paired_improvement_percent": 22.00924193720318,
+        "faster_excerpts": 36
+      },
+      {
+        "amount": 0.5,
+        "baseline_ms": 9.795269117434843,
+        "candidate_ms": 9.595177215466272,
+        "median_paired_improvement_percent": 2.167509263009876,
+        "faster_excerpts": 29
+      },
+      {
+        "amount": 1,
+        "baseline_ms": 9.897258701194971,
+        "candidate_ms": 9.65313373244085,
+        "median_paired_improvement_percent": 3.6976927142665152,
+        "faster_excerpts": 32
+      }
+    ]
+  },
+  "validation": {
+    "full_host_free_script": "passed",
+    "native_test": "passed optimized and ASan/UBSan, 300000 per-channel calls with varying controls/reset",
+    "integrated_test_dsp_sanitized": "passed",
+    "larger_sanitizer_batch": "timed out after test_dsp passed; remaining integration sanitizer results unverified",
+    "offline_kit": "13/13 passed",
+    "exact_source_blobs": {
+      "Source/AlignedTape4x.h": "f6432674951786f2d3fd9b1719299752ba1e14e6",
+      "tests/AlignedTapeReference.h": "28991d8fbc920e3f0adea631fe9c2489d648723f",
+      "tests/test_aligned_tape.cpp": "f2d944c6ebeeea2a1943801cefb500d931555763",
+      "tests/tape_vocal_adapter.cpp": "f206b6011a525d9b5109e65d5a66ee38d91581d7",
+      "tools/bench_tape_vocals.py": "7a325f9b1c60c682e9d04f7b457b1ef4fbb53b55",
+      "Source/NewColorModules.h": "ab7f46ac303463c9ffcf1e777d558e69126dd45d",
+      "tests/run_tests.sh": "4eadb1746054a6fe47c295d2c36528c894f6ac3b",
+      ".github/workflows/build.yml": "e33c935a2def184484148db88e9a59025b063ecd"
+    },
+    "new_windows_vst3": "unverified",
+    "new_ui_capture": "unverified"
+  },
+  "limits": "Local native GCC measurement includes preparation and adapter overhead; not FL Studio CPU. Real vocals not necessarily independent performances. No change to filter math, parameter IDs, factory sounds, effect identities, GUI or advertised latency. No vendor equivalence or private audio/identities published."
+}
