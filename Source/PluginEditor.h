@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include <BinaryData.h>
 #include "PluginProcessor.h"
 #include "Look.h"
 
@@ -45,6 +46,39 @@ public:
     void paintButton(juce::Graphics&, bool hover, bool down) override;
 };
 
+// The archive contains a landscape-stored faceplate. Rotate it once on the UI
+// thread and paint it behind the existing, host-automatable controls. The
+// background never intercepts mouse input, and is never accessed on the audio thread.
+class AirPanelBackground final : public juce::Component {
+public:
+    AirPanelBackground(juce::Component& parent, std::function<int()> getType)
+        : getType_(std::move(getType)) {
+        setInterceptsMouseClicks(false, false);
+        setBounds(0, 0, 168, 540);
+        parent.addAndMakeVisible(*this);
+    }
+    void paint(juce::Graphics& g) override {
+        if (getType_() != skl::Air) return;
+        static const juce::Image face = [] {
+            auto raw = juce::ImageFileFormat::loadFrom(
+                BinaryData::air_lift_faceplate_png, BinaryData::air_lift_faceplate_pngSize);
+            if (!raw.isValid()) return juce::Image{};
+            juce::Image upright(juce::Image::ARGB, raw.getHeight(), raw.getWidth(), true);
+            juce::Graphics imageGraphics(upright);
+            imageGraphics.drawImageTransformed(raw,
+                juce::AffineTransform::rotation(juce::MathConstants<float>::halfPi)
+                    .translated(static_cast<float>(raw.getHeight()), 0.0f));
+            return upright;
+        }();
+        if (face.isValid())
+            g.drawImageTransformed(face, juce::AffineTransform::scale(
+                static_cast<float>(getWidth()) / static_cast<float>(face.getWidth()),
+                static_cast<float>(getHeight()) / static_cast<float>(face.getHeight())));
+    }
+private:
+    std::function<int()> getType_;
+};
+
 // ------------------------------------------------------------------ one rack slot
 class SlotComponent final : public juce::Component, public juce::DragAndDropTarget {
 public:
@@ -73,6 +107,7 @@ private:
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;
+    AirPanelBackground airPanel{*this, [this] { return type; }};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};
