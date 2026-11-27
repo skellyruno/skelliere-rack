@@ -20,7 +20,7 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
     p.clearRack();require(p.addModule(skl::Tune,0),"Tune missing");
-    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.75f)<1e-6f&&skl::tuneReferenceHz(p.apvts.getRawParameterValue(p.knobId(0,5))->load())==440.f,"Tune defaults");
+    require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.5f)<1e-6f&&skl::tuneReferenceHz(p.apvts.getRawParameterValue(p.knobId(0,5))->load())==440.f,"Tune defaults");
     // A saved normalized value originally represented 0..200 ms or +/-50 cents.
     const auto oldReference=skl::migrateTuneReference(.82f);
     auto legacyTuneState=p.apvts.copyState();legacyTuneState.removeProperty("tuneControlVersion",nullptr);

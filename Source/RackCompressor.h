@@ -58,10 +58,18 @@ private:
     float detectorCoeff_=0,threshold_=0,slope_=0,attack_=0,release_=0,makeup_=0;
     bool seeded_=false,dirty_=true; std::atomic<float> meter_{0};
 };
+// First-order antiderivative antialiasing of the *color residual* only.
+// The unshifted compressed path remains direct. Independent of vendor code.
+inline float fetColorResidual(float v,float previous,float drive) noexcept {
+    const double a=double(v)*drive,b=double(previous)*drive,d=a-b;
+    auto primitive=[](double z){const double q=std::abs(z);return q+std::log1p(std::exp(-2*q))-std::log(2.)-.5*z*z;};
+    const double m=.5*(a+b);
+    return float((std::abs(d)<1e-4?std::tanh(m)-m:(primitive(a)-primitive(b))/d)/drive);
+}
 class FetCompressor final : public ModuleBase {
 public:
     void prepare(double sr,int,int) override {rate=std::isfinite(sr)?std::clamp(sr,8000.,384000.):48000.;slew=onePole(rate,12);bypassSlew=onePole(rate,3);reset();}
-    void reset() override {env=memory=gr=0;mix=1;seeded=false;tick=0;meterValue.store(0);}
+    void reset() override {env=memory=gr=0;mix=1;seeded=false;shapeSeeded=false;previous.fill(0);tick=0;meterValue.store(0);}
     float meter() const override {return meterValue.load(std::memory_order_relaxed);}
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         const int ch=std::min(2,b.getNumChannels());if(ch<1)return;
@@ -89,13 +97,15 @@ public:
             const float recovery=rel+(slow-rel)*std::clamp(memory/24.f,0.f,1.f);
             gr=want+(want>gr?atk:recovery)*(gr-want);
             const float gain=db2g(-gr);const float m=active?1.f:0.f;mix=m+bypassSlew*(mix-m);if(std::abs(mix-m)<1e-5f)mix=m;
-            auto shape=[&](float v){v*=gain;return output*(v+color*(std::tanh(v*drive)/drive-v));};
-            l[i]=mix==0?x:sane(x+mix*(shape(a)-x));if(r)r[i]=mix==0?y:sane(y+mix*(shape(bb)-y));
+            auto shape=[&](float v,int channel){v*=gain;const float old=shapeSeeded?previous[channel]:v;previous[channel]=v;return output*(v+color*fetColorResidual(v,old,drive));};
+            // Keep color history current even when bypassed, avoiding stale-state pops.
+            const float outL=shape(a,0),outR=r?shape(bb,1):outL;if(!r)previous[1]=previous[0];shapeSeeded=true;
+            l[i]=mix==0?x:sane(x+mix*(outL-x));if(r)r[i]=mix==0?y:sane(y+mix*(outR-y));
         }
         meterValue.store(gr*mix,std::memory_order_relaxed);
     }
 private:
-    double rate=48000;std::array<float,6> cur{};unsigned tick=0;bool seeded=false;
+    double rate=48000;std::array<float,6> cur{};std::array<float,2> previous{};unsigned tick=0;bool seeded=false,shapeSeeded=false;
     float env=0,memory=0,gr=0,mix=1,slew=0,bypassSlew=0,input=1,output=1,slope=.75f,slam=0,threshold=-18,knee=2,atk=0,rel=0,slow=0,color=.12f,drive=1.5f;
     std::atomic<float> meterValue{0};
 };

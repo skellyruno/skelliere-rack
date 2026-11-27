@@ -1,0 +1,12 @@
+# FET 76 color stage and hardware — November 27, 2026
+
+Baseline: 68ddd84ec40adebcad7fc449f5b88f356e3cae48. No third-party code or artwork embedded in this pass. Original module index and all host parameter IDs retained. New Tune slots start at 50 ms; migrated or previously saved settings are unchanged. A4 remains 440 Hz. The FET rename changes display metadata only.
+
+## Reference research
+The private extraction report at `skell-extraction` commit `858657244a8b8730671f6021f8a2e0debd55f100`, `artifacts/dsp/2026-11-23/native_equations/EQUATION_RECONSTRUCTION_REPORT.md`, establishes a saturation helper and the mathematical family of time-constant coefficients. It does not establish a complete gain law, vendor circuit sound, oversampling factor or full compressor model. This patch independently reduces aliasing in Skelliere's existing tanh color residual via first-order antiderivative integration. The compressed signal stays on the direct path, so no added host latency; the nonlinear residual is smoothed over one sample interval. Linked gain, revision curves and ratio/attack/release law unchanged. No proprietary code copied.
+
+## Measurements
+At 48 kHz, 17 kHz sine, 0.7 peak, ALL ratio and +18 dB input (actual FetCompressor, stereo, 257-frame blocks), Blue's folded third was -63.277 -> -74.650 dBc and Black's -67.322 -> -78.690 dBc. At 1 kHz, the desired third changed -63.277 -> -63.370 dBc and -67.322 -> -67.415 dBc. Fundamental changed 0.017/0.011 dB at 17 kHz. The color residual test independently verifies three sample rates, odd symmetry, finite behavior and low-frequency harmonic preservation. It includes a whole-module regression. Ten seconds of a private mono-mixed dry vocal at 44.1 kHz (stereo antisymmetric processing fixture), +6 dB input, 4:1: Blue RMS -26.598 -> -26.597 dBFS, peak -10.771 -> -10.768 dBFS; Black RMS -25.077 -> -25.077 dBFS, peak -9.113 -> -9.112 dBFS. Core-only render cost increased, and host CPU/real listening remain unverified. Private audio is not included.
+
+## Interface
+FET 76 uses molded black grip knobs, clear pointer and calibrated marks instead of darkening the rack skull cap. All effect headers have a flush black strip, centered title, power/remove at the edges and optional preset/engine row. Impact uses an original deterministic cached cream/blue-gray oxide material in its default finish; alternate finishes are retained. Existing DSP for Impact is unchanged. The shared rack knobs are not redesigned.

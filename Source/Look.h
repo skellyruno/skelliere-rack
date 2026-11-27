@@ -766,6 +766,25 @@ public:
             const auto ink=light?Colour(0xff302820):Colour(0xffe6d7bc);for(int i=0;i<=12;++i){const float a=a0+(a1-a0)*i/12.f;g.setColour(ink.withAlpha(i%3==0?.91f:.55f));g.drawLine(cx+std::sin(a)*r*1.20f,cy-std::cos(a)*r*1.20f,cx+std::sin(a)*r*(i%3==0?1.34f:1.28f),cy-std::cos(a)*r*(i%3==0?1.34f:1.28f),i%3==0?.95f:.7f);}
             const float sn=std::sin(angle),cs=-std::cos(angle);g.setColour(Colour(0xff121511));g.drawLine(cx+sn*r*.67f,cy+cs*r*.67f,cx+sn*r*.94f,cy+cs*r*.94f,3.4f);g.setColour(hardware==1&&s.getName()=="Retune"?Colour(0xff91e2a0):ivory);g.drawLine(cx+sn*r*.69f,cy+cs*r*.69f,cx+sn*r*.94f,cy+cs*r*.94f,1.6f);return;
         }
+        if(s.getProperties().contains("fetDarkCap")){
+            const float rr=size*.39f;
+            auto disc=[&](float rad,float dy=0.f){return Rectangle<float>(cx-rad,cy-rad+dy,rad*2,rad*2);};
+            g.setColour(Colour(0xff080909).withAlpha(.75f));g.fillEllipse(disc(rr*1.13f,2.2f));
+            g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff777977),cy-rr,Colour(0xff141515),cy+rr));g.fillEllipse(disc(rr*1.06f));
+            g.setGradientFill(juce::ColourGradient(Colour(0xff424542),cx-rr*.65f,cy-rr*.65f,Colour(0xff0a0b0a),cx+rr*.70f,cy+rr*.65f,false));g.fillEllipse(disc(rr*.94f));
+            g.setColour(Colour(0xff0b0c0c));g.drawEllipse(disc(rr*.92f),1.f);
+            for(int j=0;j<36;++j){const float a=j*juce::MathConstants<float>::twoPi/36;g.setColour(Colour(0xffa3a5a1).withAlpha(.12f+.17f*std::max(0.f,-std::sin(a))));g.drawLine(cx+std::sin(a)*rr*.87f,cy-std::cos(a)*rr*.87f,cx+std::sin(a)*rr*.99f,cy-std::cos(a)*rr*.99f,.6f);}
+            {juce::Graphics::ScopedSaveState st(g);g.addTransform(juce::AffineTransform::rotation(angle,cx,cy));
+                juce::Path grip;grip.startNewSubPath(cx-rr*.25f,cy+rr*.68f);grip.lineTo(cx+rr*.25f,cy+rr*.68f);grip.lineTo(cx+rr*.17f,cy-rr*.76f);grip.lineTo(cx-rr*.17f,cy-rr*.76f);grip.closeSubPath();
+                g.setColour(juce::Colours::black.withAlpha(.75f));g.fillPath(grip,juce::AffineTransform::translation(1.3f,1.6f));
+                g.setGradientFill(juce::ColourGradient(Colour(0xff555956),cx-rr*.28f,cy,Colour(0xff101211),cx+rr*.27f,cy,false));g.fillPath(grip);
+                g.setColour(Colour(0xff9fa39e).withAlpha(.6f));g.drawLine(cx-rr*.18f,cy-rr*.70f,cx-rr*.24f,cy+rr*.60f,.85f);
+                g.setColour(Colour(0xfff3f0df));g.drawLine(cx,cy-rr*.33f,cx,cy-rr*.79f,std::max(1.25f,rr*.06f));
+            }
+            const auto tick=light?Colour(0xff272b29):Colour(0xffdfded3);
+            for(int j=0;j<=12;++j){const float a=a0+(a1-a0)*j/12.f;g.setColour(tick.withAlpha(j%3==0?.96f:.66f));g.drawLine(cx+std::sin(a)*rr*1.18f,cy-std::cos(a)*rr*1.18f,cx+std::sin(a)*rr*(j%3==0?1.35f:1.28f),cy-std::cos(a)*rr*(j%3==0?1.35f:1.28f),j%3==0?1.1f:.7f);}
+            return;
+        }
         // Nearly all of the original rack knob area is now the actual metal
         // cap rather than a small cap surrounded by Necromancer's black well.
         const float capR=size*(utility?.397f:.405f);
@@ -773,8 +792,7 @@ public:
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(1.f);
         g.drawImage(capMount(),juce::Rectangle<float>(cx-shadowR,cy-shadowR,2*shadowR,2*shadowR));
-        const bool fetDark=s.getProperties().contains("fetDarkCap");
-        const auto tint=fetDark?juce::String("ff34383a"):s.getProperties().getWithDefault("houseTint",juce::var(juce::String())).toString();
+        const auto tint=s.getProperties().getWithDefault("houseTint",juce::var(juce::String())).toString();
         paintNecromancerCap(g,cx,cy,capR,p,bool(s.getProperties().getWithDefault("silverCap",false)),tint.isEmpty()?juce::Colours::transparentBlack:Colour(unsigned(tint.getHexValue32())));
         // Fixed reflected studio light; the original cap itself still rotates.
         {juce::Graphics::ScopedSaveState save(g);
@@ -808,8 +826,8 @@ public:
         const float start=capR*.51f,end=capR*.94f;
         g.setColour(Colour(0xff10100f));
         g.drawLine(cx+sn*start,cy+cs*start,cx+sn*end,cy+cs*end,juce::jmax(2.f,capR*.082f));
-        g.setColour((fetDark?Colour(0xffe9edf0):Colour(0xfff8e8c9)).withAlpha(fetDark?.94f:.46f));
-        g.drawLine(cx+sn*start+.65f,cy+cs*start+.65f,cx+sn*end+.65f,cy+cs*end+.65f,juce::jmax(.55f,capR*(fetDark?.048f:.023f)));
+        g.setColour(Colour(0xfff8e8c9).withAlpha(.46f));
+        g.drawLine(cx+sn*start+.65f,cy+cs*start+.65f,cx+sn*end+.65f,cy+cs*end+.65f,juce::jmax(.55f,capR*.023f));
         if(s.isMouseOverOrDragging()||s.hasKeyboardFocus(false)){
             g.setColour(pal::amber.withAlpha(s.hasKeyboardFocus(false)?.94f:.55f));
             g.fillEllipse(cx+sn*capR*1.16f-1.7f,cy+cs*capR*1.16f-1.7f,3.4f,3.4f);

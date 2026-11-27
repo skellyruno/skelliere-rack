@@ -17,7 +17,7 @@ static std::vector<float> tune(const std::vector<float>& x,double sr,float hz,bo
 int main(int argc,char** argv){
     const auto& retune=info(Tune).knobs[0];
     check(toReal(retune,0)==100.f&&toReal(retune,1)==0.f,"Retune direction/endpoints");
-    check(toReal(retune,.5f)==50.f&&defaultNorm(Tune,0)==.75f,"Retune midpoint/default");
+    check(toReal(retune,.5f)==50.f&&defaultNorm(Tune,0)==.5f,"Retune midpoint/default");
     for(float ms:{0.f,25.f,50.f,100.f})check(std::abs(toReal(retune,toNorm(retune,ms))-ms)<1e-5f,"Retune inverse mapping");
     check(tuneReferenceHz(.5f)==440.f&&tuneReferenceHz(0)==400.f&&tuneReferenceHz(1)==480.f,"A4 endpoint/default");
     check(migrateTuneRetune(.125f)==.75f&&migrateTuneRetune(.75f)==0.f,"Retune migration");

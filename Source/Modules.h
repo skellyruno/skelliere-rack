@@ -61,7 +61,7 @@ inline const ModuleInfo& info(int type) {
         {"Trim","Gain staging and pan","Clean gain and pan for balancing levels between modules.",CatUtility,2,
          {{"Gain",-24,24,false,0,Unit::Db,0,nullptr},{"Pan",-1,1,false,0,Unit::Pan,0,nullptr}},1,{{"Level",0,2}},false},
         {"Skelly Tune","Real-time pitch correction","SkellyTune pitch correction. Pick a key and scale, then set how fast notes snap. Adds a fixed latency the host compensates.",CatTone,5,
-         {{"Retune",0,100,false,25,Unit::Ms,0,nullptr,true},{"Amount",0,1,false,1,Unit::Pct,0,nullptr},
+         {{"Retune",0,100,false,50,Unit::Ms,0,nullptr,true},{"Amount",0,1,false,1,Unit::Pct,0,nullptr},
           {"Mix",0,1,false,1,Unit::Pct,0,nullptr},{"Key",0,11,false,0,Unit::Steps,12,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"},
           {"Scale",0,2,false,0,Unit::Steps,3,"Chromatic,Major,Minor"}},2,{{"Correction",0,3},{"Scale",3,2}},false},
         {"Tilt Tone","Broad complementary shelves","Turn toward bright or warm around the pivot. Complementary shelves with smoothed controls and output trim.",CatTone,3,
@@ -70,7 +70,7 @@ inline const ModuleInfo& info(int type) {
         {"Stereo Stage","Width with mono bass","Mid/side width with a side-channel high-pass for a centered low end. Mono input remains mono; no synthetic stereo or added latency.",CatUtility,3,
          {{"Width",0,2,false,1,Unit::Pct,0,nullptr},{"Mono Bass",20,300,true,100,Unit::Hz,0,nullptr},
           {"Output",-12,12,false,0,Unit::Db,0,nullptr}},2,{{"Image",0,2},{"Output",2,1}},false},
-        {"Fast C","Two-revision FET-style compressor","Original fast linked gain-cell compressor with Blue and Black responses, program-dependent recovery and Slam ratio. Inspired by vintage hardware; not a circuit clone.",CatDynamics,6,
+        {"FET 76","Two-revision FET-style compressor","Original fast linked gain-cell compressor with Blue and Black responses, program-dependent recovery and Slam ratio. Inspired by vintage hardware; not a circuit clone.",CatDynamics,6,
          {{"Input",-24,24,false,0,Unit::Db,0,nullptr},{"Ratio",0,4,false,0,Unit::Steps,5,"4:1,8:1,12:1,20:1,ALL"},
           {"Attack",.02f,.8f,true,.2f,Unit::Ms,0,nullptr},{"Release",50,1100,true,150,Unit::Ms,0,nullptr},
           {"Output",-24,24,false,0,Unit::Db,0,nullptr},{"Revision",0,1,false,0,Unit::Steps,2,"BLUE,BLACK"}},3,{{"Input",0,2},{"Time",2,2},{"Output",4,2}},true},
@@ -140,7 +140,7 @@ inline const ModuleInfo& info(int type) {
 // User-facing branding is separate from the legacy host choice strings.
 // Preserve host choice names and all normalized automation/state identities.
 inline const char* displayName(int type) noexcept {
-    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C (Legacy)","Skell Sibilant","Skell Warm Drive (Legacy)","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo (Legacy)","Skell Plate Room (Legacy)","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage (Legacy)","Skell Fast C","Skell Bus C","Skell Opto C","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip (Legacy)","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air (Legacy)","Skell De-Esser (Legacy)","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Hush","Skell Smart Gate","Skell Vox Rider","Skell Dynamic EQ","Skell Multiband","Skell Resonance","Skell Doubler","Skell Exciter","Skell Air","Skell De-Esser","Skell Noise Gate","Skell Tape Echo","Skell Plate Room","Skell Warm Drive","Skell Ember Clip","Skell Stereo Stage"};
+    static constexpr const char* names[kNumRackTypes]={"Empty","Skell Quad EQ","Skell Opto C (Legacy)","Skell Sibilant","Skell Warm Drive (Legacy)","Skell Air Lift","Skell Twin Chorus","Skell Tape Echo (Legacy)","Skell Plate Room (Legacy)","Skell Brick 1","Skell Trim","Skell Tune","Skell Tilt Tone","Skell Stereo Stage (Legacy)","Skell FET 76","Skell Bus C","Skell Opto C","Skell Iron Gate","Skell Impact","Skell Bell 73","Skell Crosscut","Skell Ember Clip (Legacy)","Skell Pulse","Skell Phase Coil","Skell Jet","Skell Slap 120","Skell Air (Legacy)","Skell De-Esser (Legacy)","Skell Dope","Skell MixHead","Skell RubyQ","Skell Demon","Skell SSL Strip","Skell Hush","Skell Smart Gate","Skell Vox Rider","Skell Dynamic EQ","Skell Multiband","Skell Resonance","Skell Doubler","Skell Exciter","Skell Air","Skell De-Esser","Skell Noise Gate","Skell Tape Echo","Skell Plate Room","Skell Warm Drive","Skell Ember Clip","Skell Stereo Stage"};
     return names[std::clamp(type,0,static_cast<int>(kNumRackTypes)-1)];
 }
 // Retired effects remain addressable by old states, automation and factory presets.

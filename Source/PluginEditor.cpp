@@ -444,7 +444,7 @@ bool SlotComponent::artworkLayoutIsValid() const {
     if(cells.size()!=static_cast<size_t>(uiKnobCount(type)+(type==Tune?2:0)))return false;
     const auto body=getLocalBounds().withTrimmedTop(100).withTrimmedBottom(editing?46:23);
     if(!powerBtn.isVisible()||leftBtn.isVisible()!=editing||rightBtn.isVisible()!=editing||soloBtn.isVisible()!=editing||!removeBtn.isVisible()||artButton.isVisible()!=(editing&&type!=FastComp))return false;
-    const auto header=getLocalBounds().withHeight(60).reduced(22,0);
+    const auto header=getLocalBounds().withHeight(38).reduced(4,0);
     if(modulePresetButton.isVisible()!=!proc.modulePresetNames(type).isEmpty())return false;
     if(modulePresetButton.isVisible()&&(!header.contains(modulePresetButton.getBounds())||modulePresetButton.getBounds().intersects(powerBtn.getBounds())||modulePresetButton.getBounds().intersects(removeBtn.getBounds())||(advancedButton.isVisible()&&modulePresetButton.getBounds().intersects(advancedButton.getBounds()))))return false;
     if(!header.contains(powerBtn.getBounds())||!header.contains(removeBtn.getBounds())||powerBtn.getBounds().intersects(removeBtn.getBounds()))return false;
@@ -527,10 +527,12 @@ void SlotComponent::resized() {
     sectionRects.clear();vuRect={};panelBounds={};
     const int w=getWidth(),h=getHeight();footRect=editing?Rectangle<int>(10,h-43,w-20,32):Rectangle<int>();
     if(type==Empty)return;
-    const int top=type==SkellSSL?3:10;
-    powerBtn.setBounds(25,top,24,24);removeBtn.setBounds(w-49,top,24,24);
-    advancedButton.setBounds(w/2+17,top+4,w-49-(w/2+17)-5,16);
-    modulePresetButton.setBounds(52,top+4,w/2-65,16);
+    // Independent, edge-to-edge black header: title above the action row.
+    powerBtn.setBounds(6,8,24,24);removeBtn.setBounds(w-30,8,24,24);
+    const int actionX=34,actionW=w-68;
+    const bool both=advancedButton.isVisible()&&modulePresetButton.isVisible();
+    modulePresetButton.setBounds(actionX,18,both?actionW*2/3-2:actionW,16);
+    advancedButton.setBounds(both?actionX+actionW*2/3:actionX,18,both?actionW-actionW*2/3:actionW,16);
     advancedButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("moduleHeader",true);modulePresetButton.getProperties().set("modulePreset",true);
     soloBtn.setBounds(25,h-38,27,23);leftBtn.setBounds(59,h-38,21,23);rightBtn.setBounds(84,h-38,21,23);
     artButton.setBounds(w-90,h-38,65,23);
@@ -585,15 +587,19 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         panelCache=juce::Image(juce::Image::ARGB,w*rasterScale,h*rasterScale,true);Graphics pg(panelCache);
         pg.addTransform(juce::AffineTransform::scale(float(rasterScale)));
         paintOriginalSurface(pg,getLocalBounds().toFloat(),type,nativeChoice);
-        const auto header=Rectangle<float>(20.f,type==SkellSSL?1.f:4.f,float(w-40),type==SkellSSL?26.f:33.f);pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff252627),header.getY(),Colour(0xff070909),header.getBottom()));pg.fillRoundedRectangle(header,4.f);pg.setColour(Colour(0xff555651));pg.drawRoundedRectangle(header,4.f,.65f);
+        const auto header=Rectangle<float>(0.f,0.f,float(w),38.f);
+        pg.setGradientFill(juce::ColourGradient::vertical(Colour(0xff353637),0.f,Colour(0xff090a0a),38.f));pg.fillRect(header);
+        pg.setColour(Colour(0xff858682).withAlpha(.7f));pg.drawHorizontalLine(1,2.f,float(w-2));
+        pg.setColour(Colour(0xff060707));pg.drawHorizontalLine(37,0.f,float(w));
+        pg.setColour(Colour(0xffdfded6));pg.setFont(font(10.5f,true).withExtraKerningFactor(.08f));
+        pg.drawFittedText(juce::String(displayName(type)).fromFirstOccurrenceOf(" ",false,false).toUpperCase(),Rectangle<int>(34,(hasAdvancedEngine(type)||!proc.modulePresetNames(type).isEmpty())?3:11,w-68,14),juce::Justification::centred,1);
         if(type==SkellSSL){
-            pg.setColour(Colour(0xff222625));pg.fillRect(juce::Rectangle<float>(9,25,float(w-18),43));
+            pg.setColour(Colour(0xff222625));pg.fillRect(juce::Rectangle<float>(9,38,float(w-18),30));
             pg.setColour(Colour(0xffa8aba4).withAlpha(.32f));pg.drawHorizontalLine(68,9.f,float(w-9));
-            paintMonogram(pg,Rectangle<float>(16,33,14,20),Colour(0xffe0ded2));
-            pg.setColour(Colour(0xffe0ded2));pg.setFont(font(16.f,true).withExtraKerningFactor(.045f));pg.drawText("SSL STRIP",36,28,w-48,23,juce::Justification::centredLeft);
-            pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",36,49,w-48,13,juce::Justification::centredLeft);
+            paintMonogram(pg,Rectangle<float>(16,40,14,20),Colour(0xffe0ded2));
+            pg.setColour(Colour(0xffe0ded2));pg.setFont(font(16.f,true).withExtraKerningFactor(.045f));pg.drawText("SSL STRIP",36,37,w-48,19,juce::Justification::centredLeft);
+            pg.setColour(Colour(0xffaab1a9));pg.setFont(font(9.5f,true).withExtraKerningFactor(.14f));pg.drawText("SKELL / E-G CHANNEL",36,55,w-48,12,juce::Justification::centredLeft);
         }else{
-        paintMonogram(pg,Rectangle<float>(w*.5f-9,9,18,23),Colour(0xffc3c3b9));
         pg.setColour(ink);pg.setFont(font(14.5f,false).withExtraKerningFactor(.22f));
         pg.drawText("SKELL",18,45,w-36,17,juce::Justification::centred,false);
         pg.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultSerifFontName(),25.5f,juce::Font::bold|juce::Font::italic)).withExtraKerningFactor(.045f));

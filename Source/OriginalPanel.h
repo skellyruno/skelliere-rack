@@ -20,6 +20,7 @@ inline PanelSpec originalSpec(int type,int finish) {
     if(finish==1&&type==SkellMixHead)metal=Colour(0xffa52b19);
     if(finish==1){switch(type){
         case FastComp:metal=Colour(0xff46372c);break;
+        case Transient:metal=Colour(0xffd4cbb5);break;
         case BusComp:metal=Colour(0xff223d47);break;
         case Limiter:metal=Colour(0xff292c30);break;
         case Trim:metal=Colour(0xff666960);break;
@@ -595,6 +596,15 @@ inline const juce::Image& infernalBackdrop(){
         auto fbm=[&](float x,float y){float n=0,amp=.54f;for(int k=0;k<7;++k){n+=amp*field(x,y);x=x*2.04f+17.f;y=y*2.03f+5.f;amp*=.49f;}return n;};
         juce::Image::BitmapData px(im,juce::Image::BitmapData::writeOnly);for(int y=0;y<h;++y)for(int x=0;x<w;++x){const float u=float(x)/w,v=float(y)/h,warp=fbm(u*4+12,v*5+3);const float n=fbm(u*6+warp*2,v*8+warp*3),n2=fbm(u*17+warp*4,v*19+warp*4);float flame=metal::sat((fbm(u*10+warp*4,v*2.3f+warp*2)-.36f)*3.5f);float light=metal::sat((n-.25f)*1.9f+.36f*flame);float fissure=std::exp(-105.f*std::abs(n2-.51f));float halo=std::exp(-4.2f*((u-.5f)*(u-.5f)+(v-.5f)*(v-.5f)));auto c=Colour(0xff090103).interpolatedWith(Colour(0xffad160b),metal::sat(light*halo+.18f*fissure));c=c.interpolatedWith(Colour(0xffffa139),metal::sat(fissure*.24f*halo+flame*.34f*(.35f+.65f*v)));px.setPixelColour(x,y,c);}return im;}();return image;
 }
+// Original cached mineral-oxide finish: layered cloudy corrosion, cool
+// exposed steel, warm lacquer and fine granular abrasion. No copied pixels.
+inline const juce::Image& impactOxideSurface(){
+    static const auto image=[](){constexpr int w=320,h=760;juce::Image im(juce::Image::RGB,w,h,true);juce::Image::BitmapData px(im,juce::Image::BitmapData::writeOnly);
+        auto hash=[](int x,int y){uint32_t v=uint32_t(x)*0x9e3779b9u+uint32_t(y)*0x85ebca6bu+0x63d83595u;v^=v>>16;v*=0x7feb352du;v^=v>>15;v*=0x846ca68bu;v^=v>>16;return float(v&0xffffu)/65535.f;};
+        auto noise=[&](float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(y));float a=x-ix,b=y-iy;a=a*a*(3-2*a);b=b*b*(3-2*b);float p=hash(ix,iy)+(hash(ix+1,iy)-hash(ix,iy))*a,q=hash(ix,iy+1)+(hash(ix+1,iy+1)-hash(ix,iy+1))*a;return p+(q-p)*b;};
+        for(int y=0;y<h;++y)for(int x=0;x<w;++x){float u=x*.018f,v=y*.018f,n=0,amp=.52f;for(int o=0;o<6;++o){n+=amp*noise(u,v);u=u*2.04f+7;v=v*2.04f+11;amp*=.49f;}const float steel=std::clamp((n-.40f)*4.5f,0.f,1.f);const float grain=(hash(x,y)-.5f)*.12f;auto c=Colour(0xffe4d4b6).interpolatedWith(Colour(0xff788b98),steel*.92f);c=c.interpolatedWith(Colour(0xfff8f2df),std::clamp(.25f+.17f*noise(x*.13f,y*.13f)+grain,0.f,1.f));px.setPixelColour(x,y,c);}
+        return im;}();return image;
+}
 inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,int finish) {
     const auto p=originalSpec(type,finish);
     // The reference's dark anodised panels are substantially darker and more
@@ -608,6 +618,7 @@ inline void paintOriginalSurface(Graphics& g,juce::Rectangle<float> r,int type,i
     g.setGradientFill(juce::ColourGradient::vertical(Colour(0xffdfc8ab).withAlpha(p.light?.32f:.15f),f.getY(),juce::Colours::transparentWhite,f.getY()+5.f));g.fillRect(f.withHeight(4.f));
     g.setGradientFill(juce::ColourGradient::vertical(juce::Colours::transparentBlack,f.getBottom()-8.f,juce::Colours::black.withAlpha(.30f),f.getBottom()));g.fillRect(f.withY(f.getBottom()-8.f).withHeight(8.f));
     paintIdentityFinish(g,f,type,p.light);
+    if(type==Transient&&finish==1){juce::Graphics::ScopedSaveState st(g);juce::Path clip;clip.addRoundedRectangle(f,5.f);g.reduceClipRegion(clip);g.setOpacity(.90f);g.drawImage(impactOxideSurface(),f);g.setOpacity(1.f);g.setColour(Colour(0xfff4e8d1).withAlpha(.22f));g.fillRoundedRectangle(f,5.f);}
     paintAnalogWear(g,f,p.light,0x521d+type*179+finish*11,1.30f);
     g.setColour((p.light?Colour(0xfffcf2d7):Colour(0xffc2b49a)).withAlpha(.25f));g.drawRoundedRectangle(r.reduced(3.f),5.f,.55f);
     g.setColour(juce::Colours::black.withAlpha(.62f));g.drawRoundedRectangle(r.reduced(5.f),4.f,.65f);

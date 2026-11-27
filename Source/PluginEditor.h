@@ -116,7 +116,7 @@ private:
     int appliedArtworkChoice = -1, nativeChoice = 0;
     juce::Rectangle<int> panelBounds;
     juce::Image panelCache;
-    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"}, modulePresetButton{"PRESET"};
+    juce::TextButton artButton{"FINISH"}, advancedButton{"ENGINE"}, modulePresetButton{"SELECT PRESET"};
     PowerButton powerBtn;
     std::unique_ptr<juce::ButtonParameterAttachment> powerAtt;
     juce::TextButton leftBtn{"<"}, rightBtn{">"}, removeBtn{"x"}, soloBtn{"S"};
