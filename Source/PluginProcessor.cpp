@@ -103,6 +103,14 @@ float SkellierProcessor::advancedBandReduction(int slot,int band) const noexcept
     auto* module=mods[slot][Multiband].get();return module?static_cast<AdvancedRackModule*>(module)->bandReduction(band):0;
 }
 
+float SkellierProcessor::takeExciterResidualPeak(int slot) noexcept {
+    if(slot<0||slot>=kNumSlots)return 0;
+    auto* m=mods[slot][Exciter].get();if(!m)return 0;
+    const float peak=static_cast<AdvancedRackModule*>(m)->takeResidualPeak();
+    if(slotType(slot)!=Exciter||!slotOn(slot)||bypassRaw->load()>.5f||advancedRaw[slot][advMode]->load()<.5f||(soloSlot.load()>=0&&soloSlot.load()!=slot))return 0;
+    return peak;
+}
+
 void SkellierProcessor::parameterChanged(const juce::String&, float) { latencyUpdater.triggerAsyncUpdate(); }
 
 bool SkellierProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
@@ -150,15 +158,19 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     graphTop.store(float(std::min(16000.,std::clamp(sampleRate_,8000.,384000.)*.4)),std::memory_order_relaxed);
     maxBlock = juce::jmax(1, samplesPerBlock);
     const int ch = juce::jlimit(1, 2, getMainBusNumInputChannels());
-    for (int s = 0; s < kNumSlots; ++s)
+    for (int s = 0; s < kNumSlots; ++s) {
+        SlotDelayArena arena;
         for (int t = Eq; t < kNumRackTypes; ++t) {
             if (t == Tune) continue;
             mods[s][t] = makeModule(t);
 #if SKELLIERE_NATIVE_IMPORTS
             if(t==DelayNative)static_cast<NativeDelayRack*>(mods[s][t].get())->setBudget(delayBudget);
 #endif
+            SlotDelayPreparation scope(arena);
             mods[s][t]->prepare(sampleRate_, maxBlock, ch);
         }
+        arena.storage->shrink_to_fit(); // control thread, before audio can access any slice
+    }
     tuneModule = makeModule(Tune);
     tuneModule->prepare(sampleRate_, maxBlock, ch);
     bypassDelay.prepare(tuneModule->latency()+kNumSlots*std::max(mods[0][SkellDemon]->latency(),mods[0][SkellMixHead]->latency()));

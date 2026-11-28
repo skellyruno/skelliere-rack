@@ -14,9 +14,10 @@ public:
         rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,384000.);maxLen=std::max(1,maxBlock);for(auto& s:scratch)s.resize(size_t(maxLen));
         legacy.prepare(rate,maxLen,channels);if(type==Multiband)multiband.prepare(rate);if(type==Resonance)resonance.prepare(rate);if(type==Doubler)doubler.prepare(rate);if(type==Exciter)exciter.prepare(rate);reset();
     }
-    void reset() override {legacy.reset();resetCandidate();seeded=false;advancedSeeded=false;legacyWarm=true;controlDirty=false;blend=0;meterDb=0;for(auto& a:bandMeters)a.store(0,std::memory_order_relaxed);}
+    void reset() override {legacy.reset();resetCandidate();seeded=false;advancedSeeded=false;legacyWarm=true;controlDirty=false;blend=0;meterDb=0;residualPeak.store(0,std::memory_order_relaxed);for(auto& a:bandMeters)a.store(0,std::memory_order_relaxed);}
     void setExtended(const AdvancedValues& x,int solo=-1) noexcept {extended=x;audition=std::clamp(solo,-1,7);}
     float meter() const override {return meterDb.load(std::memory_order_relaxed);}
+    float takeResidualPeak() noexcept {return residualPeak.exchange(0.f,std::memory_order_relaxed);}
     float bandReduction(int band) const noexcept {return band>=0&&band<8?bandMeters[size_t(band)].load(std::memory_order_relaxed):0;}
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         const int ch=std::min(2,b.getNumChannels()),n=b.getNumSamples();if(ch==0||n==0)return;
@@ -34,7 +35,7 @@ public:
         if(blend==0){advancedSeeded=false;clearBands();meterDb=legacy.meter();}if(blend==1)legacyWarm=false;
     }
 private:
-    void clearBands() noexcept {for(auto& a:bandMeters)a.store(0,std::memory_order_relaxed);}
+    void clearBands() noexcept {residualPeak.store(0,std::memory_order_relaxed);for(auto& a:bandMeters)a.store(0,std::memory_order_relaxed);}
     void resetCandidate() noexcept {if(type==Multiband)multiband.reset();if(type==Resonance)resonance.reset();if(type==Doubler)doubler.reset();if(type==Exciter)exciter.reset();advancedSeeded=false;tick=0;wet=1;}
     void configure(const float* k) noexcept {
         auto val=[&](int i){return advancedReal(i,extended[size_t(i)]);};
@@ -50,15 +51,18 @@ private:
         float targets[kMaxKnobs]{};for(int j=0;j<info(type).numKnobs;++j)targets[j]=std::isfinite(k[j])?std::clamp(k[j],0.f,1.f):defaultNorm(type,j);
         if(!advancedSeeded){std::copy_n(targets,kMaxKnobs,current);wet=active?1.f:0.f;configure(current);lastExtended=extended;lastAudition=audition;advancedSeeded=true;}
         const float step=float(1/(.02*rate)),fade=float(1/(.005*rate));controlDirty|=lastExtended!=extended||lastAudition!=audition;
+        float peakResidual=0;
         for(int i=0;i<n;++i){for(int j=0;j<info(type).numKnobs;++j){const float next=current[j]+std::clamp(targets[j]-current[j],-step,step);controlDirty|=next!=current[j];current[j]=next;}
             if((tick++&31u)==0&&controlDirty){configure(current);controlDirty=false;lastExtended=extended;lastAudition=audition;}
             wet+=std::clamp((active?1.f:0.f)-wet,-fade,fade);const float x=sane(l[i]),y=r?sane(r[i]):0;std::array<float,2> z{x,y};
             if(type==Multiband)z=multiband.process(x,y,ch);else if(type==Resonance)z=resonance.process(x,y,ch);else if(type==Doubler)z=doubler.process(x,y,ch);else if(type==Exciter){z[0]=exciter.process(0,x);if(r)z[1]=exciter.process(1,y);}
             l[i]=wet==0?x:sane(x+wet*(z[0]-x));if(r)r[i]=wet==0?y:sane(y+wet*(z[1]-y));
+            if(type==Exciter)peakResidual=std::max(peakResidual,std::max(std::abs(l[i]-x),r?std::abs(r[i]-y):0.f));
         }
+        if(type==Exciter){auto old=residualPeak.load(std::memory_order_relaxed);for(int attempt=0;attempt<2&&old<peakResidual;++attempt){if(residualPeak.compare_exchange_strong(old,peakResidual,std::memory_order_relaxed))break;} }
         float gr=0;if(type==Multiband){const auto g=multiband.gainReduction();for(int j=0;j<8;++j){bandMeters[j].store(g[j]*wet,std::memory_order_relaxed);gr=std::max(gr,g[j]);}}else if(type==Resonance)gr=resonance.gainReduction();meterDb.store(gr*wet,std::memory_order_relaxed);
     }
     int type,maxLen=1,audition=-1,lastAudition=-1;double rate=48000;ConsolidatedModule legacy;AdvancedMultiband multiband;ResonanceCandidate resonance;PitchDoublerCandidate doubler;ExciterCandidate exciter;
-    AdvancedValues extended=advancedDefaults(),lastExtended=advancedDefaults();std::vector<float>scratch[2];float current[kMaxKnobs]{},blend=0,wet=1;bool seeded=false,advancedSeeded=false,legacyWarm=true,controlDirty=false;unsigned tick=0;std::atomic<float>meterDb{0};std::array<std::atomic<float>,8>bandMeters{};
+    AdvancedValues extended=advancedDefaults(),lastExtended=advancedDefaults();std::vector<float>scratch[2];float current[kMaxKnobs]{},blend=0,wet=1;bool seeded=false,advancedSeeded=false,legacyWarm=true,controlDirty=false;unsigned tick=0;std::atomic<float>meterDb{0},residualPeak{0};std::array<std::atomic<float>,8>bandMeters{};
 };
 }

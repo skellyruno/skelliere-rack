@@ -44,6 +44,7 @@ public:
     bool nativeDelayBlocked(int slot) const noexcept;
     void serviceNative(); // non-audio thread; also used by real editor regression harness
     float advancedBandReduction(int slot,int band) const noexcept;
+    float takeExciterResidualPeak(int slot) noexcept;
     float advancedGraphTop() const noexcept {return graphTop.load(std::memory_order_relaxed); }
     std::array<std::atomic<int>,skl::kNumSlots> bandSolo{{-1,-1,-1,-1,-1,-1,-1,-1}};
     int slotType(int) const;

@@ -14,7 +14,7 @@ public:
     }
     void reset() override {
         for(auto& f:filters_)f.reset();
-        for(auto& d:delay_)if(!d.buf.empty())d.clear();
+        for(auto& d:delay_)if(d.size()>0)d.clear();
         for(auto& c:allpass_)for(auto& z:c)z=0;
         feedback_[0]=feedback_[1]=tone_[0]=tone_[1]=0;
         fast_=slow_=gainDb_=phase_=0;wet_=1;seeded_=false;dirty_=true;countdown_=0;

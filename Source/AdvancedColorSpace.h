@@ -75,9 +75,8 @@ private:
     // Four-point interpolation improves high-frequency detail. Limit to the local
     // sample extrema so a hot input cannot overshoot during interpolation.
     static float readCubic(const DelayLine& l,float d) noexcept {
-        const int n=int(l.buf.size());d=std::clamp(d,2.f,float(n-3));const int i=int(d);const float t=d-float(i);
-        int k=l.w-1-i;if(k<0)k+=n;
-        const float a=l.buf[k+1==n?0:k+1],b=l.buf[k],c=l.buf[k?k-1:n-1],e=l.buf[k>=2?k-2:k+n-2];
+        const int n=l.size();d=std::clamp(d,2.f,float(n-3));const int i=int(d);const float t=d-float(i);
+        const float a=l.sampleBehind(i-1),b=l.sampleBehind(i),c=l.sampleBehind(i+1),e=l.sampleBehind(i+2);
         const float v=b+.5f*t*(c-a+t*(2*a-5*b+4*c-e+t*(3*(b-c)+e-a)));
         return std::clamp(v,std::min({a,b,c,e}),std::max({a,b,c,e}));
     }
