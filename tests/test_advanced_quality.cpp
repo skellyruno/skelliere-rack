@@ -22,7 +22,7 @@ int main(){
         PitchDoublerCandidate d;d.prepare(sr);d.set(18,8,1,1);double in=0,out=0;for(int i=0;i<2*n;++i){const float x=.35f*std::sin(2*kPi*440*i/sr);const auto y=d.process(x,-x);check(std::isfinite(y[0])&&std::isfinite(y[1])&&std::abs(y[0])<=.351f&&std::abs(y[1])<=.351f,"doubler headroom");if(i>=n){in+=2*x*x;out+=y[0]*y[0]+y[1]*y[1];}}check(out/in>.1,"antiphase wet signal collapsed");
         // An undelayed dry sample must remain exact with the advanced effects neutral.
         d.reset();d.set(18,8,1,0);ExciterCandidate e;e.prepare(sr);e.set(3500,18,0,12000);AdvancedMultiband m;m.prepare(sr);auto s=AdvancedMultiband::Settings{};for(auto& x:s.bands)x.ratio=1;m.set(s);res.reset();res.set(0,10,2500,6,100,1);
-        for(int i=0;i<2048;++i){const float x=i==0?.7f:0;check(d.process(x,-x)[0]==x&&e.process(0,x)==x&&m.process(x,-x)[0]==x&&res.process(x,-x)[0]==x,"neutral dry impulse changed");}
+        for(int i=0;i<2048;++i){const float x=i==0?.7f:0;check(d.process(x,-x)[0]==x,"neutral doubler impulse changed");check(e.process(0,x)==x,"neutral exciter impulse changed");check(m.process(x,-x)[0]==x,"neutral multiband impulse changed");check(res.process(x,-x)[0]==x,"neutral resonance impulse changed");}
         std::printf("%.0f Hz: off-grid %.2f dB, neighbours %.2f/%.2f dB, antiphase wet %.2f dB, neutral dry exact\n",sr,center,low,high,10*std::log10(out/in));
     }
     std::puts("Advanced quality regressions passed");

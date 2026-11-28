@@ -213,12 +213,12 @@ int main(int argc, char** argv) {
     for (const auto& error : result.errors) std::fprintf(stderr, "%s\n", error.toRawUTF8());
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);
     if(args.consolidated){
-        processor.clearRack();processor.addModule(skl::Multiband,0);processor.addModule(skl::Doubler,1);
+        processor.clearRack();processor.addModule(skl::Multiband,0);processor.addModule(skl::Doubler,1);processor.addModule(skl::Resonance,2);processor.addModule(skl::Exciter,3);
         auto set=[&](int slot,int param,float value){processor.apvts.getParameter(SkellierProcessor::advancedId(slot,param))->setValueNotifyingHost(value);};
-        set(0,skl::advMode,1);set(0,skl::bandControl(0,0),.14f);set(0,skl::bandControl(2,0),.23f);set(0,skl::bandControl(6,6),1);set(0,skl::bandControl(6,0),.15f);set(1,skl::advMode,1);
+        set(0,skl::advMode,1);set(0,skl::bandControl(0,0),.14f);set(0,skl::bandControl(2,0),.23f);set(0,skl::bandControl(6,6),1);set(0,skl::bandControl(6,0),.15f);set(1,skl::advMode,1);set(2,skl::advMode,1);set(3,skl::advMode,1);
         juce::AudioBuffer<float> b(2,512);juce::MidiBuffer midi;for(int block=0;block<200;++block){for(int c=0;c<2;++c)for(int i=0;i<512;++i){const double n=block*512+i;b.setSample(c,i,.28f*std::sin(2*skl::kPi*55*n/48000)+.16f*std::sin(2*skl::kPi*2500*n/48000));}processor.processBlock(b,midi);}
-        for(int j=0;j<2;++j){skl::ui::AdvancedPanel panel(processor,j,j?skl::Doubler:skl::Multiband);if(!panel.exerciseBindings()){std::fprintf(stderr,"Advanced parameter binding failed\n");return 1;}if(!j)panel.select(6);auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);auto f=output.getChildFile(j?"advanced-doubler.png":"advanced-multiband.png");f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;if(!img.isValid()||!stream.openedOk()||!png.writeImageToStream(img,stream))return 1;}
-        std::puts("Advanced panel real APVTS bindings and two native captures passed");
+        const int advancedTypes[]={skl::Multiband,skl::Doubler,skl::Resonance,skl::Exciter};const char* advancedNames[]={"advanced-multiband.png","advanced-doubler.png","advanced-resonance.png","advanced-exciter.png"};for(int j=0;j<4;++j){skl::ui::AdvancedPanel panel(processor,j,advancedTypes[j]);if(!panel.exerciseBindings()){std::fprintf(stderr,"Advanced parameter binding failed\n");return 1;}if(!j)panel.select(6);auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);auto f=output.getChildFile(advancedNames[j]);f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;if(!img.isValid()||!stream.openedOk()||!png.writeImageToStream(img,stream))return 1;}
+        std::puts("Advanced panel real APVTS bindings and four native captures passed");
     }
     if(!args.full){
         if(!result.passed()||result.captured!=int(options.scenes.size()))return 1;

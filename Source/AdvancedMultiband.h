@@ -45,16 +45,16 @@ public:
         const int ch=channels==1?1:2; const float input[2]={sane(left),sane(right)};
         if(!seeded){hz=target.crossover;for(int j=0;j<2;++j){floatHz[j]=target.floating[j].frequency;floatQ[j]=target.floating[j].q;} mix=target.mix;soloWeights.fill(0);soloWeights[target.solo+1]=1;seeded=true;}
         if((tick++&31u)==0){
-            for(int j=0;j<5;++j){const float next=smooth(hz[j],target.crossover[j],coefficientSlew);const float gain=applied[j]-applied[j+1];if(tick==1||next!=hz[j])split[j].lowPass(rate,next);if(next!=hz[j]||gain!=shapeGain[j]){shape[j].lowShelf(rate,next,gain);shapeGain[j]=gain;}hz[j]=next;}
-            for(int j=0;j<2;++j){const float f=smooth(floatHz[j],target.floating[j].frequency,coefficientSlew),q=smooth(floatQ[j],target.floating[j].q,coefficientSlew);const bool changed=tick==1||f!=floatHz[j]||q!=floatQ[j];if(changed){const double w=2*kPi*f/rate,alpha=std::sin(w)/(2*q);detector[j].set(alpha,0,-alpha,1+alpha,-2*std::cos(w),1-alpha);}if(changed||eqGain[j]!=applied[6+j]){eq[j].peaking(rate,f,q,applied[6+j]);eqGain[j]=applied[6+j];}floatHz[j]=f;floatQ[j]=q;}
+            for(int j=0;j<5;++j){const float next=smooth(hz[j],target.crossover[j],coefficientSlew);const float gain=applied[j]-applied[j+1];if(tick==1||next!=hz[j])split[j].lowPass(rate,next);if(next!=hz[j]||gain!=shapeGain[j]){if(gain==0.f)shape[j].reset();else shape[j].lowShelf(rate,next,gain);shapeGain[j]=gain;}hz[j]=next;}
+            for(int j=0;j<2;++j){const float f=smooth(floatHz[j],target.floating[j].frequency,coefficientSlew),q=smooth(floatQ[j],target.floating[j].q,coefficientSlew);const bool changed=tick==1||f!=floatHz[j]||q!=floatQ[j];if(changed){const double w=2*kPi*f/rate,alpha=std::sin(w)/(2*q);detector[j].set(alpha,0,-alpha,1+alpha,-2*std::cos(w),1-alpha);}if(changed||eqGain[j]!=applied[6+j]){if(applied[6+j]==0.f)eq[j].reset();else eq[j].peaking(rate,f,q,applied[6+j]);eqGain[j]=applied[6+j];}floatHz[j]=f;floatQ[j]=q;}
         }
         mix=smooth(mix,target.mix,slew);float bands[2][6]{};
         for(int c=0;c<ch;++c){float prev=0;for(int j=0;j<5;++j){const float next=split[j].process(c,input[c]);bands[c][j]=next-prev;prev=next;}bands[c][5]=input[c]-prev;}
         for(int j=0;j<6;++j){const float peak=std::max(std::abs(bands[0][j]),std::abs(bands[1][j]));advance(j,peak,target.bands[j],target.bands[j].enabled);}
         float output[2]={input[0],input[1]};
-        const float highGain=db2g(applied[5]);for(int c=0;c<ch;++c){output[c]*=highGain;for(auto& f:shape)output[c]=f.process(c,output[c]);}
+        const float highGain=db2g(applied[5]);for(int c=0;c<ch;++c){output[c]*=highGain;for(int j=0;j<5;++j)if(shapeGain[j]!=0.f)output[c]=shape[j].process(c,output[c]);}
         float floatingSignal[2][2]{};
-        for(int j=0;j<2;++j){const auto& f=target.floating[j];for(int c=0;c<ch;++c)floatingSignal[c][j]=detector[j].process(c,input[c]);advance(6+j,std::max(std::abs(floatingSignal[0][j]),std::abs(floatingSignal[1][j])),f.dynamics,f.enabled&&f.dynamics.enabled);for(int c=0;c<ch;++c)output[c]=eq[j].process(c,output[c]);}
+        for(int j=0;j<2;++j){const auto& f=target.floating[j];for(int c=0;c<ch;++c)floatingSignal[c][j]=detector[j].process(c,input[c]);advance(6+j,std::max(std::abs(floatingSignal[0][j]),std::abs(floatingSignal[1][j])),f.dynamics,f.enabled&&f.dynamics.enabled);if(eqGain[j]!=0.f)for(int c=0;c<ch;++c)output[c]=eq[j].process(c,output[c]);}
         // Crossfade audition taps; each tap is the actual detector signal, not a
         // second unrelated EQ. Preserve the normal mix when no band is soloed.
         if(target.solo>=0||soloWeights[0]<.99999f){
