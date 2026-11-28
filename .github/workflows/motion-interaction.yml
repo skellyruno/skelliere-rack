@@ -29,7 +29,38 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Continuous native capture failed' }
           if (@(Get-ChildItem take -Filter 'frame-*.png').Count -ne 120) { throw 'Missing captured frames' }
           if ((Get-Item take/processed.f32).Length -ne 1536000 -or (Get-Item take/dry.f32).Length -ne 1536000) { throw 'Audio clock mismatch' }
-          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw 'FFmpeg missing on runner' }
+          git rev-parse HEAD | Set-Content take/producer-revision.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skelliere-Continuous-Raw-Capture
+          path: take/
+          if-no-files-found: error
+          retention-days: 3
+      - uses: actions/cache@v4
+        with:
+          path: .motion-ffmpeg/ffmpeg-9.0.2-essentials_build.zip
+          key: motion-ffmpeg-9.0.2-60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba
+      - name: Restore verified Motion FFmpeg
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected='60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
+          New-Item -ItemType Directory -Force .motion-ffmpeg | Out-Null
+          $archive=Join-Path (Resolve-Path .motion-ffmpeg).Path 'ffmpeg-9.0.2-essentials_build.zip'
+          if (-not (Test-Path $archive) -or (Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) {
+            Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip' -OutFile $archive
+          }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) { throw 'FFmpeg checksum mismatch' }
+          Expand-Archive $archive -DestinationPath .motion-ffmpeg/runtime -Force
+          $ff=Get-ChildItem .motion-ffmpeg/runtime -Recurse -File -Filter ffmpeg.exe | Select-Object -First 1
+          $fp=Get-ChildItem .motion-ffmpeg/runtime -Recurse -File -Filter ffprobe.exe | Select-Object -First 1
+          if (-not $ff -or -not $fp -or $ff.DirectoryName -ne $fp.DirectoryName) { throw 'Invalid verified media tools' }
+          Add-Content $env:GITHUB_PATH $ff.DirectoryName
+      - name: Encode and verify continuous native take
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw 'FFmpeg unavailable after restore' }
           ffmpeg -v error -y -framerate 30 -i take/frame-%04d.png -f f32le -ar 48000 -ac 2 -i take/processed.f32 -c:v libx264 -pix_fmt yuv420p -bf 0 -video_track_timescale 30000 -c:a aac -b:a 192k take/interaction.mp4
           if ($LASTEXITCODE -ne 0) { throw 'Video assembly failed' }
           ffmpeg -v error -xerror -i take/interaction.mp4 -f null -
