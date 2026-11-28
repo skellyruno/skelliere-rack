@@ -1,0 +1,59 @@
+name: Motion continuous native interaction proof
+on:
+  push:
+    branches: [staging/motion-native-interaction-20261127]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: motion-interaction-${{ github.ref }}-${{ github.event_name == 'push' && 'push' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build the actual rack editor
+        run: |
+          cmake -S . -B build -A x64 -DSKELLIERE_BUILD_UI_RENDERER=ON
+          cmake --build build --config Release --target SkelliereRackUIRenderer --parallel 2
+      - name: Capture continuous interaction and actual processor audio
+        shell: pwsh
+        run: |
+          $exe=Get-ChildItem build -Recurse -File -Filter SkelliereRackUIRenderer.exe | Select-Object -First 1
+          if (-not $exe) { throw 'Missing editor renderer' }
+          & $exe.FullName --interaction-film --output (Join-Path (Get-Location) 'take')
+          if ($LASTEXITCODE -ne 0) { throw 'Continuous native capture failed' }
+          if (@(Get-ChildItem take -Filter 'frame-*.png').Count -ne 120) { throw 'Missing captured frames' }
+          if ((Get-Item take/processed.f32).Length -ne 1536000 -or (Get-Item take/dry.f32).Length -ne 1536000) { throw 'Audio clock mismatch' }
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw 'FFmpeg missing on runner' }
+          ffmpeg -v error -y -framerate 30 -i take/frame-%04d.png -f f32le -ar 48000 -ac 2 -i take/processed.f32 -c:v libx264 -pix_fmt yuv420p -bf 0 -video_track_timescale 30000 -c:a aac -b:a 192k take/interaction.mp4
+          if ($LASTEXITCODE -ne 0) { throw 'Video assembly failed' }
+          ffmpeg -v error -xerror -i take/interaction.mp4 -f null -
+          if ($LASTEXITCODE -ne 0) { throw 'Export decode failed' }
+          ffprobe -v error -show_streams -of json take/interaction.mp4 | Set-Content take/streams.json
+          $s=Get-Content take/streams.json -Raw | ConvertFrom-Json
+          $v=$s.streams | Where-Object codec_type -eq video
+          $a=$s.streams | Where-Object codec_type -eq audio
+          if ([int]$v.nb_frames -ne 120 -or [double]$v.duration -ne 4 -or [double]$a.duration -ne 4) { throw 'Video clock mismatch' }
+          git rev-parse HEAD | Set-Content take/producer-revision.txt
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Skelliere-Continuous-Interaction
+          path: |
+            take/interaction.mp4
+            take/events.csv
+            take/streams.json
+            take/producer-revision.txt
+            take/dry.f32
+            take/processed.f32
+            take/frame-0000.png
+            take/frame-0060.png
+            take/frame-0080.png
+            take/frame-0119.png
+          if-no-files-found: error
+          retention-days: 14

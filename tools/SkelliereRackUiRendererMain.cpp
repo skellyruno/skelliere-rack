@@ -149,6 +149,69 @@ int main(int argc, char** argv) {
         if(count!=expectedCount)errors.add("Unexpected slot count");return errors;
     };
     const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));
+    // Deterministic 30 fps interaction take: actual JUCE control attachments,
+    // actual processor samples, and event timestamps. No simulated UI pixels.
+    if(args.interactionFilm){
+        if(output.createDirectory().failed())return 1;
+        options.configure({"approved_studio",1260,870,8,1});
+        editor.setSize(1260,870);
+        skl::ui::SlotComponent* comp=nullptr;
+        skl::ui::RackUI* rack=nullptr;
+        visit(editor,[&](juce::Component& c){
+            if(auto* x=dynamic_cast<skl::ui::SlotComponent*>(&c))if(x->currentType()==skl::Comp)comp=x;
+            if(auto* x=dynamic_cast<skl::ui::RackUI*>(&c))rack=x;
+        });
+        if(!comp||!rack)return 1;
+        skl::ui::KnobCell* knob=nullptr;
+        visit(*comp,[&](juce::Component& c){if(!knob)if(auto* x=dynamic_cast<skl::ui::KnobCell*>(&c))knob=x;});
+        auto* parameter=processor.apvts.getParameter(SkellierProcessor::knobId(0,0));
+        auto* toggle=dynamic_cast<juce::TextButton*>(rack->findChildWithID("rack.library.toggle"));
+        if(!knob||!parameter||!toggle||!toggle->onClick)return 1;
+        knob->slider.setValue(.2,juce::sendNotificationSync);
+        if(std::abs(parameter->getValue()-.2f)>1e-4f)return 1;
+        std::ofstream trace(output.getChildFile("events.csv").getFullPathName().toStdString());
+        std::ofstream audio(output.getChildFile("processed.f32").getFullPathName().toStdString(),std::ios::binary);
+        std::ofstream dry(output.getChildFile("dry.f32").getFullPathName().toStdString(),std::ios::binary);
+        if(!trace||!audio||!dry)return 1;
+        trace<<"frame,second,normalized_knob,library_visible,changed_pixels\n";
+        juce::AudioBuffer<float> block(2,400);juce::MidiBuffer midi;
+        juce::Image previous;
+        int changedFrames=0;
+        for(int frame=0;frame<120;++frame){
+            const double pos=juce::jlimit(0.,1.,(frame-10)/60.);
+            const double value=.2+.65*pos*pos*(3.-2.*pos);
+            knob->slider.setValue(value,juce::sendNotificationSync);
+            if(std::abs(parameter->getValue()-value)>1e-4)return 1;
+            if(frame==75||frame==100){
+                const bool was=rack->isLibraryVisible();
+                toggle->onClick();
+                if(rack->isLibraryVisible()==was||!rack->libraryLayoutIsValid())return 1;
+            }
+            for(int chunk=0;chunk<4;++chunk){
+                for(int i=0;i<400;++i){
+                    const double t=(frame*1600+chunk*400+i)/48000.;
+                    const float x=float(.42*(.65+.35*std::sin(2*3.141592653589793*3*t))*std::sin(2*3.141592653589793*220*t));
+                    for(int c=0;c<2;++c){block.setSample(c,i,x);dry.write(reinterpret_cast<const char*>(&x),sizeof(x));}
+                }
+                midi.clear();processor.processBlock(block,midi);
+                for(int i=0;i<400;++i)for(int c=0;c<2;++c){const float x=block.getSample(c,i);if(!std::isfinite(x))return 1;audio.write(reinterpret_cast<const char*>(&x),sizeof(x));}
+            }
+            rack->refreshLiveState();
+            auto img=editor.createComponentSnapshot(editor.getLocalBounds(),true,1.f);
+            if(!img.isValid()||img.getWidth()!=1260||img.getHeight()!=870)return 1;
+            int changed=0;
+            if(previous.isValid())for(int y=0;y<img.getHeight();y+=4)for(int x=0;x<img.getWidth();x+=4)changed+=img.getPixelAt(x,y)!=previous.getPixelAt(x,y);
+            if(changed>0)++changedFrames;
+            previous=img;
+            auto name="frame-"+juce::String(frame).paddedLeft('0',4)+".png";
+            if(!skellcore::ui::headless::writePng(img,output.getChildFile(name)))return 1;
+            trace<<frame<<','<<frame/30.<<','<<parameter->getValue()<<','<<rack->isLibraryVisible()<<','<<changed<<'\n';
+        }
+        if(!trace||!audio||!dry||changedFrames<20)return 1;
+        std::printf("Interaction film: 120 real editor frames, %d changed, exact 192000 samples per channel.\n",changedFrames);
+        return 0;
+    }
+
 #if SKELLIERE_NATIVE_IMPORTS
     if(args.consolidated){
         processor.clearRack();processor.addModule(skl::DelayNative,0);processor.addModule(skl::GlitchNative,1);
