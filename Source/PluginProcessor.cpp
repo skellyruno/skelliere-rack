@@ -105,8 +105,7 @@ float SkellierProcessor::advancedBandReduction(int slot,int band) const noexcept
 
 float SkellierProcessor::takeExciterResidualPeak(int slot) noexcept {
     if(slot<0||slot>=kNumSlots)return 0;
-    auto* m=mods[slot][Exciter].get();if(!m)return 0;
-    const float peak=static_cast<AdvancedRackModule*>(m)->takeResidualPeak();
+    const float peak=exciterPeak[size_t(slot)].exchange(0.f,std::memory_order_relaxed);
     if(slotType(slot)!=Exciter||!slotOn(slot)||bypassRaw->load()>.5f||advancedRaw[slot][advMode]->load()<.5f||(soloSlot.load()>=0&&soloSlot.load()!=slot))return 0;
     return peak;
 }
@@ -174,7 +173,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     tuneModule = makeModule(Tune);
     tuneModule->prepare(sampleRate_, maxBlock, ch);
     bypassDelay.prepare(tuneModule->latency()+kNumSlots*std::max(mods[0][SkellDemon]->latency(),mods[0][SkellMixHead]->latency()));
-    for (int s = 0; s < kNumSlots; ++s) {lastType[s] = -1;jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);}
+    for (int s = 0; s < kNumSlots; ++s) {lastType[s] = -1;jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);exciterPeak[size_t(s)].store(0,std::memory_order_relaxed);}
     inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
     inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(inRaw->load()));
     outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(outRaw->load()));
@@ -222,6 +221,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     bypassDelay.process(buffer, rackLatency(), bypass);
     if (bypass) {
         for(auto& peak:jetPeak)peak.store(0,std::memory_order_relaxed);
+        for(auto& peak:exciterPeak)peak.store(0,std::memory_order_relaxed);
         inPeak.store(juce::jmax(inPeak.load(), rawPeak));
         outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
         return;
@@ -248,7 +248,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     }
     bpm=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);
     const int solo = soloSlot.load();
-    float measuredJet[kNumSlots]{};
+    float measuredJet[kNumSlots]{},measuredExciter[kNumSlots]{};
 
     for (int start = 0; start < total; start += maxBlock) {
         const int len = juce::jmin(maxBlock, total - start);
@@ -300,6 +300,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             }
 #endif
             m->process(chunk,k,active);
+            if(type==Exciter){const float peak=static_cast<AdvancedRackModule*>(m)->takeResidualPeak();if(active)measuredExciter[s]=std::max(measuredExciter[s],peak);}
 #if SKELLIERE_NATIVE_IMPORTS
             if(type==DelayNative)nativeModel[size_t(s)].store(static_cast<NativeDelayRack*>(m)->renderedModel(),std::memory_order_relaxed);
 #endif
@@ -310,6 +311,9 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
     for(int s=0;s<kNumSlots;++s) {
+        auto& residual=exciterPeak[size_t(s)];
+        if(types[s]!=Exciter||onRaw[s]->load()<=.5f||advancedRaw[s][advMode]->load()<.5f||(solo>=0&&solo!=s))residual.store(0,std::memory_order_relaxed);
+        else {auto old=residual.load(std::memory_order_relaxed);for(int attempt=0;attempt<2&&measuredExciter[s]>old;++attempt)if(residual.compare_exchange_strong(old,measuredExciter[s],std::memory_order_relaxed))break;}
         if(!hasOutputPeak(types[s]) || onRaw[s]->load()<=.5f || (solo>=0&&solo!=s))
             jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);
         else {

@@ -123,7 +123,7 @@ private:
     bool prepared=false;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGain, outputGain;
     std::atomic<float> inPeak{0},outPeak{0},graphTop{16000};
-    std::array<std::atomic<float>,skl::kNumSlots> jetPeak{};
+    std::array<std::atomic<float>,skl::kNumSlots> jetPeak{},exciterPeak{};
     std::vector<juce::String> undoStack,redoStack;
     juce::String snaps[2];
     int curSnap=0;
