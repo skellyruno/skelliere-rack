@@ -1,0 +1,9 @@
+{
+  "delay/native/EngineExchange.h": "eecf872ec35249ccc5116f64a5000c5ed974c36e599d94cb05a207cf4592df51",
+  "delay/native/SkellayEngine.h": "4006019d1e45919c106d5e432ce519cfead2271f07cb2aa81a300e67738d6fd9",
+  "delay/native/SkellayEngine.cpp": "0d932370802f7a5423b78216201f003128cb8b109db975063dd4e873b5e6e685",
+  "delay/native/FruityDelayBank.h": "e1ef1130ce1a74ce769dcfe1ae47af1dd05090e3bfd5316a293159783ab5bccd",
+  "delay/native/FruityDelayBank.cpp": "63d518fbdd7ff0415d16621e4290a841a3befe28ad17eecce5414a513a4226ad",
+  "delay/native/codec.h": "90f9dc5057c056fe9c028616a94b4e5a019bea1b3eac6d150108e172070c8e94",
+  "glitch/dsp/TriggerRouter.h": "ce7dbd21102b0cbd5739f09121e252d1063297818ef4cc1c5c1a5ec018f5248f"
+}
