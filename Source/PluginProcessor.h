@@ -39,6 +39,7 @@ public:
     static juce::String nativeId(int s,int k) { return "s"+juce::String(s)+"_native_"+juce::String(k); }
     void editNativeControl(int slot,int effect,int control,float value);
     void triggerNativeGlitch(int slot) noexcept;
+    skl::NativeValues nativeDisplayValues(int slot) const noexcept;
     int nativeDelayModel(int slot) const noexcept;
     bool nativeDelayBlocked(int slot) const noexcept;
     void serviceNative(); // non-audio thread; also used by real editor regression harness

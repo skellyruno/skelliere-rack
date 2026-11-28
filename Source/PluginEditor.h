@@ -110,6 +110,7 @@ private:
     double lastMeterTime=0;
     float outputDb=-60.f;
     ArtworkMotion artworkMotion;
+    skl::NativeValues shownNative{};int shownNativeModel=-2;bool shownNativeBlocked=false;
     std::vector<std::unique_ptr<KnobCell>> cells;
     std::vector<juce::Rectangle<int>> sectionRects;
     juce::Rectangle<int> vuRect, footRect;

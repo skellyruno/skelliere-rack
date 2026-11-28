@@ -56,7 +56,8 @@ public:
         if(s.model==0){exchange.publish(std::make_unique<Owned>(nullptr,budget,0,generation,audible,gen,s));last=s;lastGeneration=gen;return true;}
         auto c=configuration(s,classic);const auto bytes=delayStorageEstimate(c,rate,30.,capacity);
         if(bytes>128u*MiB||!budget->acquire(bytes))return false;
-        auto e=skellay::prepare(c,rate,std::clamp(bpm,30.,300.),capacity,30.);
+        std::unique_ptr<skellay::Engine> e;
+        try{e=skellay::prepare(c,rate,std::clamp(bpm,30.,300.),capacity,30.);}catch(...){budget->release(bytes);return false;}
         if(!e){budget->release(bytes);return false;}
         std::unique_ptr<Owned> owned;try{owned=std::make_unique<Owned>(std::move(e),budget,bytes,generation,audible,gen,s);}catch(...){e.reset();budget->release(bytes);return false;}
         exchange.publish(std::move(owned));last=s;lastGeneration=gen;return true;

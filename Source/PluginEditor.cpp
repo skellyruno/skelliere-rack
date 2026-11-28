@@ -483,6 +483,8 @@ void SlotComponent::syncSolo() { soloBtn.setToggleState(proc.soloSlot.load() == 
 void SlotComponent::syncPowerVisual() {
     const bool on=proc.slotOn(index);
     if(on!=shownPower){shownPower=on;repaint();}
+    if(hasNativePanel(type)){const auto v=proc.nativeDisplayValues(index);const int model=proc.nativeDelayModel(index);const bool blocked=proc.nativeDelayBlocked(index);
+        if(v!=shownNative||model!=shownNativeModel||blocked!=shownNativeBlocked){shownNative=v;shownNativeModel=model;shownNativeBlocked=blocked;repaint(originalLayout(type,getWidth(),editing).detail.expanded(2));}}
     if(hasAdvancedEngine(type)){const bool adv=proc.apvts.getRawParameterValue(SkellierProcessor::advancedId(index,advMode))->load()>.5f;const juce::String label=adv?"ADVANCED":"ENGINE";if(advancedButton.getButtonText()!=label)advancedButton.setButtonText(label);}
 }
 
@@ -557,7 +559,7 @@ void SlotComponent::paintEmpty(Graphics& g, Rectangle<float> b) {
 juce::Rectangle<int> SlotComponent::artworkMotionBounds() const {
     if(type==DeEss&&!editing)return {16,434,38,62};
     if(type==SkellDeEsserFX)return {24,32,24,29};
-    if(type==Empty||type==Trim||type==DualFilter||type==ClipUnified)return {};
+    if(type==Empty||type==Trim||type==DualFilter||type==ClipUnified||importedType(type))return {};
     const auto detail=originalLayout(type,getWidth(),editing).detail;
     return type==Tune?tuneOrbBounds(detail.toFloat()).toNearestInt():detail;
 }
@@ -685,7 +687,7 @@ void SlotComponent::paintNativeFace(Graphics& g) {
         // Repaint only the optical scene; the heavy chassis/faceplate stays cached.
         juce::Graphics::ScopedSaveState scene(g);g.reduceClipRegion(detail);
         const auto r=detail.toFloat();const auto& m=artworkMotion;const int art=legacyArtworkType(type);
-        if(identityArt(type)){std::array<float,6> vals{};for(int j=0;j<std::min(int(cells.size()),6);++j)vals[j]=type==Tune&&j==5?float(cells[j]->slider.getValue()):toReal(info(type).knobs[j],float(cells[j]->slider.getValue()));paintIdentityArt(g,r,type,m.phase,m.level,type==ClipUnified?int(vals[3]):0,false,vals,tuneHover,proc.tuneFlats.load(std::memory_order_relaxed));}else if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,art,m.phase,m.level,false);
+        if(identityArt(type)){std::array<float,6> vals{};for(int j=0;j<std::min(int(cells.size()),6);++j)vals[j]=type==Tune&&j==5?float(cells[j]->slider.getValue()):toReal(info(type).knobs[j],float(cells[j]->slider.getValue()));const bool native=hasNativePanel(type);const auto nv=native?proc.nativeDisplayValues(index):NativeValues{};paintIdentityArt(g,r,type,m.phase,m.level,type==ClipUnified?int(vals[3]):0,false,vals,tuneHover,proc.tuneFlats.load(std::memory_order_relaxed),native?&nv:nullptr,type==DelayNative?proc.nativeDelayModel(index):-1,type==DelayNative&&proc.nativeDelayBlocked(index));}else if(type==SkellDemon)paintDemonDetail(g,r,m.phase,m.level,false);else if(isAirPanel(type))paintAirDetail(g,r,art,m.phase,m.level,false);
         else if(art==Reverb||art==Chorus)paintSpaceDetail(g,r,art,m.phase,m.level,false);
         else if(art==Delay||art==Slap)paintTapeDetail(g,r,art==Delay&&nativeChoice==1,m.left,m.right,m.phase);
         else paintWorkshopDetail(g,r,art,m.phase,m.level,false);

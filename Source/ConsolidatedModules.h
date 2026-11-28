@@ -49,9 +49,8 @@ public:
                 const float eligibility=std::clamp((level+55.f)/6.f,0.f,1.f);
                 const float want=eligibility*std::clamp(v[2]-level,-v[3],v[3])*p[5];
                 gain[0]=smooth(gain[0],want,cp,cp);const float g=db2g(v[0]+gain[0]);
-                const float angle=(v[1]+1.f)*float(kPi*.25);
-                out[0]=x*g*(ch==2?std::cos(angle)*1.41421356237f:1.f);
-                out[1]=y*g*std::sin(angle)*1.41421356237f;gr=gain[0];break;}
+                out[0]=x*g*(ch==2?panCos*1.41421356237f:1.f);
+                out[1]=y*g*panSin*1.41421356237f;gr=gain[0];break;}
             case VoxRider:{
                 energy[0]=smooth(energy[0],peak*peak,a,bp);const float level=g2db(std::sqrt(energy[0]));
                 const float eligibility=std::clamp((level-v[3])/6.f,0.f,1.f);
@@ -74,9 +73,9 @@ public:
                 phase+=float(2*kPi*rateHz/rate);if(phase>float(2*kPi*100))phase-=float(2*kPi*100);
                 const float mid=.5f*(w0+w1),side=.5f*(w0-w1)*v[3];out[0]=x*(1-v[4])+v[4]*(mid+side);out[1]=y*(1-v[4])+v[4]*(mid-side);if(ch==1)out[0]=x*(1-v[4])+v[4]*mid;break;}
             case Exciter:{
-                for(int c=0;c<ch;++c){const float z=detect[0].process(c,in[c])*db2g(v[1]);const float residual=std::tanh(z)-z;out[c]=in[c]+v[2]*filters[0].process(c,residual)/db2g(v[1]);}break;}
+                for(int c=0;c<ch;++c){const float z=detect[0].process(c,in[c])*gainCache[1];const float residual=std::tanh(z)-z;out[c]=in[c]+v[2]*filters[0].process(c,residual)/gainCache[1];}break;}
             case AirUnified:{
-                const auto d=air.process(x,y);for(int c=0;c<ch;++c){const float st=filters[1].process(c,filters[0].process(c,in[c]))*db2g(v[3]);out[c]=st+p[5]*(d[c]-st);}break;}
+                const auto d=air.process(x,y);for(int c=0;c<ch;++c){const float st=filters[1].process(c,filters[0].process(c,in[c]))*gainCache[3];out[c]=st+p[5]*(d[c]-st);}break;}
             case DeEsserUnified:{
                 const float d=bandLevel(0,in,ch);const auto dec=phrase.process(peak,d,v[1],6.0);
                 const float threshold=v[5]>.5f?(dec.eligible?float(dec.thresholdDb):(dec.ready?0.f:v[1])):v[1];
@@ -92,17 +91,17 @@ public:
                 std::array<float,2> result{};for(int j=0;j<3;++j){const auto f=rooms[j].processFrame(dl,dr);const float weight=std::max(0.f,1.f-std::abs(float(j)-mode));for(int c=0;c<2;++c)result[c]+=weight*f[c];}
                 energy[0]=smooth(energy[0],peak*peak,a,bp);const float duck=1.f/(1.f+v[4]*30.f*std::sqrt(energy[0]));for(int c=0;c<ch;++c)out[c]=in[c]*(1-v[3])+result[c]*v[3]*duck*1.7f;break;}
             case DriveUnified:{
-                const int mode=int(v[3]);for(int c=0;c<ch;++c){const float input=in[c],pre=db2g(v[0]),z=input*pre;float color=0;
+                const int mode=int(v[3]);for(int c=0;c<ch;++c){const float input=in[c],pre=gainCache[0],z=input*pre;float color=0;
                 if(mode==0){const float h=std::tanh(z+.2f)-std::tanh(.2f);color=detect[0].process(c,h/pre);}
                 else if(mode==1)color=z/(1.f+std::abs(z))/pre;
                 else{const float h=detect[1].process(c,z);color=input+(std::tanh(h)-h)/pre;}
                 out[c]=input+v[2]*(filters[0].process(c,color)-input);}break;}
             case ClipUnified:{
-                const int mode=int(v[3]);const bool hard=(mode&1)!=0,oversample=mode>=2;const float ceiling=db2g(v[1]),pre=db2g(v[0]);
+                const int mode=int(v[3]);const bool hard=(mode&1)!=0,oversample=mode>=2;const float ceiling=gainCache[1],pre=gainCache[0];
                 for(int c=0;c<ch;++c){const auto f=clip.process(c,in[c],pre/ceiling,oversample?1.f:0.f,1.f,0,0,hard);const float u=f.dry*pre/ceiling;
                     const float processed=oversample?std::clamp(u+f.color,-1.f,1.f):(hard?std::clamp(u,-1.f,1.f):std::tanh(u));out[c]=f.dry+v[2]*(processed*ceiling-f.dry);if(c==0)x=f.dry;else y=f.dry;}break;}
             case StereoUnified:{
-                if(ch==2){const float mid=.5f*(x+y),side=filters[0].process(0,.5f*(x-y))*v[0];out[0]=(mid+side)*db2g(v[2])*std::min(1.f,1.f-v[3]);out[1]=(mid-side)*db2g(v[2])*std::min(1.f,1.f+v[3]);}else out[0]=x*db2g(v[2]);
+                if(ch==2){const float mid=.5f*(x+y),side=filters[0].process(0,.5f*(x-y))*v[0];out[0]=(mid+side)*gainCache[2]*std::min(1.f,1.f-v[3]);out[1]=(mid-side)*gainCache[2]*std::min(1.f,1.f+v[3]);}else out[0]=x*gainCache[2];
                 const float right=ch==2?out[1]:out[0];energy[0]=smooth(energy[0],out[0]*out[0],a,a);energy[1]=smooth(energy[1],right*right,a,a);energy[2]=smooth(energy[2],out[0]*right,a,a);gr=std::clamp(energy[2]/std::sqrt(std::max(1e-15f,energy[0]*energy[1])),-1.f,1.f);break;}
             default:break;
             }
@@ -116,22 +115,24 @@ private:
     float bandLevel(int j,const float* in,int ch){const float x=std::abs(detect[j].process(0,in[0]));return ch==2?std::max(x,std::abs(detect[j].process(1,in[1]))):x;}
     void update(){for(int j=0;j<info(type).numKnobs;++j)v[j]=realOf(type,j,p);a=onePole(rate,5);bp=onePole(rate,80);cp=onePole(rate,100);dp=onePole(rate,10);
         switch(type){
-        case LevelUnified:cp=onePole(rate,v[4]);a=onePole(rate,30);bp=onePole(rate,160);break;
+        case LevelUnified:{const float angle=(v[1]+1.f)*float(kPi*.25);panCos=std::cos(angle);panSin=std::sin(angle);cp=onePole(rate,v[4]);a=onePole(rate,30);bp=onePole(rate,160);break;}
         case VoxRider:cp=onePole(rate,v[2]);a=onePole(rate,30);bp=onePole(rate,160);break;
         case DynamicEQ:bandpass(detect[0],v[0],v[1]);a=onePole(rate,v[4]);bp=onePole(rate,v[5]);cp=a;dp=a;break;
         case Multiband:{constexpr float hz[]={120,350,1000,3000,7500};for(int j=0;j<5;++j)filters[j].lowPass(rate,hz[j]);a=onePole(rate,v[3]);bp=onePole(rate,v[4]);cp=bp;dp=a;break;}
         case Resonance:for(int j=0;j<8;++j){freq[j]=float(std::clamp(v[2]*std::pow(2.f,(j-3.f)*.5f),100.f,float(rate*.42)));bandpass(detect[j],freq[j],v[3]);}cp=onePole(rate,v[4]);break;
-        case Exciter:detect[0].highPass(rate,v[0]);filters[0].lowPass(rate,v[3]);break;
-        case AirUnified:air.set(v[0],v[1],v[2],p[3]);filters[0].highShelf(rate,4000,v[0]*8);filters[1].highShelf(rate,v[4],v[1]*12);break;
+        case Exciter:gainCache[1]=db2g(v[1]);detect[0].highPass(rate,v[0]);filters[0].lowPass(rate,v[3]);break;
+        case AirUnified:gainCache[3]=db2g(v[3]);air.set(v[0],v[1],v[2],p[3]);filters[0].highShelf(rate,4000,v[0]*8);filters[1].highShelf(rate,v[4],v[1]*12);break;
         case DeEsserUnified:detect[0].highPass(rate,v[0]);break;
         case EchoUnified:a=float(std::exp(-2*kPi*Biquad::clampF(rate,v[2])/rate));bp=onePole(rate,5);cp=onePole(rate,180);break;
         case RoomUnified:for(int j=0;j<3;++j)rooms[j].setParameters(v[0],std::clamp(.9f*(1.f-std::log(v[2]/2000.f)/std::log(8.f)),0.f,.95f),1.f);a=onePole(rate,10);bp=onePole(rate,200);break;
-        case DriveUnified:detect[0].highPass(rate,20);detect[1].highPass(rate,3000);filters[0].lowPass(rate,v[1]);break;
-        case StereoUnified:filters[0].highPass(rate,v[1]);a=onePole(rate,100);break;
+        case DriveUnified:gainCache[0]=db2g(v[0]);detect[0].highPass(rate,20);detect[1].highPass(rate,3000);filters[0].lowPass(rate,v[1]);break;
+        case ClipUnified:gainCache[0]=db2g(v[0]);gainCache[1]=db2g(v[1]);break;
+        case StereoUnified:gainCache[2]=db2g(v[2]);filters[0].highPass(rate,v[1]);a=onePole(rate,100);break;
         default:break;}
     }
     static constexpr double roomSize[3]={1.,1.65,.55};skellcore::FDNReverb rooms[3];AlignedTape4x clip;
     int type;double rate=48000,tempo=120;float p[6]{},v[6]{},freq[8]{},a=0,bp=0,cp=0,dp=0,phase=0,wet=1,curDelay=-1;unsigned tick=0;bool seed=false,dirty=true;
+    float gainCache[4]{1,1,1,1},panCos=1,panSin=0;
     std::array<float,8>energy{},gain{};std::array<float,2>lp{};Biquad filters[8],detect[8];DelayLine delay[2];
     skell::research::SkellAir air;skell::research::ClassicDeEsser deess;skellcore::deesser::PhraseAwareDetector phrase;std::atomic<float> meterDb{0};
 };

@@ -1,5 +1,6 @@
 #pragma once
 #include "Look.h"
+#include "NativeControlSpec.h"
 namespace skl::ui {
 // Distinct instrument windows; only the GR/readout values are measured. All
 // filter/transfer linework is labeled as a schematic, not a spectrum analyzer.
@@ -173,20 +174,43 @@ inline void paintTuneOrb(Graphics& g,juce::Rectangle<float> r,float phase,float 
     const auto& hands=tuneGripImages();for(int i=0;i<2;++i){if(!hands[i].isValid())continue;const float sign=i?1.f:-1.f,ww=rad*.53f,hh=ww*100.f/118.f;const auto grip=juce::Rectangle<float>(cx+sign*rad*.74f-ww*.5f,cy+rad*.52f,ww,hh);g.setOpacity(1.f);g.drawImage(hands[i],grip);}
 
 }
-inline void paintIdentityArt(Graphics& g,juce::Rectangle<float> r,int type,float phase,float level,int mode,bool frame,const std::array<float,6>& values={},int hoverNote=-1,bool flats=false){
+inline void paintIdentityArt(Graphics& g,juce::Rectangle<float> r,int type,float phase,float level,int mode,bool frame,const std::array<float,6>& values={},int hoverNote=-1,bool flats=false,const NativeValues* native=nullptr,int delayModel=-1,bool delayBlocked=false){
     auto ink=identityInk(type);if(type==Trim)ink=Colour(0xff3d4a42);if(frame){if(type!=Tune)identityFrame(g,r,ink,type);return;}auto a=r.reduced(10);juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion((type==Tune?r:a).toNearestInt());
     auto chart=a.withTrimmedTop(18).withTrimmedBottom(18);const float x=chart.getX(),y=chart.getY(),w=chart.getWidth(),h=chart.getHeight();
     identityLabel(g,a.withHeight(16),type==Exciter?"HARMONIC CELL":type==Doubler?"DUAL VOICE":type==Trim?"GAIN / PAN":type==Tune?"":type==DualFilter?"FILTER WINDOW":"PEAK SHAPER",ink,11);
     if(importedType(type)){
         if(!importedAvailable(type)){identityLabel(g,chart,"SOURCE REQUIRED",ink,13);return;}
-        const auto heading=type==FlangNative?"NATIVE MODULATION":type==DelayNative?"SKELLAY CLASSIC":"NATIVE SLICE ENGINE";
-        // Clear the generic label before drawing the source-specific instrument.
+        const char* engines[]={"SKELLAY CLASSIC","SKELLAY MODERN","SKELLAY BANK"};
+        const int wanted=native?int(nativeReal(nDelayModel,(*native)[nDelayModel])):0;
+        const int shown=std::clamp(delayModel>=0?delayModel:wanted,0,2);
+        const bool pending=delayModel!=wanted;
+        const auto heading=type==FlangNative?"NATIVE MODULATION":type==DelayNative?engines[shown]:"NATIVE SLICE ENGINE";
+        // Machined dark instrument with restrained, state-driven indicators.
         g.setColour(Colour(0xff141916));g.fillRect(a.withHeight(17));identityLabel(g,a.withHeight(16),heading,ink,10);
         if(type==FlangNative){const char* names[]={"CHORUS","FLANGER","FLANGUS","DIMENSION"};const int selected=std::clamp(int(std::lround(values[0])),0,3);
             for(int j=0;j<4;++j){auto cell=juce::Rectangle<float>(x+2+(j%2)*w*.5f,y+2+(j/2)*h*.5f,w*.5f-4,h*.5f-4);paintRecessedWindow(g,cell,3);if(selected==j){g.setColour(ink.withAlpha(.19f));g.fillRoundedRectangle(cell.reduced(2),2);}identityLabel(g,cell,names[j],selected==j?ink:ink.withAlpha(.45f),10);}}
-        else if(type==DelayNative){const char* routes[]={"NORMAL","SWAP","PING PONG"};const int route=std::clamp(int(std::lround(values[4])),0,2);identityLabel(g,chart.withHeight(h*.5f),juce::String(values[0]/192.f,3)+" BEATS",ink,20);identityLabel(g,chart.withTrimmedTop(h*.53f),routes[route],ink,12);}
-        else {for(int j=0;j<16;++j){const auto cell=juce::Rectangle<float>(x+2+(j%8)*w/8,y+6+(j/8)*h*.43f,w/8-4,h*.34f);paintRecessedWindow(g,cell,2);const float alpha=j%4==0?.90f:j%2?.10f:.48f;g.setColour(ink.withAlpha(alpha));g.fillRoundedRectangle(cell.reduced(3),1);}}
-        identityLabel(g,a.withY(a.getBottom()-15).withHeight(14),type==FlangNative?"FOUR SOURCE ENGINES":type==DelayNative?"TEMPO / FEEDBACK":"16 STEP PATTERN",ink,9);
+        else if(type==DelayNative){const char* routes[]={"NORMAL","SWAP","PING PONG"};const int route=std::clamp(int(std::lround(values[4])),0,2);
+            identityLabel(g,chart.withHeight(h*.46f),juce::String(values[0]/192.f,3)+" BEATS",ink,20);
+            const int taps=native?int(nativeReal(nDelayBanks,(*native)[nDelayBanks])):2;
+            const juce::String routeLabel=shown==2?juce::String(taps)+" TAPS / "+routes[route]:juce::String(routes[route]);
+            identityLabel(g,chart.withY(y+h*.47f).withHeight(h*.28f),routeLabel,ink,11);
+            // Feedback is a parameter readout, not a fabricated signal meter.
+            auto track=chart.withY(y+h*.81f).withHeight(6.f).reduced(8.f,0);paintRecessedWindow(g,track,2);
+            g.setColour(ink.withAlpha(.85f));g.fillRoundedRectangle(track.reduced(1).withWidth(std::max(0.f,(track.getWidth()-2)*std::clamp(values[1],0.f,1.f))),1);
+            identityLabel(g,a.withY(a.getBottom()-15).withHeight(14),delayBlocked?"MEMORY LIMIT":pending?"PREPARING / SELECTED":"FEEDBACK  "+juce::String(int(std::round(values[1]*100)))+"%",delayBlocked?Colour(0xfff2a18b):ink,9);
+        }else {
+            const int count=native?int(nativeReal(nGlitchCount,(*native)[nGlitchCount])):16;
+            const int rows=(count+7)/8;const float rh=h/float(rows);
+            for(int j=0;j<count;++j){const auto cell=juce::Rectangle<float>(x+2+(j%8)*w/8,y+2+(j/8)*rh,w/8-4,rh-4);paintRecessedWindow(g,cell,2);
+                const int state=native?int(nativeReal(nGlitchState+j,(*native)[nGlitchState+j])):(j%4==0?2:j%2?0:1);
+                const float probability=native?std::clamp((*native)[nGlitchProbability+j],0.f,1.f):1.f;
+                const auto color=state==3?Colour(0xffe9b07d):ink;
+                const float alpha=state==0?.06f:(state==2?.96f:.55f)*(.22f+.78f*probability);
+                g.setColour(color.withAlpha(alpha));g.fillRoundedRectangle(cell.reduced(2),1);
+                if(state==3){g.setColour(color);g.drawLine(cell.getRight()-4,cell.getCentreY(),cell.getX()+4,cell.getCentreY(),1);g.drawLine(cell.getX()+4,cell.getCentreY(),cell.getX()+7,cell.getCentreY()-2,1);g.drawLine(cell.getX()+4,cell.getCentreY(),cell.getX()+7,cell.getCentreY()+2,1);}}
+            identityLabel(g,a.withY(a.getBottom()-15).withHeight(14),juce::String(count)+" STEP PATTERN",ink,9);
+        }
+        if(type==FlangNative)identityLabel(g,a.withY(a.getBottom()-15).withHeight(14),"FOUR SOURCE ENGINES",ink,9);
     }else if(type==Trim){const float v=std::clamp(values[1],-1.f,1.f);auto line=chart.reduced(8,chart.getHeight()*.33f);g.setColour(Colour(0xff8f8066));g.drawRoundedRectangle(line.expanded(1),3,1);g.setGradientFill(juce::ColourGradient::vertical(Colour(0xff635b49),line.getY(),Colour(0xffbbae90),line.getBottom()));g.fillRoundedRectangle(line,2);g.setColour(Colour(0xff302c24));g.drawHorizontalLine(int(line.getCentreY()),line.getX()+4,line.getRight()-4);
         for(int j=0;j<=10;++j){const float xx=line.getX()+line.getWidth()*j/10;g.setColour(ink.withAlpha(j%5==0?.85f:.52f));g.drawLine(xx,line.getBottom()+3,xx,line.getBottom()+(j%5==0?10:6),.8f);}
         const float cx=line.getCentreX()+v*line.getWidth()*.46f;auto thumb=juce::Rectangle<float>(cx-6,line.getY()-4,12,line.getHeight()+8);g.setColour(Colour(0xff372f22).withAlpha(.52f));g.fillRoundedRectangle(thumb.translated(0,1.5f),2);g.setGradientFill(juce::ColourGradient(Colour(0xffe6d4a5),thumb.getX(),thumb.getY(),Colour(0xff827456),thumb.getRight(),thumb.getBottom(),false));g.fillRoundedRectangle(thumb,2);g.setColour(ink);g.drawVerticalLine(int(cx),thumb.getY()+3,thumb.getBottom()-3);

@@ -1,57 +1,17 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "RackPresets.h"
 
 using namespace skl;
 
 // ------------------------------------------------------------------ factory racks
-namespace {
-struct FSlot { int type; std::vector<std::pair<int, float>> set; };   // knob index -> real value
-struct FPreset { const char* name; std::vector<FSlot> slots; };
+// Preset definitions are shared with the portable audio regression.
 
-const std::vector<FPreset>& factory() {
-    static const std::vector<FPreset> list = {
-        { "Silk Lead", {
-            { Tune, {{0, 25}} },
-            { Eq, {{0, 90}, {2, -2}, {3, 1.5f}, {4, 1}} },
-            { Comp, {{0, -26}, {1, 3.5f}, {2, 12}, {3, 140}, {4, 5}} },
-            { DeEss, {} },
-            { Sat, {{0, 5}, {2, 0.35f}} },
-            { Air, {{0, 3.5f}} },
-            { Limiter, {} } } },
-        { "Warm Vocal", {
-            { Comp, {{0, -22}, {1, 2.5f}, {2, 20}, {3, 200}, {4, 3}} },
-            { Sat, {{0, 9}, {1, 8000}, {2, 0.5f}} },
-            { DeEss, {} },
-            { Chorus, {{2, 0.18f}} },
-            { Delay, {{3, 0.18f}} },
-            { skl::Reverb, {{3, 0.22f}} } } },
-        { "Glue Bus", {
-            { Trim, {{0, -2}} },
-            { Eq, {{0, 30}, {1, 1}, {4, 1.5f}} },
-            { Sat, {{0, 4}, {2, 0.4f}} },
-            { Comp, {{0, -18}, {1, 2}, {2, 30}, {3, 250}, {4, 2}} },
-            { Limiter, {{0, 2}} } } },
-        { "Empty rack", {} }
-    };
-    return list;
-}
-struct ModulePreset { const char* name; std::vector<float> values; };
-const std::vector<ModulePreset>& modulePresets(int type) {
-    // Original real-unit starting points, not copies of vendor presets.
-    static const std::vector<ModulePreset> echo={{"Vocal Slap",{115,0,7000,.22f,0,2}}, {"Wide Echo",{320,.28f,6000,.25f,.30f,1}}, {"Quarter Note",{320,.35f,5500,.24f,.40f,3}}};
-    static const std::vector<ModulePreset> room={{"Short Plate",{1.2f,20,9000,.20f,.35f,0}}, {"Dark Hall",{3.2f,35,4500,.28f,.35f,1}}, {"Small Room",{.65f,8,11000,.17f,.15f,2}}};
-    static const std::vector<ModulePreset> drive={{"Warm Tube",{6,12000,.45f,0}}, {"Console Edge",{9,10000,.38f,1}}, {"Air Lift",{5,16000,.25f,2}}};
-    static const std::vector<ModulePreset> fast={{"Vocal Catch",{8,0,.16f,135,0,0}}, {"Black Control",{5,1,.35f,240,-1,1}}, {"Drum Slam",{12,4,.08f,90,-5,0}}};
-    static const std::vector<ModulePreset> bus={{"Gentle Glue",{-18,2,30,250,0}}, {"Vocal Level",{-24,3,12,180,2}}, {"Tight Bus",{-18,4,10,120,0}}};
-    static const std::vector<ModulePreset> empty;
-    switch(type){case EchoUnified:return echo;case RoomUnified:return room;case DriveUnified:return drive;case FastComp:return fast;case BusComp:return bus;default:return empty;}
-}
-} // namespace
 
-juce::StringArray SkellierProcessor::modulePresetNames(int type){juce::StringArray names;for(const auto& p:modulePresets(type))names.add(p.name);return names;}
+juce::StringArray SkellierProcessor::modulePresetNames(int type){juce::StringArray names;for(const auto& p:rackModulePresets(type))names.add(p.name);return names;}
 bool SkellierProcessor::applyModulePreset(int slot,int expectedType,int preset){
     if(slot<0||slot>=kNumSlots||slotType(slot)!=expectedType)return false;
-    const auto& list=modulePresets(expectedType);if(preset<0||preset>=int(list.size()))return false;
+    const auto& list=rackModulePresets(expectedType);if(preset<0||preset>=int(list.size()))return false;
     const auto& values=list[size_t(preset)].values;const auto& m=info(expectedType);if(int(values.size())!=m.numKnobs)return false;
     pushUndo();for(int k=0;k<m.numKnobs;++k)setParam(knobId(slot,k),toNorm(m.knobs[k],values[size_t(k)]));return true;
 }
@@ -164,6 +124,9 @@ void SkellierProcessor::editNativeControl(int slot,int effect,int control,float 
 }
 void SkellierProcessor::triggerNativeGlitch(int slot) noexcept {if(slot>=0&&slot<kNumSlots&&slotType(slot)==GlitchNative)glitchTrigger[size_t(slot)].store(true,std::memory_order_release);}
 bool SkellierProcessor::acceptsMidi() const {return SKELLIERE_NATIVE_IMPORTS!=0;}
+NativeValues SkellierProcessor::nativeDisplayValues(int slot) const noexcept {
+    auto v=nativeDefaults();if(slot>=0&&slot<kNumSlots)for(int i=0;i<kNativeControlCount;++i)v[i]=nativeRaw[slot][i]->load(std::memory_order_relaxed);return v;
+}
 int SkellierProcessor::nativeDelayModel(int slot) const noexcept {return slot>=0&&slot<kNumSlots?nativeModel[size_t(slot)].load(std::memory_order_relaxed):-1;}
 bool SkellierProcessor::nativeDelayBlocked(int slot) const noexcept {return slot>=0&&slot<kNumSlots&&nativeBlocked[size_t(slot)].load(std::memory_order_relaxed);}
 void SkellierProcessor::serviceNative(){std::lock_guard<std::mutex> lock(nativeMutex);if(prepared)serviceNativeLocked();}

@@ -160,6 +160,14 @@ int main(int argc, char** argv) {
             // Capture the actual component attached to the real processor.
             auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);return skellcore::ui::headless::writePng(img,output.getChildFile(filename));};
         if(output.createDirectory().failed()||!captureNative(skl::DelayNative,0,"native-delay.png")||!captureNative(skl::GlitchNative,1,"native-glitch.png")){std::fprintf(stderr,"Native panel binding or capture failed\n");return 1;}
+        processor.editNativeControl(0,skl::DelayNative,skl::nDelayBanks,3.f/7.f);
+        processor.editNativeControl(1,skl::GlitchNative,skl::nGlitchCount,1.f);
+        processor.editNativeControl(1,skl::GlitchNative,skl::nGlitchState+6,1.f);
+        processor.serviceNative();juce::AudioBuffer<float> live(2,512);juce::MidiBuffer midi;
+        for(int i=0;i<12;++i){live.clear();processor.processBlock(live,midi);processor.serviceNative();}
+        if(processor.nativeDelayModel(0)!=2)return 1;
+        visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c)){slot->rebuild();slot->syncPowerVisual();}if(auto* ui=dynamic_cast<skl::ui::RackUI*>(&c))ui->refreshLiveState();});
+        if(!skellcore::ui::headless::writePng(editor.createComponentSnapshot(editor.getLocalBounds(),true,1.f),output.getChildFile("native-live-faceplates.png")))return 1;
         std::puts("Native Delay and Glitch control bindings/captures passed");
     }
 #endif

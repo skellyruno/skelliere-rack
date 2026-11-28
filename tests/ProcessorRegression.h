@@ -85,7 +85,8 @@ inline void processorRegression() {
     auto noSpelling=p.apvts.copyState();noSpelling.removeProperty("tuneFlats",nullptr);auto noSpellingXml=noSpelling.createXml();juce::MemoryBlock noSpellingBinary;juce::AudioProcessor::copyXmlToBinary(*noSpellingXml,noSpellingBinary);
     p.setStateInformation(noSpellingBinary.getData(),int(noSpellingBinary.getSize()));require(!p.tuneFlats.load(),"Old session retained stale note spelling");
     // Module presets are explicit user actions and never replace the whole rack.
-    for(int type:{skl::EchoUnified,skl::RoomUnified,skl::DriveUnified,skl::FastComp,skl::BusComp}){
+    for(int type:{skl::EchoUnified,skl::RoomUnified,skl::DriveUnified,skl::FastComp,skl::BusComp,skl::ProgramOpto,skl::SkellRubyQ,skl::Resonance,skl::AirUnified,skl::SkellMixHead,skl::FlangNative,skl::DelayNative,skl::GlitchNative}){
+        if(!skl::importedAvailable(type))continue;
         p.clearRack();require(p.addModule(type,0)&&p.addModule(skl::Trim,1),"Preset modules missing");
         set(p.onId(0),0);set(p.knobId(1,0),.81f);p.artworkChoices[0].store(2);
         require(p.modulePresetNames(type).size()==3,"Preset names missing");
@@ -94,6 +95,11 @@ inline void processorRegression() {
             for(int k=0;k<skl::info(type).numKnobs;++k){const float v=p.apvts.getRawParameterValue(p.knobId(0,k))->load();require(std::isfinite(v)&&v>=0&&v<=1,"Module preset value out of range");}
             p.undo();require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-old)<1e-6f,"Module preset undo failed");}
         require(!p.applyModulePreset(0,skl::Trim,0)&&!p.applyModulePreset(0,type,3)&&!p.applyModulePreset(-1,type,0),"Stale or invalid preset accepted");
+    }
+    require(p.numFactory()==7&&p.factoryName(0)=="Silk Lead"&&p.factoryName(3)=="Empty rack","Factory indices changed");
+    for(int i=4;i<p.numFactory();++i){
+        p.applyFactory(i);int occupied=0;for(int slot=0;slot<skl::kNumSlots;++slot)if(p.slotType(slot)!=skl::Empty)++occupied;
+        require(occupied>=7,"Incomplete factory rack");juce::MemoryBlock state;p.getStateInformation(state);const int first=p.slotType(0);p.clearRack();p.setStateInformation(state.getData(),int(state.getSize()));require(p.slotType(0)==first,"Factory rack recall");
     }
     p.clearRack(); // isolate the legacy choice test from extension-preset fixtures
     // Original normalized choice values must retain every legacy identity.
