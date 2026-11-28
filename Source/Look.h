@@ -607,6 +607,13 @@ public:
         label.setFont(getComboBoxFont(box));label.setJustificationType(juce::Justification::centred);
     }
     juce::Font getPopupMenuFont() override { return font(15.0f); }
+    void getIdealPopupMenuItemSize(const juce::String& name,bool separator,int standardHeight,int& w,int& h) override {
+        juce::LookAndFeel_V4::getIdealPopupMenuItemSize(name,separator,standardHeight,w,h);
+        if(!separator){h=juce::jmax(h,28);w=juce::jmax(w,170);}
+    }
+    void drawPopupMenuBackground(Graphics& g,int w,int h) override {
+        g.fillAll(Colour(0xff181715));g.setColour(Colour(0xff827664));g.drawRect(0,0,w,h,1);g.setColour(Colour(0xff302b24));g.drawRect(2,2,w-4,h-4,1);
+    }
 
     void fillTextEditorBackground(Graphics& g,int w,int h,juce::TextEditor&) override {
         auto r=juce::Rectangle<float>(0,0,float(w),float(h)).reduced(.5f);

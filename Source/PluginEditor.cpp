@@ -277,6 +277,7 @@ void PowerButton::paintButton(Graphics& g, bool hover, bool down) {
 void StripButton::mouseDown(const juce::MouseEvent& e) {
     if (e.mods.isPopupMenu()) {
         juce::PopupMenu m;
+        m.setLookAndFeel(&getLookAndFeel());
         m.addItem(1, "Delete strip");
         juce::Component::SafePointer<StripButton> safeThis(this);
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [safeThis](int result) {
@@ -291,7 +292,7 @@ void StripButton::mouseDown(const juce::MouseEvent& e) {
 SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     addAndMakeVisible(powerBtn);
     addChildComponent(modulePresetButton);modulePresetButton.setTooltip("Apply a starting-point preset to this effect only");modulePresetButton.getProperties().set("plain",true);modulePresetButton.getProperties().set("quiet",true);
-    modulePresetButton.onClick=[this]{const int originalType=type;const auto names=proc.modulePresetNames(type);if(names.isEmpty())return;juce::PopupMenu menu;for(int j=0;j<names.size();++j)menu.addItem(j+1,names[j]);juce::Component::SafePointer<SlotComponent> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&modulePresetButton).withMinimumWidth(140),[safe,originalType](int choice){if(safe!=nullptr&&choice>0&&safe->type==originalType&&safe->proc.applyModulePreset(safe->index,originalType,choice-1))safe->repaint();});};
+    modulePresetButton.onClick=[this]{const int originalType=type;const auto names=proc.modulePresetNames(type);if(names.isEmpty())return;juce::PopupMenu menu;menu.setLookAndFeel(&getLookAndFeel());for(int j=0;j<names.size();++j)menu.addItem(j+1,names[j]);juce::Component::SafePointer<SlotComponent> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&modulePresetButton).withMinimumWidth(140),[safe,originalType](int choice){if(safe!=nullptr&&choice>0&&safe->type==originalType&&safe->proc.applyModulePreset(safe->index,originalType,choice-1))safe->repaint();});};
     addAndMakeVisible(artButton);addChildComponent(advancedButton);advancedButton.setTooltip("Open advanced DSP engine and controls");advancedButton.getProperties().set("plain",true);
     advancedButton.onClick=[this]{if(!hasAdvancedEngine(type)&&!hasNativePanel(type))return;auto* parent=findParentComponentOfClass<juce::AudioProcessorEditor>();if(!parent)return;std::unique_ptr<juce::Component> panel;if(hasNativePanel(type))panel=std::make_unique<NativePanel>(proc,index,type);else panel=std::make_unique<AdvancedPanel>(proc,index,type);juce::CallOutBox::launchAsynchronously(std::move(panel),parent->getLocalArea(this,advancedButton.getBounds()),parent);};
     artButton.setTooltip("Cycle original Skell metal finishes");
@@ -736,7 +737,7 @@ bool SlotComponent::selectTuneKey(juce::Point<float> point,bool commit){
 bool SlotComponent::showTuneMenu(juce::Point<float> point){
     if(type!=Tune||cells.size()!=7)return false;
     const auto detail=originalLayout(type,getWidth(),editing).detail.toFloat();const auto roots=tuneRootBounds(detail),modes=tuneScaleBounds(detail);const bool root=roots.contains(point);if(!root&&!modes.contains(point))return false;
-    juce::PopupMenu menu;const int current=int(std::lround(cells[root?3:4]->slider.getValue()*(root?11:2)));
+    juce::PopupMenu menu;menu.setLookAndFeel(&getLookAndFeel());const int current=int(std::lround(cells[root?3:4]->slider.getValue()*(root?11:2)));
     if(root){const bool flats=proc.tuneFlats.load(std::memory_order_relaxed);for(int n=0;n<12;++n)menu.addItem(n+1,tuneNoteName(n,flats),true,n==current);menu.addSeparator();menu.addItem(30,"Use sharps (#)",true,!flats);menu.addItem(31,"Use flats (b)",true,flats);}
     else{const char* labels[]={"Chromatic","Major","Minor"};for(int n=0;n<3;++n)menu.addItem(n+1,labels[n],true,n==current);}
     juce::Component::SafePointer<SlotComponent> safe(this);const auto target=localAreaToGlobal((root?roots:modes).toNearestInt());
@@ -751,9 +752,12 @@ void SlotComponent::mouseDown(const juce::MouseEvent& e) {
     dragging=false;
     if(!e.mods.isPopupMenu()&&(showTuneMenu(e.position)||selectTuneKey(e.position,true)))return;
     if(type!=Empty&&!e.mods.isPopupMenu())return;
+    showSlotMenu();
+}
+void SlotComponent::showSlotMenu(){
     // Empty slots can add effects without opening the module library.
     // Popups are asynchronous; do not retain an unsafe editor pointer.
-    juce::PopupMenu menu;
+    juce::PopupMenu menu;menu.setLookAndFeel(&getLookAndFeel());
     if(type==Empty){
         const int cats[]={CatDynamics,CatTone,CatSpace,CatUtility};
         const char* labels[]={"Dynamics","Tone / EQ","Modulation / Space","Utility"};
@@ -764,22 +768,29 @@ void SlotComponent::mouseDown(const juce::MouseEvent& e) {
             menu.addSubMenu(labels[i],group);
         }
     }else{
+        menu.addSectionHeader(displayName(type));
         menu.addItem(1,proc.slotOn(index)?"Bypass effect":"Enable effect");
         menu.addItem(2,proc.soloSlot.load()==index?"Exit solo":"Solo effect");
         menu.addItem(3,"Move left",index>0);
         menu.addItem(4,"Move right",index<kNumSlots-1);
-        menu.addItem(5,"Duplicate to first empty slot");
+        bool hasRoom=false;for(int i=0;i<kNumSlots;++i)hasRoom|=proc.slotType(i)==Empty;
+        menu.addItem(5,"Duplicate to first empty slot",hasRoom);
+        menu.addSeparator();
+        menu.addItem(7,"Copy effect settings");
+        menu.addItem(8,"Paste settings",proc.canPasteSlotControls(index,type));
+        menu.addItem(9,"Reset effect controls");
+        const auto presets=proc.modulePresetNames(type);if(!presets.isEmpty()){juce::PopupMenu group;for(int j=0;j<presets.size();++j)group.addItem(200+j,presets[j]);menu.addSubMenu("Effect presets",group);}
         menu.addSeparator();menu.addItem(6,"Remove effect");
     }
     juce::Component::SafePointer<SlotComponent> safe(this);
     const int originalType=type;
-    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[safe,originalType](int choice){
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withMinimumWidth(230).withStandardItemHeight(29),[safe,originalType](int choice){
         if(safe==nullptr||choice==0||safe->proc.slotType(safe->index)!=originalType)return;
         auto& p=safe->proc;const int slot=safe->index;
         if(choice>=101&&choice<100+kNumRackTypes){
             if(!p.addModule(choice-100,slot)&&safe->onNotice)safe->onNotice("Rack full");
         }else if(choice==1){
-            p.apvts.getParameter(SkellierProcessor::onId(slot))->setValueNotifyingHost(p.slotOn(slot)?0.f:1.f);
+            p.toggleSlotPower(slot,originalType);
         }else if(choice==2)p.soloSlot.store(p.soloSlot.load()==slot?-1:slot);
         else if(choice==3||choice==4)p.moveSlot(slot,slot+(choice==3?-1:1),false);
         else if(choice==5){
@@ -787,6 +798,10 @@ void SlotComponent::mouseDown(const juce::MouseEvent& e) {
             if(free>=0){p.moveSlot(slot,free,true);if(safe->onSelected)safe->onSelected(free);}
             else if(safe->onNotice)safe->onNotice("Rack full — remove an effect to duplicate");
         }else if(choice==6)p.removeSlot(slot);
+        else if(choice==7){if(p.copySlotControls(slot,originalType)&&safe->onNotice)safe->onNotice("Effect settings copied");}
+        else if(choice==8){if(p.pasteSlotControls(slot,originalType)&&safe->onNotice)safe->onNotice("Effect settings pasted — Undo restores previous controls");}
+        else if(choice==9){if(p.resetSlotControls(slot,originalType)&&safe->onNotice)safe->onNotice("Effect reset — Undo restores previous controls");}
+        else if(choice>=200)p.applyModulePreset(slot,originalType,choice-200);
     });
 }
 
@@ -1028,9 +1043,11 @@ RackUI::RackUI(SkellierProcessor& p)
     setSize(kW, kH);
     for (auto* b : {&prevPreset, &nextPreset, &snapA, &snapB, &snapCopy, &undoBtn, &redoBtn, &clearBtn, &bypassBtn}) addAndMakeVisible(*b);
     for (int i = 0; i < SkellierProcessor::numFactory(); ++i) presetBox.addItem(SkellierProcessor::factoryName(i), i + 1);
-    presetBox.setSelectedItemIndex(0, juce::dontSendNotification);
+    presetBox.setTextWhenNothingSelected("Custom rack");
+    const int initialPreset=proc.matchingFactoryPreset();if(initialPreset>=0)curPreset=initialPreset;
+    presetBox.setSelectedItemIndex(initialPreset, juce::dontSendNotification);
     presetBox.onChange = [this] {
-        curPreset = juce::jmax(0, presetBox.getSelectedItemIndex());
+        const int selected=presetBox.getSelectedItemIndex();if(selected<0)return;curPreset=selected;
         proc.applyFactory(curPreset);
         say("Rack preset: " + SkellierProcessor::factoryName(curPreset));
     };
@@ -1077,7 +1094,7 @@ RackUI::RackUI(SkellierProcessor& p)
     stripsToggle.setClickingTogglesState(true);stripsToggle.getProperties().set("plain",true);
     stripsToggle.onClick=[this]{stripDrawer.setVisible(stripsToggle.getToggleState());if(stripDrawer.isVisible())stripDrawer.toFront(false);};
     stripDrawer.addAndMakeVisible(stripsLabel);
-    defaultStrip.onClick = [this] { curPreset = 0; presetBox.setSelectedItemIndex(0, juce::sendNotificationSync); };
+    defaultStrip.onClick = [this] { curPreset=0;presetBox.setSelectedItemIndex(0,juce::dontSendNotification);proc.applyFactory(0);say("Rack preset: "+SkellierProcessor::factoryName(0)); };
     stripDrawer.addAndMakeVisible(defaultStrip);
     stripName.setTextToShowWhenEmpty("Name this rack", pal::inkDim);
     stripName.setFont(font(13.0f));
@@ -1175,6 +1192,7 @@ void RackUI::timerCallback() {
         const float light=juce::jlimit(0.f,1.f,(inShown+48.f)/48.f);
         slot.advanceArtworkMotion(artworkDt,isShowing()&&slot.isShowing()&&viewport.getViewArea().intersects(slot.getBounds()),!bypass&&proc.slotOn(s)&&(solo<0||solo==s),light);
     }
+    if((presetRefreshTicks++%8)==0&&!presetBox.isPopupActive()){const int match=proc.matchingFactoryPreset();if(match>=0)curPreset=match;if(presetBox.getSelectedItemIndex()!=match)presetBox.setSelectedItemIndex(match,juce::dontSendNotification);}
     undoBtn.setEnabled(proc.canUndo());
     redoBtn.setEnabled(proc.canRedo());
     refreshRackNavigation();

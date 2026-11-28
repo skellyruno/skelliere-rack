@@ -57,9 +57,15 @@ public:
     std::array<std::atomic<int>,skl::kNumSlots> artworkChoices{{1,1,1,1,1,1,1,1}};
     bool addModule(int,int slot=-1);
     void removeSlot(int);
+    bool resetSlotControls(int slot,int expectedType);
+    bool toggleSlotPower(int slot,int expectedType);
+    bool copySlotControls(int slot,int expectedType);
+    bool canPasteSlotControls(int slot,int expectedType) const;
+    bool pasteSlotControls(int slot,int expectedType);
     void moveSlot(int,int,bool);
     void clearRack();
     void applyFactory(int);
+    int matchingFactoryPreset() const;
     static int numFactory();
     static juce::String factoryName(int);
     static juce::StringArray modulePresetNames(int type);
@@ -84,6 +90,8 @@ private:
     struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; std::array<float,skl::kSslExtraCount> ssl=skl::sslDefaults(); skl::AdvancedValues advanced=skl::advancedDefaults(); float humanize=0.f; skl::NativeValues native=skl::nativeDefaults(); };
     void timerCallback() override {serviceNative();}
     void serviceNativeLocked();
+    void releasePreparedStorage();
+    void clearMeterTelemetry() noexcept;
     std::mutex nativeMutex; // prepare/release and non-RT producer only
     std::array<std::atomic<bool>,skl::kNumSlots> glitchTrigger{};
     std::array<std::atomic<int>,skl::kNumSlots> nativeModel{{-1,-1,-1,-1,-1,-1,-1,-1}};
@@ -124,6 +132,11 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGain, outputGain;
     std::atomic<float> inPeak{0},outPeak{0},graphTop{16000};
     std::array<std::atomic<float>,skl::kNumSlots> jetPeak{},exciterPeak{};
+    std::array<std::atomic<int>,skl::kNumRackTypes> typeLatency{};
+    std::array<std::atomic<int>,skl::kNumSlots> meterType{};
+    std::array<std::atomic<float>,skl::kNumSlots> rackReduction{};
+    std::array<std::array<std::atomic<float>,8>,skl::kNumSlots> bandReduction{};
+    SlotValues clipboard; // message-thread only; not persisted or exported
     std::vector<juce::String> undoStack,redoStack;
     juce::String snaps[2];
     int curSnap=0;

@@ -96,6 +96,14 @@ inline void processorRegression() {
             p.undo();require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-old)<1e-6f,"Module preset undo failed");}
         require(!p.applyModulePreset(0,skl::Trim,0)&&!p.applyModulePreset(0,type,3)&&!p.applyModulePreset(-1,type,0),"Stale or invalid preset accepted");
     }
+    p.clearRack();require(p.addModule(skl::Resonance,0)&&p.addModule(skl::Resonance,1)&&p.addModule(skl::Trim,2),"Clipboard fixture");
+    set(p.knobId(0,0),.83f);set(p.advancedId(0,skl::advMode),1);set(p.onId(1),0);p.artworkChoices[1].store(2);
+    require(p.copySlotControls(0,skl::Resonance)&&p.canPasteSlotControls(1,skl::Resonance)&&!p.canPasteSlotControls(2,skl::Trim),"Clipboard type safety");
+    require(p.pasteSlotControls(1,skl::Resonance)&&!p.slotOn(1)&&p.artworkChoices[1].load()==2&&p.apvts.getRawParameterValue(p.knobId(1,0))->load()==.83f&&p.apvts.getRawParameterValue(p.advancedId(1,skl::advMode))->load()==1,"Clipboard preserves receiving power/finish, transfers controls");
+    p.undo();require(p.apvts.getRawParameterValue(p.advancedId(1,skl::advMode))->load()==0,"Clipboard undo");
+    require(p.resetSlotControls(0,skl::Resonance)&&p.apvts.getRawParameterValue(p.advancedId(0,skl::advMode))->load()==0,"Reset effect controls");p.undo();require(p.apvts.getRawParameterValue(p.advancedId(0,skl::advMode))->load()==1,"Reset undo");
+    require(p.toggleSlotPower(0,skl::Resonance)&&!p.slotOn(0),"Context power action");p.undo();require(p.slotOn(0),"Context power undo");
+    p.applyFactory(0);require(p.matchingFactoryPreset()==0,"Factory preset identity");set(p.knobId(0,0),.42f);require(p.matchingFactoryPreset()==-1,"Edited preset should be custom");p.applyFactory(0);require(p.matchingFactoryPreset()==0,"Factory reload identity");
     require(p.numFactory()==7&&p.factoryName(0)=="Silk Lead"&&p.factoryName(3)=="Empty rack","Factory indices changed");
     for(int i=4;i<p.numFactory();++i){
         p.applyFactory(i);int occupied=0;for(int slot=0;slot<skl::kNumSlots;++slot)if(p.slotType(slot)!=skl::Empty)++occupied;

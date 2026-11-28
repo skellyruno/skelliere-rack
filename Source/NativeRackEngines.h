@@ -48,7 +48,7 @@ public:
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         if(!ready||!b.getNumChannels()||!b.getNumSamples())return;
         const int mode=int(std::lround(importedControl(FlangNative,0,k)*3));
-        skellflang::Controls controls;controls.depth=importedControl(FlangNative,1,k);controls.speed=importedControl(FlangNative,2,k);controls.delay=importedControl(FlangNative,3,k);controls.spread=importedControl(FlangNative,4,k);
+        skellflang::Controls controls;controls.order=3;controls.depth=importedControl(FlangNative,1,k);controls.speed=importedControl(FlangNative,2,k);controls.delay=importedControl(FlangNative,3,k);controls.spread=importedControl(FlangNative,4,k);
         const float mix=importedControl(FlangNative,5,k),step=float(1./(.005*rate));
         if(!seeded){wet=active?mix:0;seeded=true;}
         if(selected!=mode){held=last;transition=selected<0?1.f:0.f;selected=mode;clock=0;

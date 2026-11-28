@@ -16,6 +16,28 @@ bool SkellierProcessor::applyModulePreset(int slot,int expectedType,int preset){
     pushUndo();for(int k=0;k<m.numKnobs;++k)setParam(knobId(slot,k),toNorm(m.knobs[k],values[size_t(k)]));return true;
 }
 
+int SkellierProcessor::matchingFactoryPreset() const {
+    const auto& list=factory();
+    auto close=[](float a,float b){return std::isfinite(a)&&std::abs(a-b)<1e-5f;};
+    for(int index=0;index<int(list.size());++index){const auto& preset=list[size_t(index)];bool match=true;
+        // Compare inexpensive type/power first. Only a matching layout needs
+        // detailed parameter checks, at a low UI polling rate.
+        for(int slot=0;slot<kNumSlots;++slot){const int t=slot<int(preset.slots.size())?preset.slots[size_t(slot)].type:Empty;if(slotType(slot)!=t||(t!=Empty&&!slotOn(slot))){match=false;break;}}
+        if(!match)continue;
+        for(int slot=0;slot<int(preset.slots.size())&&match;++slot){const auto& fs=preset.slots[size_t(slot)];const int t=fs.type;if(t==Empty)continue;
+            float want[kMaxKnobs]{};for(int j=0;j<kMaxKnobs;++j)want[j]=j<info(t).numKnobs?defaultNorm(t,j):.5f;
+            for(const auto& kv:fs.set)want[kv.first]=toNorm(info(t).knobs[kv.first],kv.second);
+            for(int j=0;j<info(t).numKnobs;++j)match&=close(kRaw[slot][j]->load(std::memory_order_relaxed),want[j]);
+            if(t==Tune)match&=close(humanizeRaw[slot]->load(std::memory_order_relaxed),0);
+            if(t==SkellSSL)for(int j=0;j<kSslExtraCount;++j)match&=close(sslRaw[slot][j]->load(std::memory_order_relaxed),sslDefault(j));
+            if(hasAdvancedEngine(t))for(int j=0;j<kAdvancedCount;++j)match&=close(advancedRaw[slot][j]->load(std::memory_order_relaxed),advancedDefault(j));
+            if(importedType(t))for(int j=0;j<kNativeControlCount;++j)match&=close(nativeRaw[slot][j]->load(std::memory_order_relaxed),nativeDefault(j));
+        }
+        if(match)return index;
+    }
+    return -1;
+}
+
 int SkellierProcessor::numFactory() { return (int) factory().size(); }
 juce::String SkellierProcessor::factoryName(int i) { return factory()[(size_t) juce::jlimit(0, numFactory() - 1, i)].name; }
 
@@ -100,7 +122,8 @@ SkellierProcessor::~SkellierProcessor() {
 
 float SkellierProcessor::advancedBandReduction(int slot,int band) const noexcept {
     if(slot<0||slot>=kNumSlots||slotType(slot)!=Multiband||!slotOn(slot)||bypassRaw->load()>.5f||(soloSlot.load()>=0&&soloSlot.load()!=slot))return 0;
-    auto* module=mods[slot][Multiband].get();return module?static_cast<AdvancedRackModule*>(module)->bandReduction(band):0;
+    if(band<0||band>=8||meterType[size_t(slot)].load(std::memory_order_acquire)!=Multiband)return 0;
+    return bandReduction[size_t(slot)][size_t(band)].load(std::memory_order_relaxed);
 }
 
 float SkellierProcessor::takeExciterResidualPeak(int slot) noexcept {
@@ -124,7 +147,19 @@ skl::ModuleBase* SkellierProcessor::moduleFor(int slot, int type, int tuneSlot) 
     return mods[slot][type].get();
 }
 
-void SkellierProcessor::releaseResources(){stopTimer();std::lock_guard<std::mutex> lock(nativeMutex);prepared=false;}
+void SkellierProcessor::clearMeterTelemetry() noexcept {
+    for(int s=0;s<kNumSlots;++s){meterType[size_t(s)].store(Empty,std::memory_order_release);rackReduction[size_t(s)].store(0,std::memory_order_relaxed);for(auto& b:bandReduction[size_t(s)])b.store(0,std::memory_order_relaxed);jetPeak[size_t(s)].store(0,std::memory_order_relaxed);exciterPeak[size_t(s)].store(0,std::memory_order_relaxed);}
+}
+void SkellierProcessor::releasePreparedStorage(){
+    // Host lifecycle: processing is stopped before prepare/release. UI reads
+    // only processor-owned atomic telemetry, never destroyed module objects.
+    prepared=false;clearMeterTelemetry();
+    for(auto& slot:mods)for(auto& module:slot)module.reset();
+    tuneModule.reset();bypassDelay=LatencyAlignedBypass{};
+    for(auto& v:nativeModel)v.store(-1,std::memory_order_relaxed);
+    for(auto& v:nativeBlocked)v.store(false,std::memory_order_relaxed);
+}
+void SkellierProcessor::releaseResources(){stopTimer();std::lock_guard<std::mutex> lock(nativeMutex);releasePreparedStorage();}
 void SkellierProcessor::editNativeControl(int slot,int effect,int control,float value){
     if(slot<0||slot>=kNumSlots||slotType(slot)!=effect||!hasNativePanel(effect)||control<0||control>=kNativeControlCount||!std::isfinite(value))return;
     pushUndo();if(auto* param=apvts.getParameter(nativeId(slot,control))){param->beginChangeGesture();setParam(nativeId(slot,control),std::clamp(value,0.f,1.f));param->endChangeGesture();}
@@ -150,6 +185,7 @@ void SkellierProcessor::serviceNativeLocked(){
 }
 void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     stopTimer();std::lock_guard<std::mutex> lock(nativeMutex);
+    releasePreparedStorage(); // avoid overlapping old/new high-rate allocations
 #if SKELLIERE_NATIVE_IMPORTS
     auto delayBudget=std::make_shared<native_delay::RackBudget>();
 #endif
@@ -172,6 +208,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     }
     tuneModule = makeModule(Tune);
     tuneModule->prepare(sampleRate_, maxBlock, ch);
+    for(int t=1;t<kNumRackTypes;++t)typeLatency[size_t(t)].store(t==Tune?tuneModule->latency():(mods[0][t]?mods[0][t]->latency():0),std::memory_order_relaxed);
     bypassDelay.prepare(tuneModule->latency()+kNumSlots*std::max(mods[0][SkellDemon]->latency(),mods[0][SkellMixHead]->latency()));
     for (int s = 0; s < kNumSlots; ++s) {lastType[s] = -1;jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);exciterPeak[size_t(s)].store(0,std::memory_order_relaxed);}
     inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
@@ -190,15 +227,14 @@ void SkellierProcessor::updateLatency() {
 }
 
 int SkellierProcessor::latencyOfTune() const {
-    if (!tuneModule) return 0;
     for (int s = 0; s < kNumSlots; ++s)
-        if (slotType(s) == Tune) return tuneModule->latency();
+        if (slotType(s) == Tune) return typeLatency[Tune].load(std::memory_order_relaxed);
     return 0;
 }
 
 int SkellierProcessor::rackLatency() const {
     int latency=latencyOfTune();
-    for(int s=0;s<kNumSlots;++s){const auto t=slotType(s);if(t!=Tune&&t>0&&t<kNumRackTypes&&mods[s][t])latency+=mods[s][t]->latency();}
+    for(int s=0;s<kNumSlots;++s){const auto t=slotType(s);if(t!=Tune&&t>0&&t<kNumRackTypes)latency+=typeLatency[size_t(t)].load(std::memory_order_relaxed);}
     return latency;
 }
 
@@ -214,14 +250,16 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     const float inG = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 12.0f, inRaw->load()));
     const float outG = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 12.0f, outRaw->load()));
     const bool bypass = bypassRaw->load() > 0.5f;
+    // One coherent type snapshot for audio routing and its bypass delay.
+    int tuneSlot=-1,latency=0;int types[kNumSlots];
+    for(int s=0;s<kNumSlots;++s){const int t=types[s]=slotType(s);if(t==Tune){if(tuneSlot<0){tuneSlot=s;latency+=typeLatency[Tune].load(std::memory_order_relaxed);}}else if(t>0&&t<kNumRackTypes)latency+=typeLatency[size_t(t)].load(std::memory_order_relaxed);}
     // Advance the untouched input's shadow delay for *both* modes. JUCE's reported
     // latency remains the same when the user toggles Bypass All, avoiding a dry
     // timing jump relative to other tracks when a Tune module is present.
     const float rawPeak = buffer.getMagnitude(0, total);
-    bypassDelay.process(buffer, rackLatency(), bypass);
+    bypassDelay.process(buffer, latency, bypass);
     if (bypass) {
-        for(auto& peak:jetPeak)peak.store(0,std::memory_order_relaxed);
-        for(auto& peak:exciterPeak)peak.store(0,std::memory_order_relaxed);
+        clearMeterTelemetry();
         inPeak.store(juce::jmax(inPeak.load(), rawPeak));
         outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
         return;
@@ -234,12 +272,6 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     }
     inPeak.store(juce::jmax(inPeak.load(), buffer.getMagnitude(0, total)));
 
-    int tuneSlot = -1;
-    int types[kNumSlots];
-    for (int s = 0; s < kNumSlots; ++s) {
-        types[s] = slotType(s);
-        if (types[s] == Tune && tuneSlot < 0) tuneSlot = s;
-    }
     double bpm=120.,ppq=0.;int sigNum=4,sigDen=4;bool validPpq=false;
     if(auto* ph=getPlayHead())if(auto pos=ph->getPosition()){
         if(auto value=pos->getBpm())bpm=*value;
@@ -311,6 +343,12 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
     for(int s=0;s<kNumSlots;++s) {
+        const int t=types[s];const bool live=onRaw[s]->load()>.5f&&(solo<0||solo==s);
+        auto* measured=live&&t!=Tune?moduleFor(s,t,tuneSlot):nullptr;
+        if(meterType[size_t(s)].load(std::memory_order_relaxed)!=t)meterType[size_t(s)].store(Empty,std::memory_order_release);
+        rackReduction[size_t(s)].store(measured?sane(measured->meter()):0.f,std::memory_order_relaxed);
+        if(t==Multiband)for(int j=0;j<8;++j)bandReduction[size_t(s)][size_t(j)].store(measured?static_cast<AdvancedRackModule*>(measured)->bandReduction(j):0.f,std::memory_order_relaxed);
+        meterType[size_t(s)].store(t,std::memory_order_release);
         auto& residual=exciterPeak[size_t(s)];
         if(types[s]!=Exciter||onRaw[s]->load()<=.5f||advancedRaw[s][advMode]->load()<.5f||(solo>=0&&solo!=s))residual.store(0,std::memory_order_relaxed);
         else {auto old=residual.load(std::memory_order_relaxed);for(int attempt=0;attempt<2&&measuredExciter[s]>old;++attempt)if(residual.compare_exchange_strong(old,measuredExciter[s],std::memory_order_relaxed))break;}
@@ -350,9 +388,8 @@ float SkellierProcessor::gainReduction(int s) const {
     const int solo=soloSlot.load();
     if(bypassRaw->load()>.5f||!slotOn(s)||(solo>=0&&solo!=s))return 0.f;
     const int t = slotType(s);
-    if (t == Tune) return 0.0f;
-    if (t <= 0 || !mods[s][t]) return 0.0f;
-    return mods[s][t]->meter();
+    if(s<0||s>=kNumSlots||t==Tune||t<=0||meterType[size_t(s)].load(std::memory_order_acquire)!=t)return 0.f;
+    return rackReduction[size_t(s)].load(std::memory_order_relaxed);
 }
 
 // ------------------------------------------------------------------ editing (message thread)
@@ -427,6 +464,29 @@ bool SkellierProcessor::addModule(int type, int slot) {
     for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(type).numKnobs ? defaultNorm(type, k) : 0.5f;
     writeSlot(target, v);
     return true;
+}
+
+bool SkellierProcessor::resetSlotControls(int slot,int expectedType){
+    if(slot<0||slot>=kNumSlots||expectedType<=Empty||slotType(slot)!=expectedType||!importedAvailable(expectedType))return false;
+    const auto current=readSlot(slot);SlotValues defaults;defaults.type=expectedType;defaults.on=current.on;defaults.artwork=current.artwork;
+    for(int k=0;k<kMaxKnobs;++k)defaults.k[k]=k<info(expectedType).numKnobs?defaultNorm(expectedType,k):.5f;
+    if(expectedType==GlitchNative)defaults.native[nGlitchTrim]=(24.f-1.3f)/24.f;
+    pushUndo();writeSlot(slot,defaults);return true;
+}
+bool SkellierProcessor::toggleSlotPower(int slot,int expectedType){
+    if(slot<0||slot>=kNumSlots||expectedType<=Empty||slotType(slot)!=expectedType)return false;
+    pushUndo();auto* p=apvts.getParameter(onId(slot));p->beginChangeGesture();p->setValueNotifyingHost(slotOn(slot)?0.f:1.f);p->endChangeGesture();return true;
+}
+bool SkellierProcessor::copySlotControls(int slot,int expectedType){
+    if(slot<0||slot>=kNumSlots||expectedType<=Empty||slotType(slot)!=expectedType)return false;
+    clipboard=readSlot(slot);return true;
+}
+bool SkellierProcessor::canPasteSlotControls(int slot,int expectedType) const{
+    return slot>=0&&slot<kNumSlots&&expectedType>Empty&&clipboard.type==expectedType&&slotType(slot)==expectedType;
+}
+bool SkellierProcessor::pasteSlotControls(int slot,int expectedType){
+    if(!canPasteSlotControls(slot,expectedType))return false;
+    auto value=clipboard;value.on=slotOn(slot);value.artwork=artworkChoices[size_t(slot)].load();pushUndo();writeSlot(slot,value);return true;
 }
 
 void SkellierProcessor::removeSlot(int slot) {

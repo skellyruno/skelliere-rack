@@ -86,6 +86,7 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+    void showSlotMenu();
     void mouseMove(const juce::MouseEvent&) override;
     void mouseEnter(const juce::MouseEvent& e) override { mouseMove(e);if(type==skl::Empty)repaint(); }
     void mouseExit(const juce::MouseEvent&) override { if(type==skl::Empty||tuneHover>=0){tuneHover=-1;repaint();} }
@@ -231,7 +232,7 @@ private:
     void say(const juce::String&);
     void rebuildStripButtons();
     SkellierProcessor& proc;
-    int curPreset = 0,shownSolo=-1;
+    int curPreset = 0,shownSolo=-1,presetRefreshTicks=0;
     float inShown = -90.0f, outShown = -90.0f;
     juce::TextButton prevPreset{"<"}, nextPreset{">"}, snapA{"A"}, snapB{"B"}, snapCopy{"COPY"},
         undoBtn{"UNDO"}, redoBtn{"REDO"}, clearBtn{"CLEAR"}, bypassBtn{"BYPASS"};
