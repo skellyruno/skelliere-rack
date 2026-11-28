@@ -47,14 +47,17 @@ private:
     juce::String text;
 };
 
-class LevelMeter final : public juce::Component {
+class LevelMeter final : public juce::Component, public juce::SettableTooltipClient {
 public:
-    void setLevels(float inDb, float outDb) {
-        if(std::abs(inDb-inDb_)<.05f && std::abs(outDb-outDb_)<.05f)return;
-        inDb_=inDb;outDb_=outDb;repaint();
+    void setLevels(float inDb, float outDb,bool guard=false) {
+        if(std::abs(inDb-inDb_)<.05f && std::abs(outDb-outDb_)<.05f&&guard==guard_)return;
+        inDb_=inDb;outDb_=outDb;guard_=guard;repaint();
     }
     void paint(juce::Graphics&) override;
+    std::function<void()> onOptions;
+    void mouseDown(const juce::MouseEvent&) override {if(onOptions)onOptions();}
 private:
+    bool guard_=false;
     float inDb_ = -90.0f, outDb_ = -90.0f;
 };
 

@@ -86,6 +86,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SkellierProcessor::createLay
         if(i>=nGlitchState)name+=" "+String((i>=nGlitchProbability?i-nGlitchProbability:i-nGlitchState)+1);
         layout.add(std::make_unique<AudioParameterFloat>(ParameterID{nativeId(slot,i),1},name,NormalisableRange<float>(0.f,1.f,spec.steps>1?1.f/float(spec.steps-1):0.f),nativeDefault(i)));
     }
+    layout.add(std::make_unique<AudioParameterBool>(ParameterID{"output_guard",1}, "Output Peak Guard", false));
     return layout;
 }
 
@@ -109,6 +110,7 @@ SkellierProcessor::SkellierProcessor()
     inRaw = apvts.getRawParameterValue("in");
     outRaw = apvts.getRawParameterValue("out");
     bypassRaw = apvts.getRawParameterValue("bypass");
+    guardRaw = apvts.getRawParameterValue("output_guard");
     applyFactory(0);
     undoStack.clear(); redoStack.clear();
 }
@@ -178,8 +180,8 @@ void SkellierProcessor::serviceNativeLocked(){
         NativeValues ext{};for(int j=0;j<kNativeControlCount;++j)ext[j]=nativeRaw[s][j]->load(std::memory_order_relaxed);
         float k[kMaxKnobs]{};for(int j=0;j<kMaxKnobs;++j)k[j]=kRaw[s][j]->load(std::memory_order_relaxed);
         const bool selected=slotType(s)==DelayNative;
-        nativeBlocked[size_t(s)].store(selected&&!m->service(ext,k,selected),std::memory_order_relaxed);
-        if(!selected)m->service(ext,k,false);
+        const bool ok=m->service(ext,k,selected);
+        nativeBlocked[size_t(s)].store(selected&&!ok,std::memory_order_relaxed);
     }
 #endif
 }
@@ -211,6 +213,7 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     for(int t=1;t<kNumRackTypes;++t)typeLatency[size_t(t)].store(t==Tune?tuneModule->latency():(mods[0][t]?mods[0][t]->latency():0),std::memory_order_relaxed);
     bypassDelay.prepare(tuneModule->latency()+kNumSlots*std::max(mods[0][SkellDemon]->latency(),mods[0][SkellMixHead]->latency()));
     for (int s = 0; s < kNumSlots; ++s) {lastType[s] = -1;jetPeak[static_cast<size_t>(s)].store(0,std::memory_order_relaxed);exciterPeak[size_t(s)].store(0,std::memory_order_relaxed);}
+    outputGuard.prepare(sampleRate_);
     inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
     inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(inRaw->load()));
     outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(outRaw->load()));
@@ -256,12 +259,14 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     // Advance the untouched input's shadow delay for *both* modes. JUCE's reported
     // latency remains the same when the user toggles Bypass All, avoiding a dry
     // timing jump relative to other tracks when a Tune module is present.
-    const float rawPeak = buffer.getMagnitude(0, total);
+    const auto stereoPeak=[&](){float peak=0;for(int c=0;c<ch;++c)peak=std::max(peak,buffer.getMagnitude(c,total));return peak;};
+    const float rawPeak = stereoPeak();
     bypassDelay.process(buffer, latency, bypass);
     if (bypass) {
+        outputGuard.reset();
         clearMeterTelemetry();
         inPeak.store(juce::jmax(inPeak.load(), rawPeak));
-        outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
+        outPeak.store(juce::jmax(outPeak.load(), stereoPeak()));
         return;
     }
 
@@ -270,7 +275,7 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         const float gain=inputGain.getNextValue();
         for(int c=0;c<ch;++c) buffer.getWritePointer(c)[i]*=gain;
     }
-    inPeak.store(juce::jmax(inPeak.load(), buffer.getMagnitude(0, total)));
+    inPeak.store(juce::jmax(inPeak.load(), stereoPeak()));
 
     double bpm=120.,ppq=0.;int sigNum=4,sigDen=4;bool validPpq=false;
     if(auto* ph=getPlayHead())if(auto pos=ph->getPosition()){
@@ -291,7 +296,8 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 #if SKELLIERE_NATIVE_IMPORTS
                 if(lastType[s]==DelayNative){static_cast<NativeDelayRack*>(mods[s][DelayNative].get())->leaveSlot();nativeModel[size_t(s)].store(-1,std::memory_order_relaxed);}
                 if(type!=GlitchNative)glitchTrigger[size_t(s)].store(false,std::memory_order_relaxed);
-                const bool alreadyPrepared=type==DelayNative&&lastType[s]==-1;
+                const bool alreadyPrepared=type==DelayNative;
+                if(type==DelayNative&&lastType[s]!=-1)static_cast<NativeDelayRack*>(mods[s][DelayNative].get())->activateSlot();
 #else
                 const bool alreadyPrepared=false;
 #endif
@@ -369,11 +375,10 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         const float gain=outputGain.getNextValue();
         for(int c=0;c<ch;++c) buffer.getWritePointer(c)[i]*=gain;
     }
-    for (int c = 0; c < ch; ++c) {
-        float* d = buffer.getWritePointer(c);
-        for (int i = 0; i < total; ++i) d[i] = juce::jlimit(-16.0f, 16.0f, sane(d[i]));
-    }
-    outPeak.store(juce::jmax(outPeak.load(), buffer.getMagnitude(0, total)));
+    const bool protect=guardRaw->load(std::memory_order_relaxed)>.5f;
+    auto* left=buffer.getWritePointer(0);auto* right=ch>1?buffer.getWritePointer(1):nullptr;
+    for(int i=0;i<total;++i){float l=juce::jlimit(-16.f,16.f,sane(left[i])),r=right?juce::jlimit(-16.f,16.f,sane(right[i])):l;outputGuard.process(l,r,protect);left[i]=l;if(right)right[i]=r;}
+    outPeak.store(juce::jmax(outPeak.load(), stereoPeak()));
 }
 
 // ------------------------------------------------------------------ reading
@@ -683,6 +688,9 @@ void SkellierProcessor::setStateInformation(const void* data, int size) {
             }
             tuneFlats.store(bool(state.getProperty("tuneFlats",false)),std::memory_order_relaxed);
             state.setProperty("tuneControlVersion",tuneControlVersion,nullptr);
+            if(!state.getChildWithProperty("id","output_guard").isValid()){
+                juce::ValueTree parameter("PARAM");parameter.setProperty("id","output_guard",nullptr);parameter.setProperty("value",0.f,nullptr);state.appendChild(parameter,nullptr);
+            }
             apvts.replaceState(state);
         }
     latencyUpdater.triggerAsyncUpdate();

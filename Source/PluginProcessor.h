@@ -1,4 +1,5 @@
 #pragma once
+#include "OutputPeakGuard.h"
 #include <JuceHeader.h>
 #include "RackModuleFactory.h"
 #include <mutex>
@@ -122,6 +123,8 @@ private:
     std::atomic<float>* inRaw=nullptr;
     std::atomic<float>* outRaw=nullptr;
     std::atomic<float>* bypassRaw=nullptr;
+    std::atomic<float>* guardRaw=nullptr;
+    skl::OutputPeakGuard outputGuard;
     std::unique_ptr<skl::ModuleBase> mods[skl::kNumSlots][skl::kNumRackTypes];
     std::unique_ptr<skl::ModuleBase> tuneModule;
     skl::LatencyAlignedBypass bypassDelay;

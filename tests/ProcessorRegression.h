@@ -4,7 +4,7 @@
 inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
-    require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1+skl::kNativeControlCount),"Parameter count changed unexpectedly");
+    require(p.getParameters().size()==76+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1+skl::kNativeControlCount),"Parameter count changed unexpectedly");
     require(skl::kNumRackTypes==53 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
@@ -19,7 +19,15 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kAdvancedCount;++i)ordered(p.advancedId(s,i));
     for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kNativeControlCount;++i)ordered(p.nativeId(s,i));
+    ordered("output_guard");
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
+    // Optional sample-peak protection must be off for old sessions, and
+    // never affect latency-aligned Bypass All.
+    p.clearRack();set("in",0);set("out",0);set("output_guard",1);juce::AudioBuffer<float> guardAudio(2,257);juce::MidiBuffer guardMidi;
+    for(int c=0;c<2;++c)for(int i=0;i<257;++i)guardAudio.setSample(c,i,c?-.5f:2.f);
+    p.processBlock(guardAudio,guardMidi);require(guardAudio.getMagnitude(0,257)<=skl::OutputPeakGuard::ceiling&&std::abs(guardAudio.getSample(1,0)/guardAudio.getSample(0,0)+.25f)<1e-6f,"Peak guard linked ceiling");
+    set("bypass",1);for(int i=0;i<257;++i)guardAudio.setSample(0,i,2.f);p.processBlock(guardAudio,guardMidi);require(guardAudio.getSample(0,0)==2.f,"Bypass guard must be transparent");set("bypass",0);
+    auto guardOld=p.apvts.copyState();auto guardNode=guardOld.getChildWithProperty("id","output_guard");guardOld.removeChild(guardNode,nullptr);juce::MemoryBlock guardBinary;juce::AudioProcessor::copyXmlToBinary(*guardOld.createXml(),guardBinary);p.setStateInformation(guardBinary.getData(),int(guardBinary.getSize()));require(p.apvts.getRawParameterValue("output_guard")->load()==0,"Old session guard default");
 #if SKELLIERE_NATIVE_IMPORTS
     // Real host-state paths, not the portable buffer stand-in.
     p.clearRack();require(p.addModule(skl::GlitchNative,0),"Glitch missing");

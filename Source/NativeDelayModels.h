@@ -55,11 +55,20 @@ public:
         if(rate<32000||rate>192000||!budget)return false;
         if(s.model==0){exchange.publish(std::make_unique<Owned>(nullptr,budget,0,generation,audible,gen,s));last=s;lastGeneration=gen;return true;}
         auto c=configuration(s,classic);const auto bytes=delayStorageEstimate(c,rate,30.,capacity);
-        if(bytes>128u*MiB||!budget->acquire(bytes))return false;
+        // The estimate includes the temporary Bank construction ring. Reserve
+        // that peak against the rack budget, but enforce the per-engine cap
+        // on actual persistent storage after construction.
+        if(bytes>256u*MiB||!budget->acquire(bytes))return false;
         std::unique_ptr<skellay::Engine> e;
         try{e=skellay::prepare(c,rate,std::clamp(bpm,30.,300.),capacity,30.);}catch(...){budget->release(bytes);return false;}
         if(!e){budget->release(bytes);return false;}
-        std::unique_ptr<Owned> owned;try{owned=std::make_unique<Owned>(std::move(e),budget,bytes,generation,audible,gen,s);}catch(...){e.reset();budget->release(bytes);return false;}
+        const auto measured=e->delayStorageBytes();
+        // Only Bank exposes its persistent ring capacity; these rack banks
+        // have no pattern tables. Keep Modern's conservative estimate.
+        const auto resident=s.model==2&&measured>0?measured:bytes;
+        if(resident>128u*MiB||resident>bytes){e.reset();budget->release(bytes);return false;}
+        budget->release(bytes-resident);
+        std::unique_ptr<Owned> owned;try{owned=std::make_unique<Owned>(std::move(e),budget,resident,generation,audible,gen,s);}catch(...){e.reset();budget->release(resident);return false;}
         exchange.publish(std::move(owned));last=s;lastGeneration=gen;return true;
     }
     void collect(){exchange.collect();}

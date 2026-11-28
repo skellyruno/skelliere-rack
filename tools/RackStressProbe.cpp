@@ -17,11 +17,12 @@ static void set(SkellierProcessor& p,const juce::String& id,float v){p.apvts.get
 int main(int argc,char** argv){
     juce::ScopedJuceInitialiser_GUI gui;
     const int sr=argc>1?std::atoi(argv[1]):192000,instances=argc>2?std::atoi(argv[2]):1,seconds=argc>3?std::atoi(argv[3]):30;
-    const bool catalog=argc>4&&std::string(argv[4])=="catalog";
+    const bool catalog=argc>4&&std::string(argv[4]).find("catalog")==0;
+    const bool guard=argc>4&&std::string(argv[4]).find("guard")!=std::string::npos;
     if(sr<32000||sr>192000||instances<1||instances>4||seconds<2||seconds>300)return 2;
     const int blocks[]={32,64,127,257,511,1024,17};using Clock=std::chrono::steady_clock;
     const long baseline=rss();std::vector<std::unique_ptr<SkellierProcessor>> racks;
-    for(int j=0;j<instances;++j){auto p=std::make_unique<SkellierProcessor>();p->clearRack();p->setRateAndBufferSizeDetails(sr,257);p->prepareToPlay(sr,257);racks.push_back(std::move(p));}
+    for(int j=0;j<instances;++j){auto p=std::make_unique<SkellierProcessor>();p->clearRack();p->setRateAndBufferSizeDetails(sr,257);p->prepareToPlay(sr,257);set(*p,"output_guard",guard?1.f:0.f);racks.push_back(std::move(p));}
     const long empty=rss();const int native[]={skl::FlangNative,skl::DelayNative,skl::GlitchNative,skl::FlangNative,skl::DelayNative,skl::GlitchNative,skl::DelayNative,skl::DelayNative};
     int epochs=catalog?(skl::kNumRackTypes-1+7)/8:1;std::vector<double> usage;size_t misses=0,nonfinite=0,limitHits=0;double maxPeak=0;int tested=0,wrong=0;long loaded=0;
     float l[1024]{},r[1024]{};float* ptr[]={l,r};juce::MidiBuffer midi;
@@ -52,5 +53,5 @@ int main(int argc,char** argv){
     std::printf("RSS after release (processors retained): %ld KiB\n",rss());
     for(auto& p:racks){p->prepareToPlay(sr,257);juce::AudioBuffer<float> b(ptr,2,17);b.clear();inCallback=true;p->processBlock(b,midi);inCallback=false;for(int i=0;i<17;++i)if(!std::isfinite(l[i])||!std::isfinite(r[i]))return 7;p->releaseResources();}
     std::printf("Reprepare and release passed; total callback new/delete %zu/%zu\n",allocations,deletions);
-    return nonfinite||wrong||allocations||deletions?1:0;
+    return nonfinite||wrong||allocations||deletions||(guard&&maxPeak>skl::OutputPeakGuard::ceiling)?1:0;
 }

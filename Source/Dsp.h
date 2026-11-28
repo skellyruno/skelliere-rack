@@ -7,6 +7,7 @@
 #include <SkellCore/backends/SkellyTuneBackend.h>
 #include <SkellCore/backends/deesser/PhraseAwareDetector.h>
 #include "Modules.h"
+#include "SlotDelayStorage.h"
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -63,28 +64,6 @@ struct Biquad {
 // Each slot can reuse its delay history allocation between mutually exclusive
 // modules. All lines belonging to one module receive disjoint slices; no
 // allocation or ownership changes occur in the audio callback.
-class SlotDelayArena {
-public:
-    using Storage = std::vector<float>;
-    SlotDelayArena():storage(std::make_shared<Storage>()){}
-    void beginModule() noexcept {cursor=0;}
-    std::size_t reserve(std::size_t count) {
-        const auto offset=cursor;cursor+=count;
-        if(storage->size()<cursor)storage->resize(cursor,0.f);
-        return offset;
-    }
-    std::shared_ptr<Storage> storage;
-private:std::size_t cursor=0;
-};
-inline thread_local SlotDelayArena* preparingSlotDelayArena=nullptr;
-class SlotDelayPreparation {
-public:
-    explicit SlotDelayPreparation(SlotDelayArena& arena) noexcept:previous(preparingSlotDelayArena){arena.beginModule();preparingSlotDelayArena=&arena;}
-    ~SlotDelayPreparation(){preparingSlotDelayArena=previous;}
-    SlotDelayPreparation(const SlotDelayPreparation&)=delete;
-    SlotDelayPreparation& operator=(const SlotDelayPreparation&)=delete;
-private:SlotDelayArena* previous;
-};
 struct DelayLine {
     void prepare(int size) {
         count=std::max(8,size);

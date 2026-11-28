@@ -250,7 +250,7 @@ void LcdDisplay::paint(Graphics& g) {
 void LevelMeter::paint(Graphics& g) {
     auto r = getLocalBounds().toFloat();
     auto bar = [&](Rectangle<float> a, float db, const juce::String& name) {
-        g.setColour(pal::inkDim); g.setFont(font(10.5f,false));
+        g.setColour(name=="OUT"&&guard_?Colour(0xff93d6a0):db>=0.f?Colour(0xfff36d61):pal::inkDim); g.setFont(font(10.5f,false));
         g.drawText(name, a.removeFromLeft(23.0f), juce::Justification::centredLeft, false);
         paintRecessedWindow(g,a,4.f);a=a.reduced(2.5f,1.2f);
         const int segs = 36;
@@ -1083,6 +1083,8 @@ RackUI::RackUI(SkellierProcessor& p)
     scaleBtn[2].setToggleState(true, juce::dontSendNotification);
     lcd.setText("SKELL AUDIO    /    ANALOG-STYLE PROCESSORS");
     addAndMakeVisible(lcd); addAndMakeVisible(meters); addAndMakeVisible(inKnob); addAndMakeVisible(outKnob);
+    meters.setTooltip("Input/output peak meter. Click for optional -1 dBFS output peak protection (not true peak). Green OUT indicates guard enabled; red IN or unguarded OUT indicates over 0 dBFS.");
+    meters.onOptions=[this]{juce::PopupMenu menu;menu.setLookAndFeel(&getLookAndFeel());const bool enabled=proc.apvts.getRawParameterValue("output_guard")->load()>.5f;menu.addSectionHeader("OUTPUT HEADROOM");menu.addItem(1,"Sample peak guard (-1 dBFS)",true,enabled);juce::Component::SafePointer<RackUI> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&meters).withMinimumWidth(230),[safe](int choice){if(safe==nullptr||choice!=1)return;auto* parameter=safe->proc.apvts.getParameter("output_guard");parameter->beginChangeGesture();parameter->setValueNotifyingHost(parameter->getValue()>.5f?0.f:1.f);parameter->endChangeGesture();safe->say(parameter->getValue()>.5f?"Output peak guard ON (-1 dBFS)":"Output peak guard OFF");});};
     stripsLabel.setText("DREAM STRIPS", juce::dontSendNotification);
     stripsLabel.setFont(font(12.0f, true));
     stripsLabel.setColour(juce::Label::textColourId, pal::inkDim);
@@ -1178,7 +1180,7 @@ void RackUI::timerCallback() {
     auto toDb = [](float g) { return g > 1.0e-5f ? 20.0f * std::log10(g) : -90.0f; };
     inShown = juce::jmax(toDb(proc.takeInputPeak()), inShown - 2.0f);
     outShown = juce::jmax(toDb(proc.takeOutputPeak()), outShown - 2.0f);
-    meters.setLevels(inShown, outShown);
+    meters.setLevels(inShown, outShown,proc.apvts.getRawParameterValue("output_guard")->load()>.5f&&!bypass);
     for (int s = 0; s < kNumSlots; ++s) {
         strip.slots[(size_t) s]->setMeter(proc.gainReduction(s));
         if(hasOutputPeak(proc.slotType(s))){
