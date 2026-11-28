@@ -7,6 +7,7 @@
 #include <SkellCore/backends/SkellyTuneBackend.h>
 #include <SkellCore/backends/deesser/PhraseAwareDetector.h>
 #include "Modules.h"
+#include "SlotDelayStorage.h"
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -60,19 +61,31 @@ struct Biquad {
     }
 };
 
+// Each slot can reuse its delay history allocation between mutually exclusive
+// modules. All lines belonging to one module receive disjoint slices; no
+// allocation or ownership changes occur in the audio callback.
 struct DelayLine {
-    std::vector<float> buf; int w = 0;
-    void prepare(int size) { buf.assign((size_t) std::max(8, size), 0.0f); w = 0; }
-    void clear() { std::fill(buf.begin(), buf.end(), 0.0f); w = 0; }
-    inline void write(float x) { buf[(size_t) w] = x; if (++w >= (int) buf.size()) w = 0; }
-    inline float read(float d) const {  // d samples behind the last written sample, linear interpolation
-        const int n = (int) buf.size();
-        d = std::clamp(d, 1.0f, (float) (n - 2));
-        const int i = (int) d; const float fr = d - (float) i;
-        int p0 = w - 1 - i; if (p0 < 0) p0 += n;
-        int p1 = p0 - 1; if (p1 < 0) p1 += n;
-        return buf[(size_t) p0] * (1 - fr) + buf[(size_t) p1] * fr;
+    void prepare(int size) {
+        count=std::max(8,size);
+        if(auto* arena=preparingSlotDelayArena){storage=arena->storage;offset=arena->reserve(std::size_t(count));}
+        else {storage=std::make_shared<SlotDelayArena::Storage>(std::size_t(count),0.f);offset=0;}
+        clear();
     }
+    // History is invalid until overwritten after a reset. This is equivalent
+    // to clearing every sample but avoids large callback-time memset spikes.
+    void clear() noexcept {w=0;valid=0;}
+    int size() const noexcept {return count;}
+    inline void write(float x) noexcept {(*storage)[offset+std::size_t(w)]=x;if(++w>=count)w=0;if(valid<count)++valid;}
+    inline float sampleBehind(int d) const noexcept {
+        if(d<0||d>=valid)return 0.f;
+        int p=w-1-d;if(p<0)p+=count;return (*storage)[offset+std::size_t(p)];
+    }
+    inline float read(float d) const noexcept {
+        d=std::clamp(d,1.f,float(count-2));const int i=int(d);const float fr=d-float(i);
+        return sampleBehind(i)*(1-fr)+sampleBehind(i+1)*fr;
+    }
+private:
+    std::shared_ptr<SlotDelayArena::Storage> storage;std::size_t offset=0;int count=0,w=0,valid=0;
 };
 
 // ---------------------------------------------------------------- latency-aligned rack bypass

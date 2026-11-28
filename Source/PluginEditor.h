@@ -47,14 +47,17 @@ private:
     juce::String text;
 };
 
-class LevelMeter final : public juce::Component {
+class LevelMeter final : public juce::Component, public juce::SettableTooltipClient {
 public:
-    void setLevels(float inDb, float outDb) {
-        if(std::abs(inDb-inDb_)<.05f && std::abs(outDb-outDb_)<.05f)return;
-        inDb_=inDb;outDb_=outDb;repaint();
+    void setLevels(float inDb, float outDb,bool guard=false) {
+        if(std::abs(inDb-inDb_)<.05f && std::abs(outDb-outDb_)<.05f&&guard==guard_)return;
+        inDb_=inDb;outDb_=outDb;guard_=guard;repaint();
     }
     void paint(juce::Graphics&) override;
+    std::function<void()> onOptions;
+    void mouseDown(const juce::MouseEvent&) override {if(onOptions)onOptions();}
 private:
+    bool guard_=false;
     float inDb_ = -90.0f, outDb_ = -90.0f;
 };
 
@@ -86,6 +89,7 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+    void showSlotMenu();
     void mouseMove(const juce::MouseEvent&) override;
     void mouseEnter(const juce::MouseEvent& e) override { mouseMove(e);if(type==skl::Empty)repaint(); }
     void mouseExit(const juce::MouseEvent&) override { if(type==skl::Empty||tuneHover>=0){tuneHover=-1;repaint();} }
@@ -231,7 +235,7 @@ private:
     void say(const juce::String&);
     void rebuildStripButtons();
     SkellierProcessor& proc;
-    int curPreset = 0,shownSolo=-1;
+    int shownSolo=-1,presetRefreshTicks=0;
     float inShown = -90.0f, outShown = -90.0f;
     juce::TextButton prevPreset{"<"}, nextPreset{">"}, snapA{"A"}, snapB{"B"}, snapCopy{"COPY"},
         undoBtn{"UNDO"}, redoBtn{"REDO"}, clearBtn{"CLEAR"}, bypassBtn{"BYPASS"};

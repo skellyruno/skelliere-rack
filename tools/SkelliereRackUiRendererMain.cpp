@@ -47,15 +47,26 @@ int main(int argc, char** argv) {
     catch(const std::exception& e) { std::fprintf(stderr,"Processor regression: %s\n",e.what()); return 1; }
     SkellierProcessor processor;
     processor.prepareToPlay(48000.0, 512);
-    // Put both artwork-enabled effects in view without changing factory presets.
-    processor.clearRack();
-    processor.addModule(skl::Eq, 0);
-    processor.addModule(skl::Air, 1);
+    // Capture the actual new-instance editor before loading scene fixtures.
     using Clock=std::chrono::steady_clock;
     auto ms=[](Clock::time_point t){return std::chrono::duration<double,std::milli>(Clock::now()-t).count();};
     const auto startEditor=Clock::now();
     SkellierEditor editor(processor);
     const auto editorMs=ms(startEditor);
+    {
+        const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));output.createDirectory();
+        auto save=[&](const juce::String& name){auto image=editor.createComponentSnapshot(editor.getLocalBounds(),true,1.f);auto f=output.getChildFile(name);f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;return image.isValid()&&stream.openedOk()&&png.writeImageToStream(image,stream);};
+        juce::ComboBox* preset=nullptr;visit(editor,[&](juce::Component& c){if(auto* box=dynamic_cast<juce::ComboBox*>(&c))if(box->getProperties().contains("rackPresetMenu"))preset=box;});
+        if(!preset||preset->getSelectedId()!=4||preset->getItemId(0)!=4||!save("fresh_empty.png"))return 1;
+        preset->showPopup();
+        bool actualMenu=false;visit(editor,[&](juce::Component& c){if(c.getName()=="menu"&&c.isVisible()&&c.getNumChildComponents()>=7)actualMenu=true;});
+        if(!actualMenu||!save("main_preset_menu.png")){std::fprintf(stderr,"Actual preset popup missing\n");return 1;}
+        preset->hidePopup();
+        preset->setSelectedId(1,juce::sendNotificationSync);if(processor.matchingFactoryPreset()!=0)return 1;
+        preset->setSelectedId(4,juce::sendNotificationSync);if(processor.matchingFactoryPreset()!=3)return 1;
+        processor.undo();if(processor.matchingFactoryPreset()!=0)return 1;
+        std::puts("Fresh empty rack, actual main preset popup, stable IDs and preset undo passed");
+    }
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::activeCatalogCount())+" Skell effects";
     options.scenes={{"catalog_1",1260,870,0,1},{"catalog_2",1260,870,1,1},{"catalog_3",1260,870,2,1},{"catalog_4",1260,870,3,1},{"catalog_5",1260,870,4,1},{"catalog_6",1260,870,5,1},{"catalog_7",1260,870,6,1},
@@ -70,9 +81,11 @@ int main(int argc, char** argv) {
     if(args.gates){options.scenes={{"gate_modules",1260,870,13,1},{"gate_modules_edit",1260,870,13,1},{"gate_modules_80",1008,696,13,1},{"gate_modules_150",1890,1305,13,1}};options.mustDiffer={{"gate_modules","gate_modules_edit"}};}
     if(args.consolidated){options.scenes={{"new_dynamics",1260,870,14,1},{"new_color",1260,870,15,1},{"new_space",1260,870,16,1},{"new_utility",1260,870,17,1},{"new_dynamics_150",1890,1305,14,1},{"new_utility_edit",1260,870,17,1}};options.mustDiffer={{"new_utility","new_utility_edit"}};for(int i=0;i<(skl::activeCatalogCount()+3)/4;++i)options.scenes.push_back({"identity_"+juce::String(i+1),1260,870,18+i,1});options.scenes.push_back({"identity_80",1008,696,18,1});options.scenes.push_back({"tune_edit",1260,870,18,1});options.scenes.push_back({"tune_150",1890,1305,18,1});options.scenes.push_back({"mixhead_switches_150",1890,1305,12,1});options.scenes.push_back({"tune_flats",1260,870,18,1});options.scenes.push_back({"fet_black",1260,870,17,1});options.mustDiffer.push_back({"new_utility","fet_black"});options.scenes.push_back({"tune_slow",1260,870,18,1});options.scenes.push_back({"tune_fast",1260,870,18,1});options.mustDiffer.push_back({"tune_slow","tune_fast"});}
     if(args.full&&!args.consolidated){options.scenes.push_back({"new_dynamics",1260,870,14,1});options.scenes.push_back({"new_color",1260,870,15,1});options.scenes.push_back({"new_space",1260,870,16,1});options.scenes.push_back({"new_utility",1260,870,17,1});}
+    if(!args.engines&&!args.colors&&!args.gates&&!args.consolidated){options.scenes.push_back({"guard_on",1260,870,8,1});options.mustDiffer.push_back({"approved_studio","guard_on"});}
     int expectedWidth=1260,expectedHeight=870,expectedCount=4;bool bindings=true,libraryOK=true,expectedLibrary=true,navOK=true,expectedLast=false;
     options.configure=[&](const skellcore::ui::headless::Scene& scene){
         expectedWidth=scene.width;expectedHeight=scene.height;expectedCount=0;bindings=true;libraryOK=true;navOK=true;processor.clearRack();
+        processor.apvts.getParameter("output_guard")->setValueNotifyingHost(scene.id=="guard_on"?1.f:0.f);
         expectedLast=scene.id=="rack_last_slots"||scene.id=="rack_last_hidden";
         expectedLibrary=!(scene.id=="library_hidden"||scene.id=="library_hidden_edit"||scene.id=="library_hidden_80"||scene.id=="library_hidden_150"||scene.id=="rack_last_hidden");
         const bool edit=scene.id=="studio_edit"||scene.id=="library_hidden_edit"||scene.id=="color_modules_edit"||scene.id=="engine_modules_edit"||scene.id=="gate_modules_edit"||scene.id=="new_utility_edit"||scene.id=="tune_edit";
@@ -213,12 +226,12 @@ int main(int argc, char** argv) {
     for (const auto& error : result.errors) std::fprintf(stderr, "%s\n", error.toRawUTF8());
     std::printf("Captured %d real Skelliere Rack editor screenshots\n", result.captured);
     if(args.consolidated){
-        processor.clearRack();processor.addModule(skl::Multiband,0);processor.addModule(skl::Doubler,1);
+        processor.clearRack();processor.addModule(skl::Multiband,0);processor.addModule(skl::Doubler,1);processor.addModule(skl::Resonance,2);processor.addModule(skl::Exciter,3);
         auto set=[&](int slot,int param,float value){processor.apvts.getParameter(SkellierProcessor::advancedId(slot,param))->setValueNotifyingHost(value);};
-        set(0,skl::advMode,1);set(0,skl::bandControl(0,0),.14f);set(0,skl::bandControl(2,0),.23f);set(0,skl::bandControl(6,6),1);set(0,skl::bandControl(6,0),.15f);set(1,skl::advMode,1);
-        juce::AudioBuffer<float> b(2,512);juce::MidiBuffer midi;for(int block=0;block<200;++block){for(int c=0;c<2;++c)for(int i=0;i<512;++i){const double n=block*512+i;b.setSample(c,i,.28f*std::sin(2*skl::kPi*55*n/48000)+.16f*std::sin(2*skl::kPi*2500*n/48000));}processor.processBlock(b,midi);}
-        for(int j=0;j<2;++j){skl::ui::AdvancedPanel panel(processor,j,j?skl::Doubler:skl::Multiband);if(!panel.exerciseBindings()){std::fprintf(stderr,"Advanced parameter binding failed\n");return 1;}if(!j)panel.select(6);auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);auto f=output.getChildFile(j?"advanced-doubler.png":"advanced-multiband.png");f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;if(!img.isValid()||!stream.openedOk()||!png.writeImageToStream(img,stream))return 1;}
-        std::puts("Advanced panel real APVTS bindings and two native captures passed");
+        set(0,skl::advMode,1);set(0,skl::bandControl(0,0),.14f);set(0,skl::bandControl(2,0),.23f);set(0,skl::bandControl(6,6),1);set(0,skl::bandControl(6,0),.15f);set(1,skl::advMode,1);set(2,skl::advMode,1);set(3,skl::advMode,1);
+        juce::AudioBuffer<float> b(2,512);juce::MidiBuffer midi;for(int block=0;block<200;++block){for(int c=0;c<2;++c)for(int i=0;i<512;++i){const double n=block*512+i;b.setSample(c,i,.28f*std::sin(2*skl::kPi*55*n/48000)+.16f*std::sin(2*skl::kPi*2500*n/48000)+.16f*std::sin(2*skl::kPi*6200*n/48000));}processor.processBlock(b,midi);}
+        const int advancedTypes[]={skl::Multiband,skl::Doubler,skl::Resonance,skl::Exciter};const char* advancedNames[]={"advanced-multiband.png","advanced-doubler.png","advanced-resonance.png","advanced-exciter.png"};for(int j=0;j<4;++j){skl::ui::AdvancedPanel panel(processor,j,advancedTypes[j]);if(!panel.exerciseBindings()){std::fprintf(stderr,"Advanced parameter binding failed\n");return 1;}if(!j)panel.select(6);panel.advanceLiveMeter();auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);auto f=output.getChildFile(advancedNames[j]);f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;if(!img.isValid()||!stream.openedOk()||!png.writeImageToStream(img,stream))return 1;}
+        std::puts("Advanced panel real APVTS bindings and four native captures passed");
     }
     if(!args.full){
         if(!result.passed()||result.captured!=int(options.scenes.size()))return 1;

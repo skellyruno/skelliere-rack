@@ -15,7 +15,7 @@ inline Knob advancedSpec(int i) noexcept {
     return {"Unknown",0,1,false,0,Unit::Scalar,0,nullptr};
 }
 inline float advancedDefault(int i){const auto k=advancedSpec(i);return toNorm(k,k.def);}
-inline float advancedReal(int i,float n){const auto k=advancedSpec(i);return std::abs(n-advancedDefault(i))<1e-6f?k.def:toReal(k,n);}
+inline float advancedReal(int i,float n){const auto k=advancedSpec(i);if(!std::isfinite(n))return k.def;n=std::clamp(n,0.f,1.f);return std::abs(n-advancedDefault(i))<1e-6f?k.def:toReal(k,n);}
 using AdvancedValues=std::array<float,kAdvancedCount>;
 inline AdvancedValues advancedDefaults(){AdvancedValues v{};for(int i=0;i<kAdvancedCount;++i)v[i]=advancedDefault(i);return v;}
 }

@@ -606,7 +606,20 @@ public:
         label.setBounds(6,1,juce::jmax(1,box.getWidth()-28),juce::jmax(1,box.getHeight()-2));
         label.setFont(getComboBoxFont(box));label.setJustificationType(juce::Justification::centred);
     }
+    juce::PopupMenu::Options getOptionsForComboBoxPopupMenu(juce::ComboBox& box,juce::Label& label) override {
+        auto options=juce::LookAndFeel_V4::getOptionsForComboBoxPopupMenu(box,label);
+        // Keep the main menu inside the editor rather than opening a separate desktop peer.
+        if(box.getProperties().contains("rackPresetMenu"))return options.withParentComponent(box.getParentComponent()).withMinimumWidth(230).withStandardItemHeight(32).withItemThatMustBeVisible(0);
+        return options;
+    }
     juce::Font getPopupMenuFont() override { return font(15.0f); }
+    void getIdealPopupMenuItemSize(const juce::String& name,bool separator,int standardHeight,int& w,int& h) override {
+        juce::LookAndFeel_V4::getIdealPopupMenuItemSize(name,separator,standardHeight,w,h);
+        if(!separator){h=juce::jmax(h,28);w=juce::jmax(w,170);}
+    }
+    void drawPopupMenuBackground(Graphics& g,int w,int h) override {
+        g.fillAll(Colour(0xff181715));g.setColour(Colour(0xff827664));g.drawRect(0,0,w,h,1);g.setColour(Colour(0xff302b24));g.drawRect(2,2,w-4,h-4,1);
+    }
 
     void fillTextEditorBackground(Graphics& g,int w,int h,juce::TextEditor&) override {
         auto r=juce::Rectangle<float>(0,0,float(w),float(h)).reduced(.5f);

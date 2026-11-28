@@ -4,9 +4,13 @@
 inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
-    require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1+skl::kNativeControlCount),"Parameter count changed unexpectedly");
+    require(p.getParameters().size()==76+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1+skl::kNativeControlCount),"Parameter count changed unexpectedly");
     require(skl::kNumRackTypes==53 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
+    for(int s=0;s<skl::kNumSlots;++s)require(p.slotType(s)==skl::Empty,"New instance must be empty");
+    require(p.matchingFactoryPreset()==3&&!p.canUndo(),"Empty factory default and clean undo history");
     p.prepareToPlay(48000,7);
+    require(p.getLatencySamples()==0,"Empty rack latency");
+    {juce::AudioBuffer<float> b(2,19);juce::MidiBuffer midi;for(int i=0;i<19;++i){b.setSample(0,i,.02f*i);b.setSample(1,i,-.015f*i);}auto copy=b;p.processBlock(b,midi);for(int i=0;i<19;++i)for(int c=0;c<2;++c)require(b.getSample(c,i)==copy.getSample(c,i),"Empty rack transparent");}
     int parameterIndex=0;
     auto ordered=[&](const juce::String& id) {
         auto* parameter=dynamic_cast<juce::AudioProcessorParameterWithID*>(p.getParameters()[parameterIndex++]);
@@ -19,7 +23,15 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kAdvancedCount;++i)ordered(p.advancedId(s,i));
     for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kNativeControlCount;++i)ordered(p.nativeId(s,i));
+    ordered("output_guard");
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
+    // Optional sample-peak protection must be off for old sessions, and
+    // never affect latency-aligned Bypass All.
+    p.clearRack();set("in",0);set("out",0);set("output_guard",1);juce::AudioBuffer<float> guardAudio(2,257);juce::MidiBuffer guardMidi;
+    for(int c=0;c<2;++c)for(int i=0;i<257;++i)guardAudio.setSample(c,i,c?-.5f:2.f);
+    p.processBlock(guardAudio,guardMidi);require(guardAudio.getMagnitude(0,257)<=skl::OutputPeakGuard::ceiling&&std::abs(guardAudio.getSample(1,0)/guardAudio.getSample(0,0)+.25f)<1e-6f,"Peak guard linked ceiling");
+    set("bypass",1);for(int i=0;i<257;++i)guardAudio.setSample(0,i,2.f);p.processBlock(guardAudio,guardMidi);require(guardAudio.getSample(0,0)==2.f,"Bypass guard must be transparent");set("bypass",0);
+    auto guardOld=p.apvts.copyState();auto guardNode=guardOld.getChildWithProperty("id","output_guard");guardOld.removeChild(guardNode,nullptr);juce::MemoryBlock guardBinary;juce::AudioProcessor::copyXmlToBinary(*guardOld.createXml(),guardBinary);p.setStateInformation(guardBinary.getData(),int(guardBinary.getSize()));require(p.apvts.getRawParameterValue("output_guard")->load()==0,"Old session guard default");
 #if SKELLIERE_NATIVE_IMPORTS
     // Real host-state paths, not the portable buffer stand-in.
     p.clearRack();require(p.addModule(skl::GlitchNative,0),"Glitch missing");
@@ -96,6 +108,14 @@ inline void processorRegression() {
             p.undo();require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-old)<1e-6f,"Module preset undo failed");}
         require(!p.applyModulePreset(0,skl::Trim,0)&&!p.applyModulePreset(0,type,3)&&!p.applyModulePreset(-1,type,0),"Stale or invalid preset accepted");
     }
+    p.clearRack();require(p.addModule(skl::Resonance,0)&&p.addModule(skl::Resonance,1)&&p.addModule(skl::Trim,2),"Clipboard fixture");
+    set(p.knobId(0,0),.83f);set(p.advancedId(0,skl::advMode),1);set(p.onId(1),0);p.artworkChoices[1].store(2);
+    require(p.copySlotControls(0,skl::Resonance)&&p.canPasteSlotControls(1,skl::Resonance)&&!p.canPasteSlotControls(2,skl::Trim),"Clipboard type safety");
+    require(p.pasteSlotControls(1,skl::Resonance)&&!p.slotOn(1)&&p.artworkChoices[1].load()==2&&p.apvts.getRawParameterValue(p.knobId(1,0))->load()==.83f&&p.apvts.getRawParameterValue(p.advancedId(1,skl::advMode))->load()==1,"Clipboard preserves receiving power/finish, transfers controls");
+    p.undo();require(p.apvts.getRawParameterValue(p.advancedId(1,skl::advMode))->load()==0,"Clipboard undo");
+    require(p.resetSlotControls(0,skl::Resonance)&&p.apvts.getRawParameterValue(p.advancedId(0,skl::advMode))->load()==0,"Reset effect controls");p.undo();require(p.apvts.getRawParameterValue(p.advancedId(0,skl::advMode))->load()==1,"Reset undo");
+    require(p.toggleSlotPower(0,skl::Resonance)&&!p.slotOn(0),"Context power action");p.undo();require(p.slotOn(0),"Context power undo");
+    p.applyFactory(0);require(p.matchingFactoryPreset()==0,"Factory preset identity");set(p.knobId(0,0),.42f);require(p.matchingFactoryPreset()==-1,"Edited preset should be custom");p.applyFactory(0);require(p.matchingFactoryPreset()==0,"Factory reload identity");
     require(p.numFactory()==7&&p.factoryName(0)=="Silk Lead"&&p.factoryName(3)=="Empty rack","Factory indices changed");
     for(int i=4;i<p.numFactory();++i){
         p.applyFactory(i);int occupied=0;for(int slot=0;slot<skl::kNumSlots;++slot)if(p.slotType(slot)!=skl::Empty)++occupied;

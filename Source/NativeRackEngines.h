@@ -14,6 +14,7 @@
 #include <dsp/GateShaper.h>
 #include <dsp/Crossfader.h>
 #include "NativeDelayModels.h"
+#include "DelayRenderTransition.h"
 #include "../research/NativeGlitchPattern.h"
 namespace skl {
 inline float importedControl(int t,int i,const float* k) noexcept {
@@ -47,7 +48,7 @@ public:
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         if(!ready||!b.getNumChannels()||!b.getNumSamples())return;
         const int mode=int(std::lround(importedControl(FlangNative,0,k)*3));
-        skellflang::Controls controls;controls.depth=importedControl(FlangNative,1,k);controls.speed=importedControl(FlangNative,2,k);controls.delay=importedControl(FlangNative,3,k);controls.spread=importedControl(FlangNative,4,k);
+        skellflang::Controls controls;controls.order=3;controls.depth=importedControl(FlangNative,1,k);controls.speed=importedControl(FlangNative,2,k);controls.delay=importedControl(FlangNative,3,k);controls.spread=importedControl(FlangNative,4,k);
         const float mix=importedControl(FlangNative,5,k),step=float(1./(.005*rate));
         if(!seeded){wet=active?mix:0;seeded=true;}
         if(selected!=mode){held=last;transition=selected<0?1.f:0.f;selected=mode;clock=0;
@@ -88,7 +89,10 @@ public:
         state=skellayRackState(p);engine=std::make_unique<SKELLdelay::Delay2Engine>(state,rate,tempo,1,true);engine->reserve(30.);
         advanced.prepare(int(sr),block,budget);for(auto& x:scratch)x.resize(size_t(advanced.maxBlock()));reset();
     }
-    void reset() override {seeded=false;wet=0;activeModel=-1;visibleModel.store(-1);last={};held={};fade=1;advanced.invalidate();if(engine)engine->restart(state,tempo,true);}
+    void reset() override {advanced.invalidate();activateSlot();}
+    // Leaving the slot already invalidates old advanced publications. Do not
+    // invalidate the new request prepared before the audio thread sees entry.
+    void activateSlot() noexcept {seeded=false;wet=0;renderTransition.reset();visibleModel.store(-1);/* First process seeds and resets the Classic history once. */}
     void setTempo(double bpm) noexcept override {tempo=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);serviceTempo.store(tempo,std::memory_order_relaxed);}
     void setExtended(const NativeValues& v) noexcept {ext=v;}
     // One message-thread producer. A budget rejection keeps the current model.
@@ -124,21 +128,20 @@ public:
             for(int i=0;i<n;++i){a[i]=sane(l[start+i]);c[i]=r?sane(r[start+i]):a[i];}
             // Consume pending/retired engines even when Classic is selected.
             const bool ok=advanced.process(a,c,n,tempo,controls);const int actual=advanced.model();
-            const int mode=want==0?0:ok&&actual>0?actual:-1;
-            if(mode!=activeModel){held=last;fade=activeModel<0?1.f:0.f;activeModel=mode;}
+            const int mode=renderTransition.begin(want,ok,actual);
             visibleModel.store(mode,std::memory_order_relaxed);
             for(int i=0;i<n;++i){const float x=sane(l[start+i]),y=r?sane(r[start+i]):x;float oldL=x,oldR=y;engine->process(&oldL,&oldR,1);
                 const bool swap=mode==1&&next.v[6]==1;
                 const float vL=mode==0?oldL:mode>0?(swap?c[i]:a[i]):x,vR=mode==0?oldR:mode>0?(swap?a[i]:c[i]):y;
-                fade=std::min(1.f,fade+step);last={held[0]+fade*(vL-held[0]),held[1]+fade*(vR-held[1])};
+                const auto last=renderTransition.process(oldL,oldR,vL,vR,step);
                 wet+=std::clamp((active?p[5]:0.f)-wet,-step,step);const float w=mode<0?0.f:wet;
                 l[start+i]=w==0?x:sane(x+w*(last[0]*trim-x));if(r)r[start+i]=w==0?y:sane(y+w*(last[1]*trim-y));}
         }
     }
 private:
-    double rate=48000,tempo=120,previousTempo=120;float wet=0,fade=1;bool seeded=false;SKELLdelay::Delay2State state{};std::unique_ptr<SKELLdelay::Delay2Engine> engine;
+    double rate=48000,tempo=120,previousTempo=120;float wet=0;bool seeded=false;SKELLdelay::Delay2State state{};std::unique_ptr<SKELLdelay::Delay2Engine> engine;
     NativeValues ext=nativeDefaults();std::shared_ptr<native_delay::RackBudget> budget;native_delay::PreparedSlot advanced;
-    std::array<std::vector<float>,2> scratch;std::atomic<double> serviceTempo{120};std::atomic<int> visibleModel{-1},status{0};int activeModel=-1;std::array<float,2> last{},held{};bool draining=false;int drainFrames=0;
+    std::array<std::vector<float>,2> scratch;std::atomic<double> serviceTempo{120};std::atomic<int> visibleModel{-1},status{0};native_delay::RenderTransition renderTransition;bool draining=false;int drainFrames=0;
 };
 // Original gate/slice/reverse/trigger kernels from the tested candidate.
 class NativeGlitchRack final:public ModuleBase {

@@ -2,25 +2,26 @@
 #include "Dsp.h"
 #include "AlignedTape4x.h"
 namespace skl {
-// Experimental, not bound to the existing Exciter or Doubler identity.
+// Opt-in advanced color and space processors; legacy mode is unchanged.
 // ADAA residual: integrate tanh(z)-z analytically to suppress nonlinear aliases.
 class ExciterCandidate {
 public:
     void prepare(double sr) noexcept {rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,384000.);reset();set(3500,6,.2f,12000);}
-    void reset() noexcept {hp.reset();lp.reset();previous.fill(0);}
+    void reset() noexcept {hp.reset();lp.reset();previous.fill(0);previousPrimitive.fill(0);}
     void set(float freq,float drive,float amount,float tone) noexcept {
         hp.highPass(rate,bounded(freq,1000,10000,3500));lp.lowPass(rate,bounded(tone,3000,18000,12000));pre=db2g(bounded(drive,0,18,6));mix=bounded(amount,0,1,.2f);
     }
     float process(int ch,float x) noexcept {
         const double z=std::clamp(double(hp.process(ch,sane(x)))*pre,-64.,64.),p=previous[ch];previous[ch]=z;
         const double d=z-p,mid=(z+p)*.5;
-        const double r=std::abs(d)<1e-5?std::tanh(mid)-mid:(primitive(z)-primitive(p))/d;
+        const double nextPrimitive=primitive(z);
+        const double r=std::abs(d)<1e-5?std::tanh(mid)-mid:(nextPrimitive-previousPrimitive[ch])/d;previousPrimitive[ch]=nextPrimitive;
         return sane(x+mix*lp.process(ch,float(r/pre)));
     }
 private:
     static float bounded(float v,float lo,float hi,float def) noexcept{return std::clamp(std::isfinite(v)?v:def,lo,hi);}
     static double primitive(double x) noexcept {const double a=std::abs(x);return a+std::log1p(std::exp(-2*a))-std::log(2.)-.5*x*x;}
-    double rate=48000;float pre=1,mix=.2f;Biquad hp,lp;std::array<double,2>previous{};
+    double rate=48000;float pre=1,mix=.2f;Biquad hp,lp;std::array<double,2>previous{},previousPrimitive{};
 };
 // Four-times FIR oversampled residual with explicitly aligned dry path.
 // Not selectable in production until rack latency and bypass contracts are tested.
@@ -47,8 +48,8 @@ private:
 class PitchDoublerCandidate {
 public:
     struct Voice { float delayMs=18,cents=8,pan=-1,gain=1; };
-    void prepare(double sr){rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,384000.);line.prepare(int(rate*.14)+8);set(18,8,.8f,.25f);reset();}
-    void reset() noexcept {line.clear();phase={0.,.25};seeded=false;}
+    void prepare(double sr){rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,384000.);for(auto& l:lines)l.prepare(int(rate*.14)+8);set(18,8,.8f,.25f);reset();}
+    void reset() noexcept {for(auto& l:lines)l.clear();phase={0.,.25};seeded=false;}
     void set(float delayMs,float cents,float width,float mix) noexcept {
         const float c=bounded(cents,0,20,8),w=bounded(width,0,1,.8f);
         setVoices({Voice{delayMs,c,-w,1},Voice{delayMs,-c,w,1}},mix);
@@ -60,19 +61,28 @@ public:
         slew=onePole(rate,20);
     }
     std::array<float,2> process(float x,float y,int channels=2) noexcept {
-        x=sane(x);y=sane(y);const float mono=channels==1?x:.5f*(x+y);line.write(mono);
+        x=sane(x);y=sane(y);// Dual-mono remains identical; stereo side information no longer cancels before the wet voices.
+        lines[0].write(x);lines[1].write(channels==1?x:y);
         if(!seeded){current=target;wet=targetWet;seeded=true;}
         wet=blend(wet,targetWet,slew);float l=0,r=0,lg=0,rg=0;
         for(int j=0;j<2;++j){auto& c=current[j];const auto& t=target[j];c.base=blend(c.base,t.base,slew);c.span=blend(c.span,t.span,slew);c.slope=blend(c.slope,t.slope,slew);c.pan=blend(c.pan,t.pan,slew);c.gain=blend(c.gain,t.gain,slew);
-            const double p=phase[j],q=p<.5?p+.5:p-.5;const float a=float(.5-.5*std::cos(2*kPi*p));const float voice=(a*line.read(float(c.base+c.span*p))+(1-a)*line.read(float(c.base+c.span*q)))*float(c.gain);
+            const double p=phase[j],q=p<.5?p+.5:p-.5;const float a=float(.5-.5*std::cos(2*kPi*p));const float voice=(a*readCubic(lines[j],float(c.base+c.span*p))+(1-a)*readCubic(lines[j],float(c.base+c.span*q)))*float(c.gain);
             phase[j]+=c.slope/c.span;phase[j]-=std::floor(phase[j]);l+=voice*float((1-c.pan)*.5);r+=voice*float((1+c.pan)*.5);lg+=float(c.gain*(1-c.pan)*.5);rg+=float(c.gain*(1+c.pan)*.5);}
         const float normalizer=1/std::max(1.f,std::max(lg,rg));l*=normalizer;r*=normalizer;
         return {sane(x*(1-wet)+wet*(channels==1?.5f*(l+r):l)),channels==1?0.f:sane(y*(1-wet)+wet*r)};
     }
 private:
+    // Four-point interpolation improves high-frequency detail. Limit to the local
+    // sample extrema so a hot input cannot overshoot during interpolation.
+    static float readCubic(const DelayLine& l,float d) noexcept {
+        const int n=l.size();d=std::clamp(d,2.f,float(n-3));const int i=int(d);const float t=d-float(i);
+        const float a=l.sampleBehind(i-1),b=l.sampleBehind(i),c=l.sampleBehind(i+1),e=l.sampleBehind(i+2);
+        const float v=b+.5f*t*(c-a+t*(2*a-5*b+4*c-e+t*(3*(b-c)+e-a)));
+        return std::clamp(v,std::min({a,b,c,e}),std::max({a,b,c,e}));
+    }
     struct State {double base=864,span=768,slope=0,pan=0,gain=1;};
     static float bounded(float v,float lo,float hi,float def) noexcept{return std::clamp(std::isfinite(v)?v:def,lo,hi);}
     template<class T>static T blend(T old,T want,float p) noexcept{return std::abs(old-want)<T(1e-4)?want:want+T(p)*(old-want);}
-    double rate=48000;float wet=.25f,targetWet=.25f,slew=0;bool seeded=false;std::array<double,2>phase{};std::array<State,2> target{},current{};DelayLine line;
+    double rate=48000;float wet=.25f,targetWet=.25f,slew=0;bool seeded=false;std::array<double,2>phase{};std::array<State,2> target{},current{};std::array<DelayLine,2> lines;
 };
 }

@@ -39,11 +39,11 @@ inline skellay::Configuration configuration(Selection s,const std::array<int,8>&
 class PreparedSlot {
     struct Owned final:skellay::Engine {
         std::unique_ptr<skellay::Engine> inner;std::shared_ptr<RackBudget> budget;std::size_t bytes;
-        std::atomic<unsigned>& generation;std::atomic<int>& audible;unsigned ownGeneration;Selection model;
+        std::atomic<unsigned>& generation;std::atomic<int>& audible;unsigned ownGeneration;Selection model;std::array<int,8> lastRaw{};bool cachedRaw=false;
         Owned(std::unique_ptr<skellay::Engine> e,std::shared_ptr<RackBudget> b,std::size_t n,std::atomic<unsigned>& g,std::atomic<int>& a,unsigned gen,Selection s):inner(std::move(e)),budget(std::move(b)),bytes(n),generation(g),audible(a),ownGeneration(gen),model(s){}
         ~Owned() override{inner.reset();budget->release(bytes);}
         void updateTempo(double v) noexcept override{if(inner&&generation.load()==ownGeneration)inner->updateTempo(v);}
-        bool updateRealtimeControls(const skellay::LiveControls& c) noexcept override{if(generation.load()!=ownGeneration)return false;audible.store(model.model,std::memory_order_relaxed);if(!inner)return true;std::array<int,8> raw{};std::copy_n(c.values.begin(),8,raw.begin());return inner->updateRealtimeControls(macroControls(model,raw));}
+        bool updateRealtimeControls(const skellay::LiveControls& c) noexcept override{if(generation.load()!=ownGeneration)return false;audible.store(model.model,std::memory_order_relaxed);if(!inner)return true;std::array<int,8> raw{};std::copy_n(c.values.begin(),8,raw.begin());if(cachedRaw&&raw==lastRaw)return true;const bool ok=inner->updateRealtimeControls(macroControls(model,raw));if(ok){lastRaw=raw;cachedRaw=true;}return ok;}
         bool process(float* l,float* r,int n) noexcept override{if(generation.load()!=ownGeneration){std::fill_n(l,n,0.f);std::fill_n(r,n,0.f);return true;}if(!inner){std::fill_n(l,n,0.f);std::fill_n(r,n,0.f);return true;}return inner->process(l,r,n);}
     };
 public:
@@ -55,11 +55,20 @@ public:
         if(rate<32000||rate>192000||!budget)return false;
         if(s.model==0){exchange.publish(std::make_unique<Owned>(nullptr,budget,0,generation,audible,gen,s));last=s;lastGeneration=gen;return true;}
         auto c=configuration(s,classic);const auto bytes=delayStorageEstimate(c,rate,30.,capacity);
-        if(bytes>128u*MiB||!budget->acquire(bytes))return false;
+        // The estimate includes the temporary Bank construction ring. Reserve
+        // that peak against the rack budget, but enforce the per-engine cap
+        // on actual persistent storage after construction.
+        if(bytes>256u*MiB||!budget->acquire(bytes))return false;
         std::unique_ptr<skellay::Engine> e;
         try{e=skellay::prepare(c,rate,std::clamp(bpm,30.,300.),capacity,30.);}catch(...){budget->release(bytes);return false;}
         if(!e){budget->release(bytes);return false;}
-        std::unique_ptr<Owned> owned;try{owned=std::make_unique<Owned>(std::move(e),budget,bytes,generation,audible,gen,s);}catch(...){e.reset();budget->release(bytes);return false;}
+        const auto measured=e->delayStorageBytes();
+        // Only Bank exposes its persistent ring capacity; these rack banks
+        // have no pattern tables. Keep Modern's conservative estimate.
+        const auto resident=s.model==2&&measured>0?measured:bytes;
+        if(resident>128u*MiB||resident>bytes){e.reset();budget->release(bytes);return false;}
+        budget->release(bytes-resident);
+        std::unique_ptr<Owned> owned;try{owned=std::make_unique<Owned>(std::move(e),budget,resident,generation,audible,gen,s);}catch(...){e.reset();budget->release(resident);return false;}
         exchange.publish(std::move(owned));last=s;lastGeneration=gen;return true;
     }
     void collect(){exchange.collect();}
