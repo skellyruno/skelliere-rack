@@ -111,7 +111,7 @@ SkellierProcessor::SkellierProcessor()
     outRaw = apvts.getRawParameterValue("out");
     bypassRaw = apvts.getRawParameterValue("bypass");
     guardRaw = apvts.getRawParameterValue("output_guard");
-    applyFactory(0);
+    // New sessions start with empty APVTS slots. Saved states still override defaults.
     undoStack.clear(); redoStack.clear();
 }
 

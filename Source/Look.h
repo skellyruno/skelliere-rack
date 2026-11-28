@@ -606,6 +606,12 @@ public:
         label.setBounds(6,1,juce::jmax(1,box.getWidth()-28),juce::jmax(1,box.getHeight()-2));
         label.setFont(getComboBoxFont(box));label.setJustificationType(juce::Justification::centred);
     }
+    juce::PopupMenu::Options getOptionsForComboBoxPopupMenu(juce::ComboBox& box,juce::Label& label) override {
+        auto options=juce::LookAndFeel_V4::getOptionsForComboBoxPopupMenu(box,label);
+        // Keep the main menu inside the editor rather than opening a separate desktop peer.
+        if(box.getProperties().contains("rackPresetMenu"))return options.withParentComponent(box.getParentComponent()).withMinimumWidth(230).withStandardItemHeight(32).withItemThatMustBeVisible(0);
+        return options;
+    }
     juce::Font getPopupMenuFont() override { return font(15.0f); }
     void getIdealPopupMenuItemSize(const juce::String& name,bool separator,int standardHeight,int& w,int& h) override {
         juce::LookAndFeel_V4::getIdealPopupMenuItemSize(name,separator,standardHeight,w,h);

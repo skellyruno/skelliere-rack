@@ -35,14 +35,15 @@ jobs:
           name: Skelliere-Local-Windows-Editor-Renderer
           path: local-renderer/
           if-no-files-found: error
-      - name: Capture four real Quick4 scenes first
+      - name: Capture Quick4 scenes and actual startup preset menu
         shell: pwsh
         run: |
           $exe = Get-ChildItem build -Recurse -File -Filter SkelliereRackUIRenderer.exe | Select-Object -First 1
           & $exe.FullName --output (Join-Path (Get-Location) 'quick4')
           if ($LASTEXITCODE -ne 0) { throw "Quick4 failed: $LASTEXITCODE" }
           $manifest = Get-Content quick4/manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.count -ne 4) { throw 'Quick4 scene count mismatch' }
+          if ($manifest.count -ne 5) { throw 'Quick4 scene count mismatch' }
+          foreach ($capture in @('fresh_empty.png','main_preset_menu.png','guard_on.png')) { if (-not (Test-Path (Join-Path 'quick4' $capture))) { throw "Missing capture: $capture" } }
           if (-not (Test-Path quick4/contact-sheet.png)) { throw 'Quick4 contact sheet missing' }
       - uses: actions/upload-artifact@v4
         with:
@@ -57,10 +58,10 @@ jobs:
           if (-not $exe) { throw 'SkelliereRackUIRenderer.exe missing' }
           & $exe.FullName --output (Join-Path (Get-Location) 'ui-screenshots') --full
           if ($LASTEXITCODE -ne 0) { throw "Renderer failed: $LASTEXITCODE" }
-          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 45) { throw 'Expected forty-five real-editor screenshots' }
+          if (@(Get-ChildItem ui-screenshots -Filter *.png).Count -ne 48) { throw 'Expected 46 scene screenshots plus startup and main menu' }
           if (-not (Test-Path ui-screenshots/manifest.json)) { throw 'Screenshot manifest missing' }
           $manifest = Get-Content ui-screenshots/manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.count -ne 45) { throw 'Screenshot manifest count mismatch' }
+          if ($manifest.count -ne 46) { throw 'Screenshot manifest count mismatch' }
           if (-not (Test-Path ui-screenshots/performance.csv)) { throw 'Missing UI/processor benchmark' }
       - name: Export actual editor evidence for connected review
         run: python tools/ci_editor_evidence.py ui-screenshots

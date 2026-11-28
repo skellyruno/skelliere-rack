@@ -6,7 +6,11 @@ inline void processorRegression() {
     SkellierProcessor p;
     require(p.getParameters().size()==76+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1+skl::kNativeControlCount),"Parameter count changed unexpectedly");
     require(skl::kNumRackTypes==53 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
+    for(int s=0;s<skl::kNumSlots;++s)require(p.slotType(s)==skl::Empty,"New instance must be empty");
+    require(p.matchingFactoryPreset()==3&&!p.canUndo(),"Empty factory default and clean undo history");
     p.prepareToPlay(48000,7);
+    require(p.getLatencySamples()==0,"Empty rack latency");
+    {juce::AudioBuffer<float> b(2,19);juce::MidiBuffer midi;for(int i=0;i<19;++i){b.setSample(0,i,.02f*i);b.setSample(1,i,-.015f*i);}auto copy=b;p.processBlock(b,midi);for(int i=0;i<19;++i)for(int c=0;c<2;++c)require(b.getSample(c,i)==copy.getSample(c,i),"Empty rack transparent");}
     int parameterIndex=0;
     auto ordered=[&](const juce::String& id) {
         auto* parameter=dynamic_cast<juce::AudioProcessorParameterWithID*>(p.getParameters()[parameterIndex++]);

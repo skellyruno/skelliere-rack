@@ -92,7 +92,7 @@ public:
     void reset() override {advanced.invalidate();activateSlot();}
     // Leaving the slot already invalidates old advanced publications. Do not
     // invalidate the new request prepared before the audio thread sees entry.
-    void activateSlot() noexcept {seeded=false;wet=0;renderTransition.reset();visibleModel.store(-1);if(engine)engine->restart(state,tempo,true);}
+    void activateSlot() noexcept {seeded=false;wet=0;renderTransition.reset();visibleModel.store(-1);/* First process seeds and resets the Classic history once. */}
     void setTempo(double bpm) noexcept override {tempo=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);serviceTempo.store(tempo,std::memory_order_relaxed);}
     void setExtended(const NativeValues& v) noexcept {ext=v;}
     // One message-thread producer. A budget rejection keeps the current model.

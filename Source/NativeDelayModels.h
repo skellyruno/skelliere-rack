@@ -39,11 +39,11 @@ inline skellay::Configuration configuration(Selection s,const std::array<int,8>&
 class PreparedSlot {
     struct Owned final:skellay::Engine {
         std::unique_ptr<skellay::Engine> inner;std::shared_ptr<RackBudget> budget;std::size_t bytes;
-        std::atomic<unsigned>& generation;std::atomic<int>& audible;unsigned ownGeneration;Selection model;
+        std::atomic<unsigned>& generation;std::atomic<int>& audible;unsigned ownGeneration;Selection model;std::array<int,8> lastRaw{};bool cachedRaw=false;
         Owned(std::unique_ptr<skellay::Engine> e,std::shared_ptr<RackBudget> b,std::size_t n,std::atomic<unsigned>& g,std::atomic<int>& a,unsigned gen,Selection s):inner(std::move(e)),budget(std::move(b)),bytes(n),generation(g),audible(a),ownGeneration(gen),model(s){}
         ~Owned() override{inner.reset();budget->release(bytes);}
         void updateTempo(double v) noexcept override{if(inner&&generation.load()==ownGeneration)inner->updateTempo(v);}
-        bool updateRealtimeControls(const skellay::LiveControls& c) noexcept override{if(generation.load()!=ownGeneration)return false;audible.store(model.model,std::memory_order_relaxed);if(!inner)return true;std::array<int,8> raw{};std::copy_n(c.values.begin(),8,raw.begin());return inner->updateRealtimeControls(macroControls(model,raw));}
+        bool updateRealtimeControls(const skellay::LiveControls& c) noexcept override{if(generation.load()!=ownGeneration)return false;audible.store(model.model,std::memory_order_relaxed);if(!inner)return true;std::array<int,8> raw{};std::copy_n(c.values.begin(),8,raw.begin());if(cachedRaw&&raw==lastRaw)return true;const bool ok=inner->updateRealtimeControls(macroControls(model,raw));if(ok){lastRaw=raw;cachedRaw=true;}return ok;}
         bool process(float* l,float* r,int n) noexcept override{if(generation.load()!=ownGeneration){std::fill_n(l,n,0.f);std::fill_n(r,n,0.f);return true;}if(!inner){std::fill_n(l,n,0.f);std::fill_n(r,n,0.f);return true;}return inner->process(l,r,n);}
     };
 public:

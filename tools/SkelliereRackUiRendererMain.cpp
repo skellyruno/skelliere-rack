@@ -47,15 +47,26 @@ int main(int argc, char** argv) {
     catch(const std::exception& e) { std::fprintf(stderr,"Processor regression: %s\n",e.what()); return 1; }
     SkellierProcessor processor;
     processor.prepareToPlay(48000.0, 512);
-    // Put both artwork-enabled effects in view without changing factory presets.
-    processor.clearRack();
-    processor.addModule(skl::Eq, 0);
-    processor.addModule(skl::Air, 1);
+    // Capture the actual new-instance editor before loading scene fixtures.
     using Clock=std::chrono::steady_clock;
     auto ms=[](Clock::time_point t){return std::chrono::duration<double,std::milli>(Clock::now()-t).count();};
     const auto startEditor=Clock::now();
     SkellierEditor editor(processor);
     const auto editorMs=ms(startEditor);
+    {
+        const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));output.createDirectory();
+        auto save=[&](const juce::String& name){auto image=editor.createComponentSnapshot(editor.getLocalBounds(),true,1.f);auto f=output.getChildFile(name);f.deleteFile();juce::FileOutputStream stream(f);juce::PNGImageFormat png;return image.isValid()&&stream.openedOk()&&png.writeImageToStream(image,stream);};
+        juce::ComboBox* preset=nullptr;visit(editor,[&](juce::Component& c){if(auto* box=dynamic_cast<juce::ComboBox*>(&c))if(box->getProperties().contains("rackPresetMenu"))preset=box;});
+        if(!preset||preset->getSelectedId()!=4||preset->getItemId(0)!=4||!save("fresh_empty.png"))return 1;
+        preset->showPopup();
+        bool actualMenu=false;visit(editor,[&](juce::Component& c){if(c.getName()=="menu"&&c.isVisible()&&c.getNumChildComponents()>=7)actualMenu=true;});
+        if(!actualMenu||!save("main_preset_menu.png")){std::fprintf(stderr,"Actual preset popup missing\n");return 1;}
+        preset->hidePopup();
+        preset->setSelectedId(1,juce::sendNotificationSync);if(processor.matchingFactoryPreset()!=0)return 1;
+        preset->setSelectedId(4,juce::sendNotificationSync);if(processor.matchingFactoryPreset()!=3)return 1;
+        processor.undo();if(processor.matchingFactoryPreset()!=0)return 1;
+        std::puts("Fresh empty rack, actual main preset popup, stable IDs and preset undo passed");
+    }
     skellcore::ui::headless::Options options;
     options.project="Skelliere Rack / "+juce::String(skl::activeCatalogCount())+" Skell effects";
     options.scenes={{"catalog_1",1260,870,0,1},{"catalog_2",1260,870,1,1},{"catalog_3",1260,870,2,1},{"catalog_4",1260,870,3,1},{"catalog_5",1260,870,4,1},{"catalog_6",1260,870,5,1},{"catalog_7",1260,870,6,1},

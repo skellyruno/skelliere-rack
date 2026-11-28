@@ -1042,20 +1042,23 @@ RackUI::RackUI(SkellierProcessor& p)
       library(p), strip(p), pathStrip(p) {
     setSize(kW, kH);
     for (auto* b : {&prevPreset, &nextPreset, &snapA, &snapB, &snapCopy, &undoBtn, &redoBtn, &clearBtn, &bypassBtn}) addAndMakeVisible(*b);
-    for (int i = 0; i < SkellierProcessor::numFactory(); ++i) presetBox.addItem(SkellierProcessor::factoryName(i), i + 1);
+    // Keep factory IDs stable while showing the empty default first.
+    presetBox.getProperties().set("rackPresetMenu",true);
+    presetBox.addItem(SkellierProcessor::factoryName(3),4);
+    presetBox.addSeparator();
+    for (int i = 0; i < SkellierProcessor::numFactory(); ++i) if(i!=3)presetBox.addItem(SkellierProcessor::factoryName(i),i+1);
     presetBox.setTextWhenNothingSelected("Custom rack");
-    const int initialPreset=proc.matchingFactoryPreset();if(initialPreset>=0)curPreset=initialPreset;
-    presetBox.setSelectedItemIndex(initialPreset, juce::dontSendNotification);
+    presetBox.setSelectedId(proc.matchingFactoryPreset()+1,juce::dontSendNotification);
     presetBox.onChange = [this] {
-        const int selected=presetBox.getSelectedItemIndex();if(selected<0)return;curPreset=selected;
-        proc.applyFactory(curPreset);
-        say("Rack preset: " + SkellierProcessor::factoryName(curPreset));
+        const int selected=presetBox.getSelectedId()-1;if(selected<0)return;
+        proc.applyFactory(selected);
+        say("Rack preset: " + SkellierProcessor::factoryName(selected));
     };
     addAndMakeVisible(presetBox);
     auto stepPreset = [this](int d) {
-        const int n = SkellierProcessor::numFactory();
-        curPreset = (curPreset + d + n) % n;
-        presetBox.setSelectedItemIndex(curPreset, juce::sendNotificationSync);
+        const int n=presetBox.getNumItems(),index=presetBox.getSelectedItemIndex();
+        const int next=index<0?(d>0?0:n-1):(index+d+n)%n;
+        presetBox.setSelectedItemIndex(next,juce::sendNotificationSync);
     };
     prevPreset.onClick = [stepPreset] { stepPreset(-1); };
     nextPreset.onClick = [stepPreset] { stepPreset(1); };
@@ -1096,7 +1099,7 @@ RackUI::RackUI(SkellierProcessor& p)
     stripsToggle.setClickingTogglesState(true);stripsToggle.getProperties().set("plain",true);
     stripsToggle.onClick=[this]{stripDrawer.setVisible(stripsToggle.getToggleState());if(stripDrawer.isVisible())stripDrawer.toFront(false);};
     stripDrawer.addAndMakeVisible(stripsLabel);
-    defaultStrip.onClick = [this] { curPreset=0;presetBox.setSelectedItemIndex(0,juce::dontSendNotification);proc.applyFactory(0);say("Rack preset: "+SkellierProcessor::factoryName(0)); };
+    defaultStrip.onClick = [this] { proc.applyFactory(3);presetBox.setSelectedId(4,juce::dontSendNotification);say("Empty rack. Undo restores previous rack."); };
     stripDrawer.addAndMakeVisible(defaultStrip);
     stripName.setTextToShowWhenEmpty("Name this rack", pal::inkDim);
     stripName.setFont(font(13.0f));
@@ -1194,7 +1197,7 @@ void RackUI::timerCallback() {
         const float light=juce::jlimit(0.f,1.f,(inShown+48.f)/48.f);
         slot.advanceArtworkMotion(artworkDt,isShowing()&&slot.isShowing()&&viewport.getViewArea().intersects(slot.getBounds()),!bypass&&proc.slotOn(s)&&(solo<0||solo==s),light);
     }
-    if((presetRefreshTicks++%8)==0&&!presetBox.isPopupActive()){const int match=proc.matchingFactoryPreset();if(match>=0)curPreset=match;if(presetBox.getSelectedItemIndex()!=match)presetBox.setSelectedItemIndex(match,juce::dontSendNotification);}
+    if((presetRefreshTicks++%8)==0&&!presetBox.isPopupActive()){const int id=proc.matchingFactoryPreset()+1;if(presetBox.getSelectedId()!=id)presetBox.setSelectedId(id,juce::dontSendNotification);}
     undoBtn.setEnabled(proc.canUndo());
     redoBtn.setEnabled(proc.canRedo());
     refreshRackNavigation();
