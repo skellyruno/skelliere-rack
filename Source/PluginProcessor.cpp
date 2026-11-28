@@ -98,6 +98,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout SkellierProcessor::createLay
     }
     // Append after existing advanced parameters; preserve host IDs and order.
     for(int s=0;s<kNumSlots;++s)layout.add(std::make_unique<AudioParameterFloat>(ParameterID{humanizeId(s),1},"Slot "+String(s+1)+" Tune Humanize",NormalisableRange<float>(0.f,1.f,0.f),0.f));
+    // Dedicated, append-only native controls; never change old knob IDs.
+    for(int slot=0;slot<kNumSlots;++slot)for(int i=0;i<kNativeControlCount;++i){
+        const auto spec=nativeSpec(i);auto name="Slot "+String(slot+1)+" Native "+spec.label;
+        if(i>=nGlitchState)name+=" "+String((i>=nGlitchProbability?i-nGlitchProbability:i-nGlitchState)+1);
+        layout.add(std::make_unique<AudioParameterFloat>(ParameterID{nativeId(slot,i),1},name,NormalisableRange<float>(0.f,1.f,spec.steps>1?1.f/float(spec.steps-1):0.f),nativeDefault(i)));
+    }
     return layout;
 }
 
@@ -113,6 +119,7 @@ SkellierProcessor::SkellierProcessor()
         for(int i=0;i<kSslExtraCount;++i)sslRaw[s][i]=apvts.getRawParameterValue(sslId(s,i));
         for(int i=0;i<kAdvancedCount;++i)advancedRaw[s][i]=apvts.getRawParameterValue(advancedId(s,i));
         humanizeRaw[s]=apvts.getRawParameterValue(humanizeId(s));
+        for(int i=0;i<kNativeControlCount;++i)nativeRaw[s][i]=apvts.getRawParameterValue(nativeId(s,i));
         lastType[s] = -1;
         apvts.addParameterListener(typeId(s), this);
         apvts.addParameterListener(extraId(s), this);
@@ -125,6 +132,8 @@ SkellierProcessor::SkellierProcessor()
 }
 
 SkellierProcessor::~SkellierProcessor() {
+    stopTimer();
+    std::lock_guard<std::mutex> lock(nativeMutex);
     latencyUpdater.cancelPendingUpdate();
     for (int s = 0; s < kNumSlots; ++s) { apvts.removeParameterListener(typeId(s), this); apvts.removeParameterListener(extraId(s), this); }
 }
@@ -148,7 +157,32 @@ skl::ModuleBase* SkellierProcessor::moduleFor(int slot, int type, int tuneSlot) 
     return mods[slot][type].get();
 }
 
+void SkellierProcessor::releaseResources(){stopTimer();std::lock_guard<std::mutex> lock(nativeMutex);prepared=false;}
+void SkellierProcessor::editNativeControl(int slot,int effect,int control,float value){
+    if(slot<0||slot>=kNumSlots||slotType(slot)!=effect||!hasNativePanel(effect)||control<0||control>=kNativeControlCount||!std::isfinite(value))return;
+    pushUndo();if(auto* param=apvts.getParameter(nativeId(slot,control))){param->beginChangeGesture();setParam(nativeId(slot,control),std::clamp(value,0.f,1.f));param->endChangeGesture();}
+}
+void SkellierProcessor::triggerNativeGlitch(int slot) noexcept {if(slot>=0&&slot<kNumSlots&&slotType(slot)==GlitchNative)glitchTrigger[size_t(slot)].store(true,std::memory_order_release);}
+bool SkellierProcessor::acceptsMidi() const {return SKELLIERE_NATIVE_IMPORTS!=0;}
+int SkellierProcessor::nativeDelayModel(int slot) const noexcept {return slot>=0&&slot<kNumSlots?nativeModel[size_t(slot)].load(std::memory_order_relaxed):-1;}
+bool SkellierProcessor::nativeDelayBlocked(int slot) const noexcept {return slot>=0&&slot<kNumSlots&&nativeBlocked[size_t(slot)].load(std::memory_order_relaxed);}
+void SkellierProcessor::serviceNative(){std::lock_guard<std::mutex> lock(nativeMutex);if(prepared)serviceNativeLocked();}
+void SkellierProcessor::serviceNativeLocked(){
+#if SKELLIERE_NATIVE_IMPORTS
+    for(int s=0;s<kNumSlots;++s){auto* m=static_cast<NativeDelayRack*>(mods[s][DelayNative].get());if(!m)continue;
+        NativeValues ext{};for(int j=0;j<kNativeControlCount;++j)ext[j]=nativeRaw[s][j]->load(std::memory_order_relaxed);
+        float k[kMaxKnobs]{};for(int j=0;j<kMaxKnobs;++j)k[j]=kRaw[s][j]->load(std::memory_order_relaxed);
+        const bool selected=slotType(s)==DelayNative;
+        nativeBlocked[size_t(s)].store(selected&&!m->service(ext,k,selected),std::memory_order_relaxed);
+        if(!selected)m->service(ext,k,false);
+    }
+#endif
+}
 void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
+    stopTimer();std::lock_guard<std::mutex> lock(nativeMutex);
+#if SKELLIERE_NATIVE_IMPORTS
+    auto delayBudget=std::make_shared<native_delay::RackBudget>();
+#endif
     sampleRate_ = std::isfinite(sr) && sr > 1000.0 ? sr : 48000.0;
     graphTop.store(float(std::min(16000.,std::clamp(sampleRate_,8000.,384000.)*.4)),std::memory_order_relaxed);
     maxBlock = juce::jmax(1, samplesPerBlock);
@@ -157,6 +191,9 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
         for (int t = Eq; t < kNumRackTypes; ++t) {
             if (t == Tune) continue;
             mods[s][t] = makeModule(t);
+#if SKELLIERE_NATIVE_IMPORTS
+            if(t==DelayNative)static_cast<NativeDelayRack*>(mods[s][t].get())->setBudget(delayBudget);
+#endif
             mods[s][t]->prepare(sampleRate_, maxBlock, ch);
         }
     tuneModule = makeModule(Tune);
@@ -166,7 +203,11 @@ void SkellierProcessor::prepareToPlay(double sr, int samplesPerBlock) {
     inputGain.reset(sampleRate_, .020); outputGain.reset(sampleRate_, .020);
     inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(inRaw->load()));
     outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(outRaw->load()));
+    for(auto& v:nativeModel)v.store(-1,std::memory_order_relaxed);
     prepared = true;
+#if SKELLIERE_NATIVE_IMPORTS
+    serviceNativeLocked();startTimerHz(10);
+#endif
     updateLatency();
 }
 
@@ -187,7 +228,10 @@ int SkellierProcessor::rackLatency() const {
     return latency;
 }
 
-void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
+void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
+#if !SKELLIERE_NATIVE_IMPORTS
+    juce::ignoreUnused(midi);
+#endif
     juce::ScopedNoDenormals noDenormals;
     const int total = buffer.getNumSamples(), ch = buffer.getNumChannels();
     for (int c = getTotalNumInputChannels(); c < getTotalNumOutputChannels(); ++c) buffer.clear(c, 0, total);
@@ -237,9 +281,19 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         for (int s = 0; s < kNumSlots; ++s) {
             const int type = types[s];
             if (type != lastType[s]) {
+#if SKELLIERE_NATIVE_IMPORTS
+                if(lastType[s]==DelayNative){static_cast<NativeDelayRack*>(mods[s][DelayNative].get())->leaveSlot();nativeModel[size_t(s)].store(-1,std::memory_order_relaxed);}
+                if(type!=GlitchNative)glitchTrigger[size_t(s)].store(false,std::memory_order_relaxed);
+                const bool alreadyPrepared=type==DelayNative&&lastType[s]==-1;
+#else
+                const bool alreadyPrepared=false;
+#endif
                 lastType[s] = type;
-                if (auto* m = moduleFor(s, type, tuneSlot)) m->reset();
+                if (!alreadyPrepared)if(auto* m = moduleFor(s, type, tuneSlot)) m->reset();
             }
+#if SKELLIERE_NATIVE_IMPORTS
+            if(type!=DelayNative)static_cast<NativeDelayRack*>(mods[s][DelayNative].get())->drain(len);
+#endif
             auto* m = moduleFor(s, type, tuneSlot);
             if (m == nullptr) continue;
             float k[kMaxKnobs];
@@ -250,7 +304,30 @@ void SkellierProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             if(type==Tune){auto* tune=static_cast<skl::SkellyTune*>(m);tune->setHumanize(humanizeRaw[s]->load(std::memory_order_relaxed));tune->setReferenceA(tuneReferenceHz(k[5]));}
             if(type==EchoUnified||type==DelayNative)m->setTempo(bpm);
             if(type==GlitchNative)m->setTransport(bpm,ppq+double(start)*bpm/(60.*sampleRate_),sigNum,sigDen,validPpq);
+#if SKELLIERE_NATIVE_IMPORTS
+            if(type==GlitchNative||type==DelayNative){
+                NativeValues ext{};for(int j=0;j<kNativeControlCount;++j)ext[j]=nativeRaw[s][j]->load(std::memory_order_relaxed);
+                if(type==DelayNative)static_cast<NativeDelayRack*>(m)->setExtended(ext);
+                else {
+                    auto* g=static_cast<NativeGlitchRack*>(m);g->setExtended(ext);
+                    const int source=int(nativeReal(nGlitchSource,ext[nGlitchSource]));
+                    if(glitchTrigger[size_t(s)].exchange(false,std::memory_order_acq_rel)&&source==2)g->trigger();
+                    if(source==1){
+                        // Audio buffer slices split exactly at MIDI note-on sample positions.
+                        int cursor=0;for(const auto e:midi){const int at=e.samplePosition-start;if(at<0)continue;if(at>=len)break;
+                            if(e.numBytes<3||!e.data||(e.data[0]&0xf0U)!=0x90U||e.data[2]==0)continue;
+                            if(at>cursor){juce::AudioBuffer<float> part(chunk.getArrayOfWritePointers(),ch,cursor,at-cursor);g->process(part,k,active);}
+                            g->trigger(e.data[2]/127.f,e.data[1]&0x7f);cursor=at;
+                        }
+                        if(cursor<len){juce::AudioBuffer<float> part(chunk.getArrayOfWritePointers(),ch,cursor,len-cursor);g->process(part,k,active);}continue;
+                    }
+                }
+            }
+#endif
             m->process(chunk,k,active);
+#if SKELLIERE_NATIVE_IMPORTS
+            if(type==DelayNative)nativeModel[size_t(s)].store(static_cast<NativeDelayRack*>(m)->renderedModel(),std::memory_order_relaxed);
+#endif
             // Real post-effect peak telemetry for Jet, MixHead and SSL Strip. No audio changes,
             // allocations or locking; the existing buffer is read once.
             if(hasOutputPeak(type)&&active)measuredJet[s]=juce::jmax(measuredJet[s],chunk.getMagnitude(0,len));
@@ -311,6 +388,7 @@ SkellierProcessor::SlotValues SkellierProcessor::readSlot(int s) const {
     for(int i=0;i<kSslExtraCount;++i)v.ssl[i]=sslRaw[s][i]->load();
     for(int i=0;i<kAdvancedCount;++i)v.advanced[i]=advancedRaw[s][i]->load(std::memory_order_relaxed);
     v.humanize=humanizeRaw[s]->load(std::memory_order_relaxed);
+    for(int i=0;i<kNativeControlCount;++i)v.native[i]=nativeRaw[s][i]->load(std::memory_order_relaxed);
     return v;
 }
 
@@ -321,6 +399,8 @@ void SkellierProcessor::writeSlot(int s, const SlotValues& v) {
     for(int i=0;i<kSslExtraCount;++i)setParam(sslId(s,i),v.ssl[i]);
     for(int i=0;i<kAdvancedCount;++i)if(advancedRaw[s][i]->load()!=v.advanced[i])setParam(advancedId(s,i),v.advanced[i]);
     setParam(humanizeId(s),v.humanize);
+    for(int i=0;i<kNativeControlCount;++i)if(nativeRaw[s][i]->load()!=v.native[i])setParam(nativeId(s,i),v.native[i]);
+    glitchTrigger[size_t(s)].store(false,std::memory_order_relaxed);
     bandSolo[size_t(s)].store(-1,std::memory_order_relaxed);
     setParam(extraId(s), 0.0f);
     setParam(typeId(s), v.type < kNumTypes ? (float) v.type : 0.0f);
@@ -357,12 +437,14 @@ bool SkellierProcessor::addModule(int type, int slot) {
         const int solo=soloSlot.load();
         if(solo>=target&&solo<empty)soloSlot.store(solo+1);
         SlotValues v; v.type = type;
+        if(type==GlitchNative)v.native[nGlitchTrim]=(24.f-1.3f)/24.f;
         for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(type).numKnobs ? defaultNorm(type, k) : 0.5f;
         writeSlot(target, v);
         return true;
     }
     pushUndo();
     SlotValues v; v.type = type;
+        if(type==GlitchNative)v.native[nGlitchTrim]=(24.f-1.3f)/24.f;
     for (int k = 0; k < kMaxKnobs; ++k) v.k[k] = k < info(type).numKnobs ? defaultNorm(type, k) : 0.5f;
     writeSlot(target, v);
     return true;
@@ -430,6 +512,7 @@ juce::String SkellierProcessor::captureRack() const {
         if(v.type==SkellSSL)for(int i=0;i<kSslExtraCount;++i)e->setAttribute("ssl_"+juce::String(sslControl(i).id),double(v.ssl[i]));
         if(v.type==Tune)e->setAttribute("humanize",double(v.humanize));
         if(hasAdvancedEngine(v.type))for(int i=0;i<kAdvancedCount;++i)e->setAttribute("adv_"+juce::String(i),double(v.advanced[i]));
+        if(importedType(v.type))for(int i=0;i<kNativeControlCount;++i)e->setAttribute("native_"+juce::String(i),double(v.native[i]));
     }
     return root.toString(juce::XmlElement::TextFormat().singleLine());
 }
@@ -451,6 +534,7 @@ void SkellierProcessor::restoreRack(const juce::String& text) {
             vals[i].k[5]=migrateTuneReference(float(e->getDoubleAttribute("k5",.5)));
         }
         for(int k=0;k<kSslExtraCount;++k){const float v=float(e->getDoubleAttribute("ssl_"+juce::String(sslControl(k).id),sslDefault(k)));vals[i].ssl[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):sslDefault(k);}
+        for(int k=0;k<kNativeControlCount;++k){const float v=float(e->getDoubleAttribute("native_"+juce::String(k),nativeDefault(k)));vals[i].native[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):nativeDefault(k);}
         const float h=float(e->getDoubleAttribute("humanize",0.));vals[i].humanize=std::isfinite(h)?std::clamp(h,0.f,1.f):0.f;
         for(int k=0;k<kAdvancedCount;++k){const float v=float(e->getDoubleAttribute("adv_"+juce::String(k),advancedDefault(k)));vals[i].advanced[k]=std::isfinite(v)?std::clamp(v,0.f,1.f):advancedDefault(k);}
     }
@@ -549,6 +633,10 @@ void SkellierProcessor::setStateInformation(const void* data, int size) {
                         }
                     }
                 }
+                for(int i=0;i<kNativeControlCount;++i){const auto id=nativeId(s,i);if(!state.getChildWithProperty("id",id).isValid()){
+                    juce::ValueTree parameter("PARAM");parameter.setProperty("id",id,nullptr);parameter.setProperty("value",nativeDefault(i),nullptr);state.appendChild(parameter,nullptr);
+                }}
+                glitchTrigger[size_t(s)].store(false,std::memory_order_relaxed);
                 const auto hid=humanizeId(s);if(!state.getChildWithProperty("id",hid).isValid()){juce::ValueTree parameter("PARAM");parameter.setProperty("id",hid,nullptr);parameter.setProperty("value",0.f,nullptr);state.appendChild(parameter,nullptr);}
                 bandSolo[size_t(s)].store(-1,std::memory_order_relaxed);
                 artworkChoices[(size_t) s] = juce::jlimit(0, 3,

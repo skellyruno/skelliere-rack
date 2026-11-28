@@ -4,7 +4,7 @@
 inline void processorRegression() {
     auto require=[](bool ok,const char* message) { if(!ok) throw std::runtime_error(message); };
     SkellierProcessor p;
-    require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1),"Parameter count changed unexpectedly");
+    require(p.getParameters().size()==75+skl::kNumSlots*(skl::kSslExtraCount+skl::kAdvancedCount+1+skl::kNativeControlCount),"Parameter count changed unexpectedly");
     require(skl::kNumRackTypes==53 && skl::ProgramOpto==16 && skl::Gate==17 && skl::Slap==25 && skl::SkellAirFX==26 && skl::SkellDeEsserFX==27 && skl::SkellDope==28 && skl::SkellMixHead==29 && skl::SkellRubyQ==30 && skl::SkellDemon==31 && skl::SkellSSL==32 && skl::SkellNoise==33,"Catalog identities changed");
     p.prepareToPlay(48000,7);
     int parameterIndex=0;
@@ -18,7 +18,36 @@ inline void processorRegression() {
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kSslExtraCount;++i)ordered(p.sslId(s,i));
     for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kAdvancedCount;++i)ordered(p.advancedId(s,i));
     for(int s=0;s<skl::kNumSlots;++s)ordered(p.humanizeId(s));
+    for(int s=0;s<skl::kNumSlots;++s)for(int i=0;i<skl::kNativeControlCount;++i)ordered(p.nativeId(s,i));
     auto set=[&](const juce::String& id,float real) { auto* parameter=p.apvts.getParameter(id); require(parameter!=nullptr,"Parameter missing"); parameter->setValueNotifyingHost(parameter->convertTo0to1(real)); };
+#if SKELLIERE_NATIVE_IMPORTS
+    // Real host-state paths, not the portable buffer stand-in.
+    p.clearRack();require(p.addModule(skl::GlitchNative,0),"Glitch missing");
+    auto native=[&](int slot,int i){return p.apvts.getRawParameterValue(p.nativeId(slot,i))->load();};
+    require(std::abs(skl::nativeReal(skl::nGlitchTrim,native(0,skl::nGlitchTrim))+1.3f)<1e-4f,"New Glitch trim");
+    p.editNativeControl(0,skl::GlitchNative,skl::nGlitchState+7,1.f);p.editNativeControl(0,skl::GlitchNative,skl::nGlitchProbability+7,.37f);
+    p.moveSlot(0,1,false);require(native(1,skl::nGlitchState+7)==1.f&&std::abs(native(1,skl::nGlitchProbability+7)-.37f)<1e-6f,"Pattern lost on move");
+    p.undo();require(p.slotType(0)==skl::GlitchNative&&native(0,skl::nGlitchState+7)==1.f,"Pattern undo");
+    juce::MemoryBlock nativeState;p.getStateInformation(nativeState);p.clearRack();p.setStateInformation(nativeState.getData(),int(nativeState.getSize()));
+    require(p.slotType(0)==skl::GlitchNative&&std::abs(native(0,skl::nGlitchProbability+7)-.37f)<1e-6f,"Pattern host recall");
+    const auto nativeStrip="NativeControlsRegression-"+juce::Uuid().toString();require(p.saveStrip(nativeStrip),"Native strip save");p.clearRack();const bool nativeLoaded=p.loadStrip(nativeStrip);p.deleteStrip(nativeStrip);require(nativeLoaded&&native(0,skl::nGlitchState+7)==1.f,"Pattern strip recall");
+    auto oldNative=p.apvts.copyState();for(int i=oldNative.getNumChildren();--i>=0;)if(oldNative.getChild(i).getProperty("id").toString().contains("_native_"))oldNative.removeChild(i,nullptr);
+    juce::MemoryBlock oldNativeState;juce::AudioProcessor::copyXmlToBinary(*oldNative.createXml(),oldNativeState);p.setStateInformation(oldNativeState.getData(),int(oldNativeState.getSize()));
+    require(native(0,skl::nGlitchTrim)==skl::nativeDefault(skl::nGlitchTrim)&&native(0,skl::nGlitchProbability+7)==1.f,"Legacy Glitch state defaults");
+    p.clearRack();require(p.addModule(skl::DelayNative,0),"Delay missing");p.editNativeControl(0,skl::DelayNative,skl::nDelayModel,.5f);p.serviceNative();
+    juce::AudioBuffer<float> nativeAudio(2,257);juce::MidiBuffer nativeMidi;
+    for(int i=0;i<12;++i){nativeAudio.clear();p.processBlock(nativeAudio,nativeMidi);p.serviceNative();}
+    require(p.nativeDelayModel(0)==1,"Rack Modern model activation");
+    p.editNativeControl(0,skl::DelayNative,skl::nDelayModel,1.f);p.serviceNative();
+    for(int i=0;i<12;++i){nativeAudio.clear();p.processBlock(nativeAudio,nativeMidi);p.serviceNative();}
+    require(p.nativeDelayModel(0)==2,"Rack Bank model activation");
+    p.editNativeControl(0,skl::DelayNative,skl::nDelayModel,0.f);p.serviceNative();nativeAudio.clear();p.processBlock(nativeAudio,nativeMidi);require(p.nativeDelayModel(0)==0,"Rack Classic model activation");
+    p.clearRack();require(p.addModule(skl::GlitchNative,0),"MIDI Glitch missing");set(p.knobId(0,0),.5f);set(p.knobId(0,5),1.f);set(p.nativeId(0,skl::nGlitchSource),.5f);set(p.nativeId(0,skl::nGlitchTrim),1.f);
+    for(int i=0;i<32;++i)set(p.nativeId(0,skl::nGlitchState+i),0.f);
+    for(int c=0;c<2;++c)for(int i=0;i<257;++i)nativeAudio.setSample(c,i,.2f);
+    nativeMidi.addEvent(juce::MidiMessage::noteOn(1,60,juce::uint8(127)),128);p.processBlock(nativeAudio,nativeMidi);
+    require(std::abs(nativeAudio.getSample(0,64)-.2f)<1e-6f,"MIDI processed before note-on");require(nativeAudio.getSample(0,256)<.19f,"MIDI note-on did not trigger gate");
+#endif
     p.clearRack();require(p.addModule(skl::Tune,0),"Tune missing");
     require(std::abs(p.apvts.getRawParameterValue(p.knobId(0,0))->load()-.5f)<1e-6f&&skl::tuneReferenceHz(p.apvts.getRawParameterValue(p.knobId(0,5))->load())==440.f,"Tune defaults");
     // A saved normalized value originally represented 0..200 ms or +/-50 cents.

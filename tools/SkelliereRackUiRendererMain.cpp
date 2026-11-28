@@ -2,6 +2,7 @@
 #include "../Source/PluginProcessor.h"
 #include "../Source/PluginEditor.h"
 #include "../Source/AdvancedPanel.h"
+#include "../Source/NativePanel.h"
 
 #include <SkellCore/HeadlessUIRenderer.h>
 #include <cstdio>
@@ -148,6 +149,20 @@ int main(int argc, char** argv) {
         if(count!=expectedCount)errors.add("Unexpected slot count");return errors;
     };
     const auto output=juce::File::getCurrentWorkingDirectory().getChildFile(juce::String(args.output));
+#if SKELLIERE_NATIVE_IMPORTS
+    if(args.consolidated){
+        processor.clearRack();processor.addModule(skl::DelayNative,0);processor.addModule(skl::GlitchNative,1);
+        auto captureNative=[&](int type,int slot,const char* filename){
+            skl::ui::NativePanel panel(processor,slot,type);
+            if(type==skl::DelayNative){auto* choice=dynamic_cast<juce::ComboBox*>(panel.findChildWithID("native.control.0"));if(!choice)return false;choice->setSelectedId(3,juce::sendNotificationSync);processor.serviceNative();
+                juce::AudioBuffer<float> b(2,512);juce::MidiBuffer midi;for(int i=0;i<12;++i){b.clear();processor.processBlock(b,midi);processor.serviceNative();}if(processor.nativeDelayModel(slot)!=2)return false;}
+            else {auto* step=dynamic_cast<juce::TextButton*>(panel.findChildWithID("native.step.7"));auto* probability=dynamic_cast<juce::Slider*>(panel.findChildWithID("native.probability"));if(!step||!step->onClick||!probability)return false;step->onClick();probability->setValue(65,juce::sendNotificationSync);if(std::abs(processor.apvts.getRawParameterValue(SkellierProcessor::nativeId(slot,skl::nGlitchProbability+7))->load()-.65f)>1e-6f)return false;}
+            // Capture the actual component attached to the real processor.
+            auto img=panel.createComponentSnapshot(panel.getLocalBounds(),true,1.5f);return skellcore::ui::headless::writePng(img,output.getChildFile(filename));};
+        if(output.createDirectory().failed()||!captureNative(skl::DelayNative,0,"native-delay.png")||!captureNative(skl::GlitchNative,1,"native-glitch.png")){std::fprintf(stderr,"Native panel binding or capture failed\n");return 1;}
+        std::puts("Native Delay and Glitch control bindings/captures passed");
+    }
+#endif
     options.configure({"approved_studio",1260,870,8,1});
     skl::ui::SlotComponent* tape=nullptr;
     visit(editor,[&](juce::Component& c){if(auto* slot=dynamic_cast<skl::ui::SlotComponent*>(&c))if(slot->currentType()==skl::Delay)tape=slot;});

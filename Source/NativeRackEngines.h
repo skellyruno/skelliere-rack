@@ -1,5 +1,6 @@
 #pragma once
 #include "Dsp.h"
+#include "NativeControlSpec.h"
 #if SKELLIERE_NATIVE_IMPORTS
 #include <FlangDSP.h>
 #include <NativeChorus/core/ChorusFx.h>
@@ -12,6 +13,8 @@
 #include <dsp/GateSequencer.h>
 #include <dsp/GateShaper.h>
 #include <dsp/Crossfader.h>
+#include "NativeDelayModels.h"
+#include "../research/NativeGlitchPattern.h"
 namespace skl {
 inline float importedControl(int t,int i,const float* k) noexcept {
     return std::isfinite(k[i])?std::clamp(k[i],0.f,1.f):defaultNorm(t,i);
@@ -77,65 +80,87 @@ inline SKELLdelay::Delay2State skellayRackState(const float* p) noexcept {
 }
 class NativeDelayRack final:public ModuleBase {
 public:
-    void prepare(double sr,int,int) override {
+    void setBudget(std::shared_ptr<native_delay::RackBudget> b){budget=std::move(b);}
+    void prepare(double sr,int block,int) override {
         rate=sr;engine.reset();if(!std::isfinite(sr)||sr<32000||sr>192000||std::abs(sr-std::round(sr))>1.e-6)return;
+        if(!budget)budget=std::make_shared<native_delay::RackBudget>();
         float p[6]{};for(int i=0;i<6;++i)p[i]=defaultNorm(DelayNative,i);
-        state=skellayRackState(p);engine=std::make_unique<SKELLdelay::Delay2Engine>(state,rate,tempo,1,true);engine->reserve(30.);reset();
+        state=skellayRackState(p);engine=std::make_unique<SKELLdelay::Delay2Engine>(state,rate,tempo,1,true);engine->reserve(30.);
+        advanced.prepare(int(sr),block,budget);for(auto& x:scratch)x.resize(size_t(advanced.maxBlock()));reset();
     }
-    void reset() override {seeded=false;wet=0;if(engine)engine->restart(state,tempo,true);}
-    void setTempo(double bpm) noexcept override {tempo=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);}
+    void reset() override {seeded=false;wet=0;activeModel=-1;visibleModel.store(-1);last={};held={};fade=1;advanced.invalidate();if(engine)engine->restart(state,tempo,true);}
+    void setTempo(double bpm) noexcept override {tempo=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);serviceTempo.store(tempo,std::memory_order_relaxed);}
+    void setExtended(const NativeValues& v) noexcept {ext=v;}
+    // One message-thread producer. A budget rejection keeps the current model.
+    bool service(const NativeValues& v,const float* knobs,bool selected){
+        if(!engine)return false;
+        float p[6]{};for(int i=0;i<6;++i)p[i]=importedControl(DelayNative,i,knobs);
+        auto requested=native_delay::selection(selected?int(nativeReal(nDelayModel,v[nDelayModel])):0,int(nativeReal(nDelayBanks,v[nDelayBanks])),int(std::lround(p[4]*2)));
+        if(requested.model==0){requested.banks=2;requested.route=0;}
+        // Modern has native true stereo and ping-pong, but not a swapped-delay type.
+        if(requested.model==1){requested.banks=2;requested.route=requested.route==2?2:0;}
+        try{const bool ok=advanced.service(requested,skellayRackState(p).v,serviceTempo.load(std::memory_order_relaxed));status.store(ok?0:1);return ok;}catch(...){status.store(1);return false;}
+    }
+    int renderedModel()const noexcept{return visibleModel.load(std::memory_order_relaxed);}
+    bool modelBlocked()const noexcept{return status.load(std::memory_order_relaxed)!=0;}
+    void leaveSlot() noexcept {advanced.invalidate();draining=true;drainFrames=0;visibleModel.store(-1);}
+    void drain(int n) noexcept {
+        if(!draining||!engine)return;
+        skellay::LiveControls c;c.model=skellay::Model::classic;std::copy(state.v.begin(),state.v.end(),c.values.begin());
+        for(int i=0;i<n;i+=advanced.maxBlock()){const int count=std::min(advanced.maxBlock(),n-i);for(auto& x:scratch)std::fill_n(x.data(),count,0.f);advanced.process(scratch[0].data(),scratch[1].data(),count,tempo,c);}
+        if(advanced.model()==0){drainFrames+=n;if(drainFrames>int(rate*.02)+2*advanced.maxBlock())draining=false;}else drainFrames=0;
+    }
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
         if(!engine||!b.getNumChannels()||!b.getNumSamples())return;
+        draining=false;
         float p[6]{};for(int j=0;j<6;++j)p[j]=importedControl(DelayNative,j,k);
         const auto next=skellayRackState(p);if(!seeded){engine->restart(next,tempo,true);state=next;previousTempo=tempo;wet=active?p[5]:0;seeded=true;}
         if(state.v!=next.v||previousTempo!=tempo){engine->set(next,tempo);state=next;previousTempo=tempo;}
         auto* l=b.getWritePointer(0);auto* r=b.getNumChannels()>1?b.getWritePointer(1):nullptr;const float step=float(1/(.005*rate));
-        for(int i=0;i<b.getNumSamples();++i){const float x=sane(l[i]),y=r?sane(r[i]):x;float a=x,c=y;engine->process(&a,&c,1);wet+=std::clamp((active?p[5]:0.f)-wet,-step,step);l[i]=wet==0?x:sane(x+wet*(sane(a)-x));if(r)r[i]=wet==0?y:sane(y+wet*(sane(c)-y));}
+        const int want=int(nativeReal(nDelayModel,ext[nDelayModel]));const float trim=std::pow(10.f,nativeReal(nDelayTrim,ext[nDelayTrim])/20.f);
+        skellay::LiveControls controls;controls.model=skellay::Model::classic;std::copy(next.v.begin(),next.v.end(),controls.values.begin());
+        for(int start=0;start<b.getNumSamples();start+=advanced.maxBlock()){
+            const int n=std::min(advanced.maxBlock(),b.getNumSamples()-start);auto* a=scratch[0].data();auto* c=scratch[1].data();
+            for(int i=0;i<n;++i){a[i]=sane(l[start+i]);c[i]=r?sane(r[start+i]):a[i];}
+            // Consume pending/retired engines even when Classic is selected.
+            const bool ok=advanced.process(a,c,n,tempo,controls);const int actual=advanced.model();
+            const int mode=want==0?0:ok&&actual>0?actual:-1;
+            if(mode!=activeModel){held=last;fade=activeModel<0?1.f:0.f;activeModel=mode;}
+            visibleModel.store(mode,std::memory_order_relaxed);
+            for(int i=0;i<n;++i){const float x=sane(l[start+i]),y=r?sane(r[start+i]):x;float oldL=x,oldR=y;engine->process(&oldL,&oldR,1);
+                const bool swap=mode==1&&next.v[6]==1;
+                const float vL=mode==0?oldL:mode>0?(swap?c[i]:a[i]):x,vR=mode==0?oldR:mode>0?(swap?a[i]:c[i]):y;
+                fade=std::min(1.f,fade+step);last={held[0]+fade*(vL-held[0]),held[1]+fade*(vR-held[1])};
+                wet+=std::clamp((active?p[5]:0.f)-wet,-step,step);const float w=mode<0?0.f:wet;
+                l[start+i]=w==0?x:sane(x+w*(last[0]*trim-x));if(r)r[start+i]=w==0?y:sane(y+w*(last[1]*trim-y));}
+        }
     }
 private:
-    double rate=48000,tempo=120,previousTempo=120;float wet=0;bool seeded=false;SKELLdelay::Delay2State state{};std::unique_ptr<SKELLdelay::Delay2Engine> engine;
+    double rate=48000,tempo=120,previousTempo=120;float wet=0,fade=1;bool seeded=false;SKELLdelay::Delay2State state{};std::unique_ptr<SKELLdelay::Delay2Engine> engine;
+    NativeValues ext=nativeDefaults();std::shared_ptr<native_delay::RackBudget> budget;native_delay::PreparedSlot advanced;
+    std::array<std::vector<float>,2> scratch;std::atomic<double> serviceTempo{120};std::atomic<int> visibleModel{-1},status{0};int activeModel=-1;std::array<float,2> last{},held{};bool draining=false;int drainFrames=0;
 };
-// Original Glitch kernels, with an AUTO/full-band/zero-PDC rack control layer.
-// MIDI/sidechain, aligned PDC and full step editor are not exposed here.
+// Original gate/slice/reverse/trigger kernels from the tested candidate.
 class NativeGlitchRack final:public ModuleBase {
 public:
-    void prepare(double sr,int,int channels) override {rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,192000.);capture.prepare(std::clamp(channels,1,2),int(rate*8)+16);clock.prepare(rate);for(auto& s:shapers)s.prepare(rate);reset();}
-    void reset() override {capture.clear();clock.prepare(rate);for(auto& s:shapers)s.reset();lastSlice=INT64_MIN;lastWet={};heldWet={};seeded=false;wetMix=0;hostValid=false;haveEnd=false;}
+    void prepare(double sr,int,int channels) override {rate=std::clamp(std::isfinite(sr)?sr:48000.,8000.,192000.);pattern.prepare(rate,channels);reset();}
+    void reset() override {pattern.reset();host=false;}
     void setTempo(double bpm) noexcept override {tempo=std::clamp(std::isfinite(bpm)?bpm:120.,30.,300.);}
-    void setTransport(double bpm,double ppq,int num,int den,bool valid) noexcept override {
-        setTempo(bpm);const bool next=valid&&std::isfinite(ppq)&&std::abs(ppq)<1.e10;
-        if(next&&(!hostValid||(haveEnd&&std::abs(ppq-expectedEnd)>2.*tempo/(60.*rate)))){
-            capture.clear();clock.resetTracking();lastSlice=INT64_MIN;heldWet={};lastWet={};
-        }
-        hostPpq=ppq;numerator=num;denominator=den;hostValid=next;
-    }
+    void setTransport(double bpm,double pos,int num,int den,bool valid) noexcept override {setTempo(bpm);ppq=pos;numerator=num;denominator=den;host=valid;}
+    void setExtended(const NativeValues& v) noexcept {ext=v;}
+    void trigger(float velocity=1.f,int note=60) noexcept {pattern.trigger(velocity,note);}
     void process(juce::AudioBuffer<float>& b,const float* k,bool active) override {
-        const int ch=std::min(2,b.getNumChannels()),n=b.getNumSamples();if(ch<1||n<=0)return;
+        if(!b.getNumChannels()||!b.getNumSamples())return;
         float p[6]{};for(int j=0;j<6;++j)p[j]=importedControl(GlitchNative,j,k);
-        const int mode=int(std::lround(p[0]*2)),division=int(std::lround(p[1]*5));
-        const float closed=p[2]>=.999f?0.f:std::pow(10.f,-96.f*p[2]/20.f);
-        const float smooth=p[3],pitch=(p[4]*2.f-1.f)*12.f;const auto pc=skell::dsp::Reverser::makePitchContext(pitch,int(rate));
-        clock.setHost(tempo,numerator,denominator,hostPpq,hostValid,true,division,500);
-        for(int j=0;j<16;++j)sequencer.setStep(j,j%4==0?2:(j%2?0:1),100.f);
-        for(auto& s:shapers)s.setTimes(3.f,15.f);
-        if(!seeded){wetMix=active?p[5]:0;seeded=true;}
-        auto* l=b.getWritePointer(0);auto* r=ch==2?b.getWritePointer(1):nullptr;const float fade=float(1/(.005*rate));
-        for(int i=0;i<n;++i){
-            auto pos=clock.tick(i);if(pos.boundary){const bool jump=lastSlice!=INT64_MIN&&pos.sliceIndex!=lastSlice+1;heldWet=jump?std::array<float,2>{}:lastWet;capture.onBoundary();if(jump)capture.clear();lastSlice=pos.sliceIndex;}
-            const double cycle=pos.beat/4.;const auto step=sequencer.stepAt(cycle-std::floor(cycle),16,0.);const auto decision=sequencer.evaluate(step,int64_t(std::floor(cycle)),1,closed);
-            float dry[2]={sane(l[i]),r?sane(r[i]):sane(l[i])};const bool needsReverse=mode!=1||decision.reverse;
-            const double transition=std::min(double(smooth*.025f*rate),clock.getSamplesPerSlice()*.5);
-            const double transitionPhase=transition>0?pos.phase*clock.getSamplesPerSlice()/transition:1.;
-            wetMix+=std::clamp((active?p[5]:0.f)-wetMix,-fade,fade);auto mix=skell::dsp::Crossfader::unityGains(wetMix);
-            for(int c=0;c<ch;++c){const float shaped=shapers[c].next(decision.gain,1);const float liveGate=(mode==1||mode==2)?dry[c]*shaped:dry[c];float wet=mode==1?liveGate:dry[c];
-                if(needsReverse&&capture.length()>0){wet=reverser.samplePrepared(capture,c,pos.phase,0,pos.sliceIndex,pc);if(mode==2||mode==1)wet*=shaped;if(transitionPhase<1.)wet=skell::dsp::Crossfader::spliceHold(heldWet[c],wet,float(transitionPhase));}else if(mode!=1)wet=liveGate;
-                lastWet[c]=wet;float out=wetMix==0?dry[c]:sane(dry[c]*mix.dry+wet*mix.wet);if(c==0)l[i]=out;else r[i]=out;}
-            capture.write(dry[0],dry[1]);
-        }clock.advance(n);expectedEnd=hostPpq+n*tempo/(60.*rate);haveEnd=hostValid;
+        native_glitch::Settings v;v.mode=int(std::lround(p[0]*2));v.division=int(std::lround(p[1]*5));v.depth=p[2];v.smooth=p[3];v.pitch=(p[4]*2.f-1.f)*12.f;v.mix=p[5];
+        auto real=[&](int i){return nativeReal(i,ext[i]);};
+        v.style=int(real(nGlitchStyle));v.count=int(real(nGlitchCount));v.gateRate=int(real(nGlitchRate));v.chaos=100*real(nGlitchChaos);v.swing=real(nGlitchSwing);v.seed=int(real(nGlitchSeed));v.seedLock=real(nGlitchLock)>.5f;v.source=int(real(nGlitchSource))==2?skell::dsp::TriggerRouter::Manual:int(real(nGlitchSource));v.wetTrimDb=real(nGlitchTrim);
+        for(int i=0;i<32;++i){v.states[i]=int(real(nGlitchState+i));v.probability[i]=100*real(nGlitchProbability+i);}
+        pattern.process(b.getWritePointer(0),b.getNumChannels()>1?b.getWritePointer(1):nullptr,b.getNumSamples(),v,tempo,ppq,numerator,denominator,host,nullptr,active);
+        if(host)ppq+=b.getNumSamples()*tempo/(60.*rate);
     }
 private:
-    double rate=48000,tempo=120,hostPpq=0,expectedEnd=0;bool haveEnd=false;int numerator=4,denominator=4;bool hostValid=false,seeded=false;float wetMix=0;int64_t lastSlice=INT64_MIN;
-    std::array<float,2> lastWet{},heldWet{};skell::dsp::TempoClock clock;skell::dsp::SliceCapture capture;skell::dsp::Reverser reverser;skell::dsp::GateSequencer sequencer;std::array<skell::dsp::GateShaper,2> shapers;
+    native_glitch::PatternEngine pattern;NativeValues ext=nativeDefaults();double rate=48000,tempo=120,ppq=0;int numerator=4,denominator=4;bool host=false;
 };
 }
 #endif

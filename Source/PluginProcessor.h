@@ -1,19 +1,20 @@
 #pragma once
 #include <JuceHeader.h>
 #include "RackModuleFactory.h"
+#include <mutex>
 class SkellierProcessor final : public juce::AudioProcessor,
-                                private juce::AudioProcessorValueTreeState::Listener {
+                                private juce::AudioProcessorValueTreeState::Listener, private juce::Timer {
 public:
     SkellierProcessor();
     ~SkellierProcessor() override;
     void prepareToPlay(double,int) override;
-    void releaseResources() override {}
+    void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
     void processBlock(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return "Skelliere Rack"; }
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override;
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 6; }
@@ -35,6 +36,12 @@ public:
     static juce::String sslId(int s,int k) { return "s"+juce::String(s)+"_ssl_"+skl::sslControl(k).id; }
     static juce::String advancedId(int s,int k) { return "s"+juce::String(s)+"_adv_"+juce::String(k); }
     static juce::String humanizeId(int s) { return "s"+juce::String(s)+"_tune_humanize"; }
+    static juce::String nativeId(int s,int k) { return "s"+juce::String(s)+"_native_"+juce::String(k); }
+    void editNativeControl(int slot,int effect,int control,float value);
+    void triggerNativeGlitch(int slot) noexcept;
+    int nativeDelayModel(int slot) const noexcept;
+    bool nativeDelayBlocked(int slot) const noexcept;
+    void serviceNative(); // non-audio thread; also used by real editor regression harness
     float advancedBandReduction(int slot,int band) const noexcept;
     float advancedGraphTop() const noexcept {return graphTop.load(std::memory_order_relaxed); }
     std::array<std::atomic<int>,skl::kNumSlots> bandSolo{{-1,-1,-1,-1,-1,-1,-1,-1}};
@@ -72,7 +79,14 @@ public:
     int rackLatency() const;
 private:
     static std::unique_ptr<skl::ModuleBase> makeModule(int t) { return skl::makeRackModule(t); }
-    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; std::array<float,skl::kSslExtraCount> ssl=skl::sslDefaults(); skl::AdvancedValues advanced=skl::advancedDefaults(); float humanize=0.f; };
+    struct SlotValues { int type=0; int artwork=-1; bool on=true; float k[skl::kMaxKnobs]={.5f,.5f,.5f,.5f,.5f,.5f}; std::array<float,skl::kSslExtraCount> ssl=skl::sslDefaults(); skl::AdvancedValues advanced=skl::advancedDefaults(); float humanize=0.f; skl::NativeValues native=skl::nativeDefaults(); };
+    void timerCallback() override {serviceNative();}
+    void serviceNativeLocked();
+    std::mutex nativeMutex; // prepare/release and non-RT producer only
+    std::array<std::atomic<bool>,skl::kNumSlots> glitchTrigger{};
+    std::array<std::atomic<int>,skl::kNumSlots> nativeModel{{-1,-1,-1,-1,-1,-1,-1,-1}};
+    std::array<std::atomic<bool>,skl::kNumSlots> nativeBlocked{};
+    std::atomic<float>* nativeRaw[skl::kNumSlots][skl::kNativeControlCount]={};
     void parameterChanged(const juce::String&,float) override;
     void setParam(const juce::String&,float);
     SlotValues readSlot(int) const;

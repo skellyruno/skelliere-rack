@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "MeterCalibration.h"
 #include "AdvancedPanel.h"
+#include "NativePanel.h"
 #include "IdentityPanels.h"
 
 using namespace skl;
@@ -292,7 +293,7 @@ SlotComponent::SlotComponent(SkellierProcessor& p, int i) : proc(p), index(i) {
     addChildComponent(modulePresetButton);modulePresetButton.setTooltip("Apply a starting-point preset to this effect only");modulePresetButton.getProperties().set("plain",true);modulePresetButton.getProperties().set("quiet",true);
     modulePresetButton.onClick=[this]{const int originalType=type;const auto names=proc.modulePresetNames(type);if(names.isEmpty())return;juce::PopupMenu menu;for(int j=0;j<names.size();++j)menu.addItem(j+1,names[j]);juce::Component::SafePointer<SlotComponent> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&modulePresetButton).withMinimumWidth(140),[safe,originalType](int choice){if(safe!=nullptr&&choice>0&&safe->type==originalType&&safe->proc.applyModulePreset(safe->index,originalType,choice-1))safe->repaint();});};
     addAndMakeVisible(artButton);addChildComponent(advancedButton);advancedButton.setTooltip("Open advanced DSP engine and controls");advancedButton.getProperties().set("plain",true);
-    advancedButton.onClick=[this]{if(!hasAdvancedEngine(type))return;auto* parent=findParentComponentOfClass<juce::AudioProcessorEditor>();if(!parent)return;juce::CallOutBox::launchAsynchronously(std::make_unique<AdvancedPanel>(proc,index,type),parent->getLocalArea(this,advancedButton.getBounds()),parent);};
+    advancedButton.onClick=[this]{if(!hasAdvancedEngine(type)&&!hasNativePanel(type))return;auto* parent=findParentComponentOfClass<juce::AudioProcessorEditor>();if(!parent)return;std::unique_ptr<juce::Component> panel;if(hasNativePanel(type))panel=std::make_unique<NativePanel>(proc,index,type);else panel=std::make_unique<AdvancedPanel>(proc,index,type);juce::CallOutBox::launchAsynchronously(std::move(panel),parent->getLocalArea(this,advancedButton.getBounds()),parent);};
     artButton.setTooltip("Cycle original Skell metal finishes");
     artButton.onClick=[this]{setArtworkChoice((proc.artworkChoices[static_cast<size_t>(index)].load()+1)%4);};
     powerAtt = std::make_unique<juce::ButtonParameterAttachment>(*proc.apvts.getParameter(SkellierProcessor::onId(i)), powerBtn);
@@ -314,7 +315,7 @@ void SlotComponent::rebuild() {
     type = proc.slotType(index);
     cells.clear();tuneHover=-1;
     const bool filled = type != Empty;
-    artButton.setVisible(filled&&editing&&type!=FastComp);advancedButton.setVisible(hasAdvancedEngine(type));modulePresetButton.setVisible(filled&&!proc.modulePresetNames(type).isEmpty());
+    artButton.setVisible(filled&&editing&&type!=FastComp);advancedButton.setVisible(hasAdvancedEngine(type)||hasNativePanel(type));if(hasNativePanel(type))advancedButton.setButtonText(type==GlitchNative?"PATTERN":"ENGINE");modulePresetButton.setVisible(filled&&!proc.modulePresetNames(type).isEmpty());
     appliedArtworkChoice = -1; panelCache={};
     powerBtn.setVisible(filled);
     for(auto* c:{&leftBtn,&rightBtn,&soloBtn})c->setVisible(filled&&editing);removeBtn.setVisible(filled);

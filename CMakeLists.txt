@@ -11,6 +11,7 @@ else()
 endif()
 
 add_subdirectory(SkellCore)
+option(SKELLIERE_NATIVE_IMPORTS "Enable owner-supplied native Flang, Skellay and Glitch engines" OFF)
 
 set(SKELLIERE_FORMATS VST3 Standalone)
 if(APPLE)
@@ -25,7 +26,7 @@ juce_add_plugin(SkellierRack
   FORMATS ${SKELLIERE_FORMATS}
   PRODUCT_NAME "Skelliere Rack"
   IS_SYNTH FALSE
-  NEEDS_MIDI_INPUT FALSE
+  NEEDS_MIDI_INPUT ${SKELLIERE_NATIVE_IMPORTS}
   NEEDS_MIDI_OUTPUT FALSE
   IS_MIDI_EFFECT FALSE
   COPY_PLUGIN_AFTER_BUILD FALSE)
@@ -72,11 +73,18 @@ if(SKELLIERE_BUILD_UI_RENDERER)
 endif()
 
 
-option(SKELLIERE_NATIVE_IMPORTS "Enable owner-supplied native Flang, Skellay and Glitch engines" OFF)
 set(SKELLIERE_NATIVE_SOURCE_ROOT "" CACHE PATH "Owner-source directory containing flang, delay and glitch trees")
 if(SKELLIERE_NATIVE_IMPORTS)
   set(_native "${SKELLIERE_NATIVE_SOURCE_ROOT}")
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tools/native_imports.sha256.json" _pins)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/tools/native_parity_candidates.sha256.json" _extra_pins)
+  string(JSON _extra_count LENGTH "${_extra_pins}")
+  math(EXPR _extra_last "${_extra_count}-1")
+  foreach(_i RANGE ${_extra_last})
+    string(JSON _file MEMBER "${_extra_pins}" ${_i})
+    string(JSON _expected GET "${_extra_pins}" "${_file}")
+    string(JSON _pins SET "${_pins}" "${_file}" "\"${_expected}\"")
+  endforeach()
   string(JSON _count LENGTH "${_pins}")
   math(EXPR _last "${_count}-1")
   foreach(_i RANGE ${_last})
@@ -90,7 +98,7 @@ if(SKELLIERE_NATIVE_IMPORTS)
       message(FATAL_ERROR "Owner-source hash mismatch: ${_file}; use the tested snapshot")
     endif()
   endforeach()
-  target_sources(SkellierRack PRIVATE "${_native}/flang/NativeChorus/ChorusFx.cpp" "${_native}/flang/NativeFlangus/Flangus.cpp" "${_native}/delay/native/Delay.cpp")
+  target_sources(SkellierRack PRIVATE "${_native}/flang/NativeChorus/ChorusFx.cpp" "${_native}/flang/NativeFlangus/Flangus.cpp" "${_native}/delay/native/Delay.cpp" "${_native}/delay/native/SkellayEngine.cpp" "${_native}/delay/native/FruityDelayBank.cpp")
   # Limit the feature define to rack translation units so the pinned JUCE
   # objects are reused and the renderer sees exactly the same catalog.
   foreach(_tu Source/PluginProcessor.cpp Source/PluginEditor.cpp tools/SkelliereRackUiRendererMain.cpp)
